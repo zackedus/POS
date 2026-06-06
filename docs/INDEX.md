@@ -1,6 +1,6 @@
 # Indeks Dokumentasi — Barokah Core POS
 
-> 📚 **Indeks master** · Maintainer: **Fitri Nugroho** · Terakhir diperbarui: **6 Juni 2026** (Sprint 16 **CLOSED** — delivery checkout + Midtrans mock UAT)
+> 📚 **Indeks master** · Maintainer: **Fitri Nugroho** · Terakhir diperbarui: **6 Juni 2026** (Business Logic Audit Fase 1–4 + Sprint 16 **CLOSED**)
 
 ---
 
@@ -109,7 +109,9 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 | Judul | Path | Deskripsi | Audience | Update | Tags |
 |-------|------|-----------|----------|--------|------|
 | Keuangan & Ekonomi POS | [domain/FINANCE-ECONOMICS-POS.md](./domain/FINANCE-ECONOMICS-POS.md) | Domain keuangan retail SMB Indonesia: margin, arus kas, KPI, pajak bisnis | Rina, Dewi, Budi, Eko | 2026-06-01 | `#domain` `#finance` `#mvp` |
-| Business Logic Audit 2026 | [domain/BUSINESS-LOGIC-AUDIT-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-2026-06.md) | Audit bisnis Phase 7–10 — ALL PASS Fase 1 MVP | Rina, Eko, Citra | 2026-06-06 | `#domain` `#audit` `#mvp` |
+| Business Logic Audit Fase 1–4 | [domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md) | Audit komprehensif Fase 1 MVP, Fase 2 Growth, Fase 3 Enterprise, Web Completion Phase 4 | Pak Zaki, Rina, Eko, Citra, Budi | 2026-06-06 | `#domain` `#audit` `#mvp` `#fase2` `#roadmap` |
+| Business Logic Audit 2026 | [domain/BUSINESS-LOGIC-AUDIT-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-2026-06.md) | Audit bisnis Phase 7–10 — regresi edge cases ALL PASS | Rina, Eko, Citra | 2026-06-06 | `#domain` `#audit` `#mvp` |
+| Business Logic Audit Fase 2 | [domain/BUSINESS-LOGIC-AUDIT-FASE2-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-FASE2-2026-06.md) | Audit omnichannel: online PAID deduct, offline idempotent, promo anti-stack | Rina, Eko, Citra | 2026-06-07 | `#domain` `#audit` `#fase2` `#omnichannel` |
 
 ### Rapat
 

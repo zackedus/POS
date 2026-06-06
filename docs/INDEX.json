@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "maintainer": "Fitri Nugroho",
   "lastUpdated": "2026-06-06",
-  "notes": "Web Completion Phase 4 DONE — promo POS, storefront orders, auth hardening, expired orders; lihat WEB-COMPLETION-PROGRESS.md",
+  "notes": "Business Logic Audit Fase 1–4 — lihat BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md; Web Completion Phase 4 DONE",
   "teamSize": 11,
   "indexPath": "docs/INDEX.md",
   "documents": [
@@ -85,6 +85,30 @@
       "audience": ["Rina", "Dewi", "Budi", "Eko"],
       "tags": ["domain", "finance", "mvp"],
       "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Business Logic Audit Fase 1–4",
+      "path": "docs/domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md",
+      "category": "domain",
+      "audience": ["Pak Zaki", "Rina", "Eko", "Citra", "Budi"],
+      "tags": ["domain", "audit", "mvp", "fase2", "roadmap"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "Business Logic Audit 2026 (Phase 7–10)",
+      "path": "docs/domain/BUSINESS-LOGIC-AUDIT-2026-06.md",
+      "category": "domain",
+      "audience": ["Rina", "Eko", "Citra"],
+      "tags": ["domain", "audit", "mvp"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "Business Logic Audit Fase 2",
+      "path": "docs/domain/BUSINESS-LOGIC-AUDIT-FASE2-2026-06.md",
+      "category": "domain",
+      "audience": ["Rina", "Eko", "Citra"],
+      "tags": ["domain", "audit", "fase2", "omnichannel"],
+      "lastUpdated": "2026-06-07"
     },
     {
       "title": "Rapat Kickoff Tim — 1 Juni 2026",
