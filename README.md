@@ -2,6 +2,7 @@
 
 Professional Point of Sale system — Web + Mobile.
 
+**Repository:** [github.com/zackedus/POS](https://github.com/zackedus/POS)  
 **Perusahaan:** Barokah Core  
 **Pemilik Proyek:** Pak Zaki  
 **CEO:** Budi Santoso  
@@ -21,13 +22,39 @@ cp .env.example .env
 # 3. Start database
 npm run docker:up
 
-# 4. Database migrate
+# 4. Database migrate & seed
 npm run db:generate
 npm run db:migrate
+npm run db:seed
 
 # 5. Run all apps
 npm run dev
 ```
+
+### Database migrate (production / CI)
+
+```bash
+npm run db:migrate:deploy
+npm run db:seed   # optional — dev/demo data only
+```
+
+### Troubleshooting migration P3006 (ghost migration)
+
+Jika `prisma migrate dev` gagal dengan error `Migration 20260605185140_new` dan kolom `is_purchase_unit` tidak ada:
+
+1. Hapus folder lokal jika masih ada: `packages/database/prisma/migrations/20260605185140_new`
+2. Bersihkan entri hantu di database:
+   ```sql
+   DELETE FROM "_prisma_migrations" WHERE migration_name = '20260605185140_new';
+   ```
+3. Reset dev DB (menghapus semua data) lalu terapkan ulang rantai migrasi yang sudah diperbaiki:
+   ```bash
+   cd packages/database
+   npx prisma migrate reset --force
+   npm run seed --workspace=@barokah/database
+   ```
+
+Rantai migrasi saat ini: index `is_purchase_unit` digabung ke `20260606140000_multi_unit_conversion`; `online_order_expired_status` dipindah ke timestamp `20260606140200` agar tidak bentrok urutan.
 
 | App | URL | Port |
 |-----|-----|------|

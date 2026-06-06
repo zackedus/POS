@@ -352,15 +352,24 @@ export function ProductFormWizard({
     });
   }
 
-  function ensureMultiUnitDefaults() {
-    if (form.productType !== ProductType.MULTI_UNIT || !selectedUnit) return;
+  const prevCategoryIdRef = useRef(form.categoryId);
+
+  function applyMultiUnitDefaults(forceRefresh = false) {
+    if (form.productType !== ProductType.MULTI_UNIT) return;
+
+    const suggestedBase = suggestBaseUnitSymbol(categoryName);
+    const baseUnit = suggestedBase
+      ? units.find((u) => u.symbol.toLowerCase() === suggestedBase)
+      : units.find((u) => u.id === form.unitId);
+    if (!baseUnit) return;
+
     const purchase = form.unitConversions?.find((c) => c.isPurchaseUnit);
-    if (purchase?.unitId) return;
+    if (!forceRefresh && purchase?.unitId && baseUnit.id === form.unitId) return;
 
     const suggestedPurchase = suggestPurchaseUnitSymbol(categoryName);
     const purchaseUnit = suggestedPurchase
       ? units.find((u) => u.symbol.toLowerCase() === suggestedPurchase)
-      : units.find((u) => u.id !== form.unitId);
+      : units.find((u) => u.id !== baseUnit.id);
 
     if (!purchaseUnit) return;
 
@@ -370,17 +379,36 @@ export function ProductFormWizard({
         suggestPurchaseConversionToBase(categoryName) ?? DEFAULT_PURCHASE_CONVERSION,
       sellInPurchaseUnit: true,
     };
-    patch({
-      unitConversions: buildUnitConversionsFromMultiUnit(config),
-      orderStep: String(suggestOrderStep(selectedUnit.symbol)),
-      moq: String(suggestOrderStep(selectedUnit.symbol)),
+    onChangeRef.current((prev) => {
+      if (prev.productType !== ProductType.MULTI_UNIT) return prev;
+      const nextConversions = buildUnitConversionsFromMultiUnit(config);
+      const nextOrderStep = String(suggestOrderStep(baseUnit.symbol));
+      const nextMoq = String(suggestOrderStep(baseUnit.symbol));
+      if (
+        !forceRefresh &&
+        prev.unitId === baseUnit.id &&
+        prev.unitConversions?.find((c) => c.isPurchaseUnit)?.unitId &&
+        prev.orderStep === nextOrderStep &&
+        prev.moq === nextMoq
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        unitId: baseUnit.id,
+        unitConversions: nextConversions,
+        orderStep: nextOrderStep,
+        moq: nextMoq,
+      };
     });
   }
 
   useEffect(() => {
-    if (form.productType !== ProductType.MULTI_UNIT || !selectedUnit) return;
-    ensureMultiUnitDefaults();
-  }, [form.productType, form.unitId, selectedUnit?.id, categoryName, units.length]);
+    if (form.productType !== ProductType.MULTI_UNIT) return;
+    const categoryChanged = prevCategoryIdRef.current !== form.categoryId;
+    prevCategoryIdRef.current = form.categoryId;
+    applyMultiUnitDefaults(categoryChanged);
+  }, [form.productType, form.unitId, form.categoryId, categoryName, units.length]);
 
   const multiUnitConfig = parseMultiUnitConfig(form.unitConversions);
   const purchaseUnit = multiUnitConfig.purchaseUnitId

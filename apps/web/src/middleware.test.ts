@@ -50,6 +50,34 @@ describe('middleware', () => {
     expect(res.headers.get('x-middleware-next')).toBe('1');
   });
 
+  it('redirects unauthenticated cashier from /shift to login', () => {
+    const res = middleware(requestFor('/shift'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/login');
+    expect(res.headers.get('location')).toContain('next=%2Fshift');
+  });
+
+  it('redirects cashier away from /master/products', () => {
+    const res = middleware(
+      requestFor('/master/products', {
+        barokah_auth_session: '1',
+        barokah_auth_role: 'CASHIER',
+      }),
+    );
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/pos');
+  });
+
+  it('allows manager on /pos', () => {
+    const res = middleware(
+      requestFor('/pos', {
+        barokah_auth_session: '1',
+        barokah_auth_role: 'MANAGER',
+      }),
+    );
+    expect(res.headers.get('x-middleware-next')).toBe('1');
+  });
+
   it('allows authenticated user when httpOnly access cookie present', () => {
     const res = middleware(
       requestFor('/pos', {

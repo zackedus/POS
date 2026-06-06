@@ -49,6 +49,39 @@ export async function validatePromoAtCheckout(input: {
   return json.data;
 }
 
+export function formatPromoTargetingLabel(promo: PromoRuleView): string {
+  if (promo.applyTo === 'CATEGORY' && promo.categoryName) {
+    return `Kategori: ${promo.categoryName}`;
+  }
+  if (promo.applyTo === 'PRODUCT' && promo.productName) {
+    return `Produk: ${promo.productName}`;
+  }
+  if (promo.applyTo === 'ALL') {
+    return 'Semua produk';
+  }
+  return 'Target khusus';
+}
+
+export function isPromoApplicableToCart(
+  promo: PromoRuleView,
+  lines: PromoCartLine[],
+): boolean {
+  const rule: PromoRuleInput = {
+    id: promo.id,
+    name: promo.name,
+    type: promo.type,
+    value: promo.value,
+    applyTo: promo.applyTo,
+    categoryId: promo.categoryId,
+    productId: promo.productId,
+    minPurchase: promo.minPurchase,
+    isActive: promo.isActive,
+    startsAt: promo.startsAt,
+    endsAt: promo.endsAt,
+  };
+  return calculatePromoDiscount(rule, lines) != null;
+}
+
 export function previewPromoLocally(
   promos: PromoRuleView[],
   lines: PromoCartLine[],

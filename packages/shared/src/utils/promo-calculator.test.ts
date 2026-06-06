@@ -53,6 +53,15 @@ test('promo-calculator: inactive promo rejected', () => {
   assert.equal(isPromoActive(baseRule({ isActive: false })), false);
 });
 
+test('promo-calculator: product-targeted promo ignores other lines', () => {
+  const result = calculatePromoDiscount(
+    baseRule({ type: 'FIXED_AMOUNT', value: 25_000, applyTo: 'PRODUCT', productId: 'p2' }),
+    lines,
+  );
+  assert.ok(result);
+  assert.equal(result.discountAmount, 25_000);
+});
+
 test('promo-calculator: pickBestPromo chooses highest discount', () => {
   const rules = [
     baseRule({ id: 'a', value: 5 }),

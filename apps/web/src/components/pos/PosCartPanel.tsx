@@ -9,6 +9,11 @@ import { ReceiptPanel } from '@/components/pos/ReceiptPanel';
 import { PosAccordionSection } from '@/components/pos/PosAccordionSection';
 import type { CartItem, HeldTransactionSummary, PaymentMode, ProductGridItem } from './pos-types';
 
+import {
+  formatPromoTargetingLabel,
+  isPromoApplicableToCart,
+  type PromoCartLine,
+} from '@/lib/promo-checkout-api';
 import type { PromoRuleView } from '@/lib/promotions-api';
 
 type SplitMethod = 'CASH' | 'TRANSFER' | 'QRIS' | 'EWALLET' | 'CARD';
@@ -41,6 +46,7 @@ export interface PosCartPanelProps {
   discountAmount: number;
   total: number;
   activePromos: PromoRuleView[];
+  promoCartLines?: PromoCartLine[];
   selectedPromoId: string | null;
   onPromoChange: (promoId: string | null) => void;
   appliedPromoName?: string | null;
@@ -100,6 +106,7 @@ export function PosCartPanel({
   discountAmount,
   total,
   activePromos,
+  promoCartLines = [],
   selectedPromoId,
   onPromoChange,
   appliedPromoName,
@@ -371,17 +378,31 @@ export function PosCartPanel({
             }}
           >
             <option value="auto">Otomatis — promo terbaik</option>
-            <option value="">Tanpa promo</option>
-            {activePromos.map((promo) => (
-              <option key={promo.id} value={promo.id}>
-                {promo.name}
-              </option>
-            ))}
+            <option value="none">Tanpa promo</option>
+            {activePromos.map((promo) => {
+              const applicable =
+                promoCartLines.length > 0 && isPromoApplicableToCart(promo, promoCartLines);
+              const target = formatPromoTargetingLabel(promo);
+              return (
+                <option key={promo.id} value={promo.id} disabled={!applicable}>
+                  {applicable ? '✓ ' : '○ '}
+                  {promo.name} ({target})
+                </option>
+              );
+            })}
           </select>
+          {promoCartLines.length > 0 ? (
+            <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+              {activePromos.filter((promo) => isPromoApplicableToCart(promo, promoCartLines)).length}{' '}
+              promo cocok dengan keranjang
+            </span>
+          ) : null}
           {appliedPromoName && discountAmount > 0 ? (
             <span style={{ color: '#166534' }}>
               {appliedPromoName}: −{formatCurrencyIDR(discountAmount)}
             </span>
+          ) : selectedPromoId && selectedPromoId !== 'none' && discountAmount <= 0 ? (
+            <span style={{ color: '#b45309' }}>Promo terpilih belum memenuhi syarat keranjang.</span>
           ) : null}
         </label>
       ) : null}

@@ -72,6 +72,72 @@ test('PromoService: validateWithItems applies percentage discount', async () => 
   assert.equal(result.discountAmount, 20_000);
 });
 
+test('PromoService: validateWithItems applies category-targeted promo only to matching lines', async () => {
+  const prisma = {
+    product: {
+      findMany: async () => [
+        { id: 'p1', categoryId: 'cat-a', price: { toString: () => '100000' } },
+        { id: 'p2', categoryId: 'cat-b', price: { toString: () => '50000' } },
+      ],
+    },
+    promoRule: {
+      findMany: async () => [
+        {
+          id: 'promo-cat',
+          name: 'Diskon Semen',
+          type: PromoType.PERCENTAGE,
+          value: { toString: () => '10' },
+          applyTo: PromoApplyTo.CATEGORY,
+          categoryId: 'cat-a',
+          productId: null,
+          minPurchase: null,
+          isActive: true,
+          startsAt: null,
+          endsAt: null,
+        },
+      ],
+    },
+  };
+  const service = new PromoService(prisma as never);
+  const result = await service.validateWithItems(owner, 'promo-cat', [
+    { productId: 'p1', quantity: 1 },
+    { productId: 'p2', quantity: 1 },
+  ]);
+  assert.equal(result.applicable, true);
+  assert.equal(result.discountAmount, 10_000);
+});
+
+test('PromoService: validateWithItems rejects product promo when product not in cart', async () => {
+  const prisma = {
+    product: {
+      findMany: async () => [
+        { id: 'p2', categoryId: 'cat-b', price: { toString: () => '50000' } },
+      ],
+    },
+    promoRule: {
+      findMany: async () => [
+        {
+          id: 'promo-prod',
+          name: 'Diskon Produk A',
+          type: PromoType.FIXED_AMOUNT,
+          value: { toString: () => '5000' },
+          applyTo: PromoApplyTo.PRODUCT,
+          categoryId: null,
+          productId: 'p1',
+          minPurchase: null,
+          isActive: true,
+          startsAt: null,
+          endsAt: null,
+        },
+      ],
+    },
+  };
+  const service = new PromoService(prisma as never);
+  const result = await service.validateWithItems(owner, 'promo-prod', [{ productId: 'p2', quantity: 2 }]);
+  assert.equal(result.applicable, false);
+  assert.equal(result.discountAmount, 0);
+});
+
 test('PromoService: create percentage promo', async () => {
   let created: unknown;
   const prisma = {

@@ -22,3 +22,6 @@ ADD COLUMN "sell_unit_symbol" TEXT;
 ALTER TABLE "transaction_items"
 ADD CONSTRAINT "transaction_items_sell_unit_id_fkey"
 FOREIGN KEY ("sell_unit_id") REFERENCES "units"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Index for purchase-unit lookup (merged from product_unit_purchase_index)
+CREATE INDEX "product_unit_conversions_tenant_id_product_id_is_purchase_u_idx" ON "product_unit_conversions"("tenant_id", "product_id", "is_purchase_unit");

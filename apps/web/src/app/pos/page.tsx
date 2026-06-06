@@ -306,20 +306,24 @@ export default function PosPage() {
   }
 
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0), [cart]);
+  const promoCartLines = useMemo(
+    () =>
+      cart.map((item) => {
+        const product = products.find((row) => row.id === item.productId);
+        return {
+          productId: item.productId,
+          categoryId: product?.categoryId ?? product?.category?.id ?? null,
+          lineSubtotal: item.price * item.quantity,
+        };
+      }),
+    [cart, products],
+  );
   const promoPreview = useMemo((): PromoValidationResult => {
     if (cart.length === 0 || activePromos.length === 0 || selectedPromoId === 'none') {
       return { applicable: false, discountAmount: 0, subtotalAfter: subtotal, subtotalBefore: subtotal };
     }
-    const lines = cart.map((item) => {
-      const product = products.find((row) => row.id === item.productId);
-      return {
-        productId: item.productId,
-        categoryId: product?.categoryId ?? product?.category?.id ?? null,
-        lineSubtotal: item.price * item.quantity,
-      };
-    });
-    return previewPromoLocally(activePromos, lines, selectedPromoId);
-  }, [cart, products, activePromos, selectedPromoId, subtotal]);
+    return previewPromoLocally(activePromos, promoCartLines, selectedPromoId);
+  }, [cart, activePromos, selectedPromoId, subtotal, promoCartLines]);
   const discountAmount = promoPreview.discountAmount;
   const total = Math.max(0, subtotal - discountAmount);
   const checkoutPromoRuleId =
@@ -1156,6 +1160,7 @@ export default function PosPage() {
           discountAmount={discountAmount}
           total={total}
           activePromos={activePromos}
+          promoCartLines={promoCartLines}
           selectedPromoId={selectedPromoId}
           onPromoChange={setSelectedPromoId}
           appliedPromoName={promoPreview.promoName}

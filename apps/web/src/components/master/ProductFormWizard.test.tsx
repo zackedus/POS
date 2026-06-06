@@ -271,6 +271,42 @@ describe('ProductFormWizard', () => {
     expect(screen.getByDisplayValue('Semen & Mortar')).toBeInTheDocument();
   });
 
+  it('refreshes multi-unit purchase conversion when category changes (AUD-WIZ-01)', () => {
+    const multiCategories = [
+      { id: 'c-besi', name: 'Besi & Baja' },
+      { id: 'c-atap', name: 'Atap & Seng' },
+    ];
+    const extendedUnits = [
+      { id: 'u-kg', name: 'Kilogram', symbol: 'kg' },
+      { id: 'u-dus', name: 'Dus', symbol: 'dus' },
+      { id: 'u-roll', name: 'Roll', symbol: 'roll' },
+      { id: 'u-m', name: 'Meter', symbol: 'm' },
+    ];
+
+    render(<WizardHarness units={extendedUnits} categories={multiCategories} />);
+
+    fillBasicInfo();
+    fireEvent.change(screen.getByDisplayValue('Tanpa kategori'), { target: { value: 'c-besi' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lanjut' }));
+    fireEvent.click(screen.getByRole('radio', { name: /Multi-satuan/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lanjut' }));
+
+    expect(screen.getByDisplayValue('Kilogram (kg)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Lanjut' }));
+    expect(screen.getByText(/Beli: 10 dus/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sebelumnya' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sebelumnya' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sebelumnya' }));
+    fireEvent.change(screen.getByDisplayValue('Besi & Baja'), { target: { value: 'c-atap' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lanjut' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lanjut' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lanjut' }));
+
+    expect(screen.getByText(/Satuan stok:.*Meter \(m\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Beli: 10 roll → \+500 m stok/)).toBeInTheDocument();
+  });
+
   it('preserves fields when category auto-suggests unit after units load', () => {
     function AsyncUnitsHarness() {
       const [form, setForm] = useState(createEmptyWizardForm());

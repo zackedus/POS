@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
-import {
-  AUTH_ACCESS_COOKIE,
-  AUTH_REFRESH_COOKIE,
-  AUTH_ROLE_COOKIE,
-  AUTH_SESSION_COOKIE,
-} from '@/lib/auth-cookies';
+import { AUTH_ROLE_COOKIE, AUTH_SESSION_COOKIE } from '@/lib/auth';
+import { AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from '@/lib/auth-cookies';
 
 export async function POST() {
   const response = NextResponse.json({ success: true, data: { loggedOut: true } });
