@@ -1,0 +1,140 @@
+// =============================================================================
+// DRAFT — Online Orders (Epic J) — NOT APPLIED TO schema.prisma
+// =============================================================================
+// RFC: docs/api/ONLINE-ORDERS-RFC.md
+// Status: PENDING TEAM REVIEW — do NOT run `prisma migrate` from this file alone.
+// Merge into packages/database/prisma/schema.prisma only after Fajar + Eko + Arif sign-off.
+// =============================================================================
+
+// ─── Product extensions (separate migration — catalog web) ─────────────────
+// Add to existing model Product in schema.prisma:
+//
+//   sellOnline           Boolean  @default(false) @map("sell_online")
+//   imageUrl             String?  @map("image_url")
+//   webPlaceholderKey    String?  @map("web_placeholder_key") // tenant generic placeholder
+//   moq                  Int      @default(1)
+//   orderStep            Int      @default(1) @map("order_step")
+//
+// @@index([tenantId, sellOnline, isActive])
+
+// ─── Online Orders ───────────────────────────────────────────────────────────
+
+model OnlineOrder {
+  id                String                  @id @default(uuid())
+  tenantId          String                  @map("tenant_id")
+  outletId          String                  @map("outlet_id")
+  orderNo           String                  @map("order_no") // WEB-YYYYMMDD-####
+  clientRequestId   String                  @map("client_request_id")
+  status            OnlineOrderStatus       @default(NEW)
+  fulfillmentType   OnlineFulfillmentType   @map("fulfillment_type")
+  customerName      String                  @map("customer_name")
+  customerPhone     String                  @map("customer_phone")
+  customerNotes     String?                 @map("customer_notes")
+  subtotal          Decimal                 @db.Decimal(15, 2)
+  tax               Decimal                 @default(0) @db.Decimal(15, 2)
+  shippingFee       Decimal                 @default(0) @map("shipping_fee") @db.Decimal(15, 2)
+  total             Decimal                 @db.Decimal(15, 2)
+  deliveryAddress   Json?                   @map("delivery_address") // P1 delivery
+  expiresAt         DateTime?               @map("expires_at")
+  paidAt            DateTime?               @map("paid_at")
+  completedAt       DateTime?               @map("completed_at")
+  cancelledAt       DateTime?               @map("cancelled_at")
+  cancelReason      String?                 @map("cancel_reason")
+  midtransOrderId   String?                 @map("midtrans_order_id")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  outlet   Outlet              @relation(fields: [outletId], references: [id], onDelete: Restrict)
+  items    OnlineOrderItem[]
+  payments OnlineOrderPayment[]
+
+  @@unique([tenantId, orderNo])
+  @@unique([tenantId, clientRequestId])
+  @@index([tenantId, status, createdAt])
+  @@index([outletId, status, createdAt])
+  @@map("online_orders")
+}
+
+model OnlineOrderItem {
+  id            String  @id @default(uuid())
+  onlineOrderId String  @map("online_order_id")
+  productId     String  @map("product_id")
+  productName   String  @map("product_name")
+  sku           String
+  quantity      Decimal @db.Decimal(15, 3)
+  unitPrice     Decimal @map("unit_price") @db.Decimal(15, 2)
+  subtotal      Decimal @db.Decimal(15, 2)
+
+  onlineOrder OnlineOrder @relation(fields: [onlineOrderId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([onlineOrderId])
+  @@map("online_order_items")
+}
+
+model OnlineOrderPayment {
+  id                    String               @id @default(uuid())
+  onlineOrderId         String               @map("online_order_id")
+  status                OnlinePaymentStatus  @default(PENDING)
+  amount                Decimal              @db.Decimal(15, 2)
+  midtransTransactionId String?              @map("midtrans_transaction_id")
+  paymentType           String?              @map("payment_type") // qris, bank_transfer, gopay, etc.
+  rawNotification       Json?                @map("raw_notification")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
+
+  onlineOrder OnlineOrder @relation(fields: [onlineOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([midtransTransactionId])
+  @@index([onlineOrderId])
+  @@map("online_order_payments")
+}
+
+/// Daily sequence for WEB-YYYYMMDD-#### per tenant (Asia/Jakarta calendar day).
+model OnlineOrderSequence {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  sequenceDate DateTime @map("sequence_date") @db.Date
+  lastValue    Int      @default(0) @map("last_value")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, sequenceDate])
+  @@map("online_order_sequences")
+}
+
+enum OnlineOrderStatus {
+  NEW
+  PENDING_PAYMENT
+  PAID
+  CONFIRMED
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum OnlineFulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+enum OnlinePaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+// ─── Relations to add on existing models (when merged) ─────────────────────
+//
+// Tenant:
+//   onlineOrders         OnlineOrder[]
+//   onlineOrderSequences OnlineOrderSequence[]
+//
+// Outlet:
+//   onlineOrders OnlineOrder[]
+//
+// Product:
+//   onlineOrderItems OnlineOrderItem[]

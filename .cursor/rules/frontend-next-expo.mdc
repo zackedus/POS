@@ -1,0 +1,51 @@
+---
+description: Standar frontend Barokah POS — Next.js 15 web & Expo 52 mobile
+globs: apps/web/**/*.{ts,tsx}, apps/mobile/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend Web & Mobile
+
+**Primary owner:** Dimas Pratama (`@frontend`) · **API contract:** Fajar (`@senior-dev`)
+
+Referensi: `docs/decisions/ADR-001-REACT-STACK.md` · `docs/standards/ERROR-HANDLING-VALIDATION.md` (Section E)
+
+## Stack (Tetap React — No Vue)
+
+| App | Tech |
+|-----|------|
+| `apps/web` | Next.js 15 App Router, React 19 |
+| `apps/mobile` | Expo SDK 52, Expo Router |
+
+## Import Rules
+
+```typescript
+// ✅ Correct
+import { ErrorCodes, formatCurrency } from '@barokah/shared';
+import { Button } from '@barokah/ui';
+
+// ❌ Wrong — no deep imports from API, no duplicated types
+import { x } from '../../../apps/api/src/...';
+```
+
+## UI Implementation Gate
+
+- **Jangan** implement layar kasir P0 tanpa wireframe **Maya** approved.
+- Map API `error.code` → copy Bahasa Indonesia; no raw HTTP codes for kasir.
+
+## State
+
+- **TanStack Query** — server state (catalog, auth, transactions).
+- **Zustand** — local UI only (cart panel, modals).
+- Business rules (PPN, stok, pricing) → **API only**, not in components.
+
+## Money & Locale
+
+- Display via `@barokah/shared` formatters; amounts from API as integer rupiah or Decimal string.
+- UI locale: `id-ID` for numbers/dates shown to merchant.
+
+## Handoff
+
+- Wireframes: **Maya → Dimas**
+- API contract freeze: **Fajar → Dimas** before client wiring
+- UX review pre-demo: **Dimas → Maya**

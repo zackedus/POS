@@ -1,0 +1,66 @@
+---
+description: Monorepo structure, naming conventions, import rules, and module boundaries for Barokah Core POS
+globs: "**/*"
+alwaysApply: true
+---
+
+# Codebase Structure — Barokah Core POS
+
+Referensi lengkap: `docs/standards/CODEBASE-STRUCTURE.md`
+
+## Monorepo Layout
+
+- `apps/api` — NestJS modular monolith
+- `apps/web` — Next.js 15 App Router
+- `apps/mobile` — Expo Router
+- `packages/shared` — types, constants, utils (no React, no Prisma)
+- `packages/ui` — design tokens + React components
+- `packages/database` — Prisma only; consumed by API
+
+## Import Rules
+
+```typescript
+// ✅ Correct
+import { ErrorCodes, formatCurrency } from '@barokah/shared';
+import { Button } from '@barokah/ui';
+import { apiConfig } from '@/lib/api';
+
+// ❌ Wrong — no cross-app deep imports, no duplicated types
+import { x } from '../../../apps/api/src/...';
+```
+
+**Never:** `packages/*` importing from `apps/*`.
+
+## NestJS API Structure
+
+```
+src/
+├── config/
+├── common/{filters,interceptors,guards,pipes}/
+└── modules/{feature}/
+```
+
+- Global `HttpExceptionFilter` + `ResponseInterceptor` in `main.ts`
+- Controllers return raw data; interceptor wraps `{ success, data }`
+- Business logic in services only
+
+## Where to Put New Code
+
+| Need | Location |
+|------|----------|
+| Shared type/constant/util | `packages/shared/src/{types,constants,utils}/` |
+| Reusable UI component | `packages/ui/src/components/` |
+| API feature | `apps/api/src/modules/{feature}/` |
+| Web page/component | `apps/web/src/{app,components}/` |
+| Mobile screen | `apps/mobile/app/` |
+
+## Scripts Before Handoff
+
+```bash
+npm run lint && npm run typecheck && npm run build
+```
+
+## Related Standards
+
+- Error handling: `docs/standards/ERROR-HANDLING-VALIDATION.md`
+- API validation rule: `.cursor/rules/api-validation-errors.mdc`

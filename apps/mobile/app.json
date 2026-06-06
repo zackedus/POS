@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Barokah POS",
+    "slug": "barokah-pos",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "barokahpos",
+    "userInterfaceStyle": "automatic",
+    "platforms": ["ios", "android"],
+    "plugins": ["expo-router"]
+  }
+}

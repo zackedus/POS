@@ -1,0 +1,61 @@
+import { apiConfig } from './api';
+import { authFetch } from './auth';
+
+export type MidtransMode = 'mock' | 'sandbox' | 'live';
+
+export interface MidtransConfigView {
+  mode: MidtransMode;
+  isProduction: boolean;
+  serverKeyConfigured: boolean;
+  serverKeyMasked: string | null;
+  keySource: 'env' | 'tenant' | 'none';
+  webhookPath: string;
+}
+
+export interface TenantSettingsView {
+  ppnEnabled: boolean;
+  ppnRatePercent: number;
+  midtrans: MidtransConfigView;
+}
+
+interface ApiEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: { message?: string };
+}
+
+const SETTINGS_BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/settings`;
+
+export async function fetchTenantSettings(): Promise<TenantSettingsView> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant`);
+  const json = (await res.json()) as ApiEnvelope<TenantSettingsView>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat pengaturan tenant.');
+  }
+  return json.data;
+}
+
+export async function updateTenantSettings(input: {
+  ppnEnabled?: boolean;
+  ppnRatePercent?: number;
+  midtransServerKey?: string;
+  midtransIsProduction?: boolean;
+  clearMidtransServerKey?: boolean;
+}): Promise<TenantSettingsView> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json()) as ApiEnvelope<TenantSettingsView>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal menyimpan pengaturan.');
+  }
+  return json.data;
+}
+
+export function midtransModeLabel(mode: MidtransMode): string {
+  if (mode === 'mock') return 'Mock (tanpa gateway)';
+  if (mode === 'sandbox') return 'Sandbox Midtrans';
+  return 'Live Midtrans';
+}

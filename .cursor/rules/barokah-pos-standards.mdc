@@ -1,0 +1,17 @@
+---
+description: Standar proyek Barokah Core POS — berlaku untuk semua file
+alwaysApply: true
+---
+
+# Barokah Core POS — Project Standards
+
+- **Komunikasi ke pemilik proyek (Pak Zaki): Bahasa Indonesia wajib** — penjelasan, handoff, ringkasan, user guide, wireframe description. CEO Budi melaporkan ke Pak Zaki.
+- **Kode & teknis: English** — variable names, komentar kode, commit messages, API docs teknis, internal technical docs.
+
+- Monorepo: Turborepo, Node.js 22 LTS, TypeScript strict.
+- Backend: NestJS modular (owner Fajar). Frontend web: Next.js 15 App Router. Mobile: Expo SDK 52 (owner Dimas). **React tetap — no Vue/Nuxt** (ADR-001).
+- Database: PostgreSQL via Prisma. Cache: Redis.
+- Setiap endpoint wajib auth + tenant/outlet scope.
+- Transaksi POS immutable setelah closed; void/refund sebagai record terpisah.
+- Jangan commit `.env`, secrets, atau credentials.
+- Ikuti skill agent sesuai role saat mengerjakan task spesialis.

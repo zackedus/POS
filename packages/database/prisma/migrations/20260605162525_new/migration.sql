@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "product_unit_conversions_tenant_id_product_id_is_default_sell_i" RENAME TO "product_unit_conversions_tenant_id_product_id_is_default_se_idx";

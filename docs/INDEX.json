@@ -1,0 +1,678 @@
+{
+  "version": "1.0.0",
+  "maintainer": "Fitri Nugroho",
+  "lastUpdated": "2026-06-06",
+  "notes": "Web Completion Phase 4 DONE — promo POS, storefront orders, auth hardening, expired orders; lihat WEB-COMPLETION-PROGRESS.md",
+  "teamSize": 11,
+  "indexPath": "docs/INDEX.md",
+  "documents": [
+    {
+      "title": "Arsitektur Barokah Core POS",
+      "path": "docs/architecture/OVERVIEW.md",
+      "category": "architecture",
+      "audience": ["Fajar", "Yoga", "semua tim"],
+      "tags": ["architecture", "mvp", "tech-stack"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Error Codes Catalog",
+      "path": "docs/api/ERROR-CODES.md",
+      "category": "api",
+      "audience": ["Fitri", "Fajar", "Arif"],
+      "tags": ["api", "errors", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Analisis Database",
+      "path": "docs/database/DATABASE-ANALYSIS.md",
+      "category": "database",
+      "audience": ["Fajar", "Eko"],
+      "tags": ["database", "mvp", "architecture"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Data Dictionary",
+      "path": "docs/database/DATA-DICTIONARY.md",
+      "category": "database",
+      "audience": ["Fajar", "Dewi", "Eko"],
+      "tags": ["database", "schema", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Relational Design",
+      "path": "docs/database/RELATIONAL-DESIGN.md",
+      "category": "database",
+      "audience": ["Fajar"],
+      "tags": ["database", "schema", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Design System",
+      "path": "docs/design/DESIGN-SYSTEM.md",
+      "category": "design",
+      "audience": ["Maya", "Dimas", "Fajar"],
+      "tags": ["design", "ui", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "User Flows — Modul Kasir",
+      "path": "docs/design/USER-FLOWS.md",
+      "category": "design",
+      "audience": ["Maya", "Dewi", "Dimas"],
+      "tags": ["design", "ux", "kasir", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Wireframes Kasir",
+      "path": "docs/design/WIREFRAMES-KASIR.md",
+      "category": "design",
+      "audience": ["Maya", "Dimas"],
+      "tags": ["design", "ux", "kasir", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Wireframes Storefront — Epic J",
+      "path": "docs/design/WIREFRAMES-STOREFRONT.md",
+      "category": "design",
+      "audience": ["Maya", "Dimas", "Fajar", "Citra"],
+      "tags": ["design", "ux", "storefront", "epic-j", "omnichannel"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Keuangan & Ekonomi POS",
+      "path": "docs/domain/FINANCE-ECONOMICS-POS.md",
+      "category": "domain",
+      "audience": ["Rina", "Dewi", "Budi", "Eko"],
+      "tags": ["domain", "finance", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Rapat Kickoff Tim — 1 Juni 2026",
+      "path": "docs/meetings/2026-06-01-KICKOFF-MEETING.md",
+      "category": "meetings",
+      "audience": ["semua tim"],
+      "tags": ["meeting", "mvp", "planning"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Rapat Matangkan Visi Pak Zaki",
+      "path": "docs/meetings/2026-06-01-VISION-ZAKI-DISCUSSION.md",
+      "category": "meetings",
+      "audience": ["semua tim", "Pak Zaki"],
+      "tags": ["meeting", "vision", "planning"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Gap Analysis Visi vs Proyek",
+      "path": "docs/meetings/2026-06-01-VISION-ZAKI-GAP-ANALYSIS.md",
+      "category": "meetings",
+      "audience": ["Fajar", "Hendra", "Dewi", "Pak Zaki"],
+      "tags": ["meeting", "vision", "requirements"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Visi Produk Matang (Pak Zaki)",
+      "path": "docs/requirements/VISION-ZAKI-MATURED.md",
+      "category": "requirements",
+      "audience": ["Pak Zaki", "Budi", "semua tim"],
+      "tags": ["requirements", "vision", "roadmap", "omnichannel", "building-materials"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Feature Backlog",
+      "path": "docs/requirements/FEATURE-BACKLOG.md",
+      "category": "requirements",
+      "audience": ["Hendra", "Dewi", "Budi"],
+      "tags": ["requirements", "backlog", "mvp", "omnichannel", "building-materials"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Checklist MVP — Modul Kasir",
+      "path": "docs/requirements/MVP-CHECKLIST.md",
+      "category": "requirements",
+      "audience": ["Rina", "Dewi", "semua tim"],
+      "tags": ["requirements", "checklist", "mvp", "kasir"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Sprint 1 Plan — Foundation",
+      "path": "docs/requirements/SPRINT-1-PLAN.md",
+      "category": "requirements",
+      "audience": ["Hendra", "Fajar", "Dimas", "Yoga"],
+      "tags": ["requirements", "sprint", "planning"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Sprint 2 Plan — Master Data & Shift",
+      "path": "docs/requirements/SPRINT-2-PLAN.md",
+      "category": "requirements",
+      "audience": ["Hendra", "Fajar", "Dimas", "Rina"],
+      "tags": ["requirements", "sprint", "planning", "building-materials"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 5 Plan — Product Variant Foundation",
+      "path": "docs/requirements/SPRINT-5-PLAN.md",
+      "category": "requirements",
+      "audience": ["Hendra", "Fajar", "Dimas", "Rina"],
+      "tags": ["requirements", "sprint", "planning", "variants"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 2 Backend Smoke (Auth/Master/Shift)",
+      "path": "docs/testing/SPRINT-2-BACKEND-SMOKE.md",
+      "category": "testing",
+      "audience": ["Fajar", "Fitri", "QA Internal"],
+      "tags": ["testing", "sprint", "api"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 5 Manual Uji — Varian Produk",
+      "path": "docs/testing/SPRINT-5-MANUAL-UJI.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Dimas", "Fajar"],
+      "tags": ["testing", "sprint", "variants", "kasir"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 5 Progress — Varian Produk",
+      "path": "docs/sprint/SPRINT-5-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Hendra", "Fajar", "Dimas"],
+      "tags": ["sprint", "variants", "progress"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 5 Closure — Varian Produk",
+      "path": "docs/sprint/SPRINT-5-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fitri"],
+      "tags": ["sprint", "closure", "variants"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 8 UAT Final Checklist",
+      "path": "docs/testing/SPRINT-8-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Fitri", "Budi"],
+      "tags": ["testing", "sprint", "uat", "dashboard", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 8 Plan — Laporan Harian & Dashboard",
+      "path": "docs/requirements/SPRINT-8-PLAN.md",
+      "category": "requirements",
+      "audience": ["Hendra", "Fajar", "Dimas", "Fitri"],
+      "tags": ["requirements", "sprint", "planning", "dashboard", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 8 Progress — Dashboard Admin",
+      "path": "docs/sprint/SPRINT-8-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Dimas", "Fajar", "Fitri"],
+      "tags": ["sprint", "progress", "dashboard", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 8 Closure — Dashboard Admin",
+      "path": "docs/sprint/SPRINT-8-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fitri"],
+      "tags": ["sprint", "closure", "dashboard", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 9 UAT Final Checklist",
+      "path": "docs/testing/SPRINT-9-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Fitri", "Budi"],
+      "tags": ["testing", "sprint", "uat", "export", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 10 UAT Final Checklist",
+      "path": "docs/testing/SPRINT-10-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Fitri", "Budi", "Arif"],
+      "tags": ["testing", "sprint", "uat", "void", "receipt"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 9 Plan — Export & Multi-Outlet (Gabungan)",
+      "path": "docs/requirements/SPRINT-9-PLAN.md",
+      "category": "requirements",
+      "audience": ["Hendra", "Fajar", "Dimas", "Fitri"],
+      "tags": ["requirements", "sprint", "planning", "export", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 9 Progress — Export & Multi-Outlet (Gabungan)",
+      "path": "docs/sprint/SPRINT-9-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Fitri"],
+      "tags": ["sprint", "progress", "export", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 9 Closure — Export & Multi-Outlet (Gabungan)",
+      "path": "docs/sprint/SPRINT-9-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fitri"],
+      "tags": ["sprint", "closure", "export", "reports"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 10 Plan — Void, Struk & Thermal Stub (Gabungan)",
+      "path": "docs/requirements/SPRINT-10-PLAN.md",
+      "category": "requirements",
+      "audience": ["Hendra", "Fajar", "Dimas", "Arif", "Fitri"],
+      "tags": ["requirements", "sprint", "void", "receipt", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 10 Progress — Void & Struk (Gabungan)",
+      "path": "docs/sprint/SPRINT-10-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Fitri"],
+      "tags": ["sprint", "progress", "void", "receipt", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 10 Closure — Void & Struk (Gabungan)",
+      "path": "docs/sprint/SPRINT-10-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fitri", "Hendra"],
+      "tags": ["sprint", "closure", "void", "receipt", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 11 Plan — Offline PWA (Gabungan)",
+      "path": "docs/requirements/SPRINT-11-PLAN.md",
+      "category": "requirements",
+      "audience": ["Pak Zaki", "Hendra", "Dimas", "Fajar"],
+      "tags": ["requirements", "sprint", "offline", "pwa", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 11 Progress — Offline PWA (Gabungan)",
+      "path": "docs/sprint/SPRINT-11-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Dimas", "Fajar", "Citra", "Fitri"],
+      "tags": ["sprint", "progress", "offline", "pwa", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 11 Closure — Offline PWA (Gabungan)",
+      "path": "docs/sprint/SPRINT-11-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fitri", "Hendra"],
+      "tags": ["sprint", "closure", "offline", "pwa", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 11 Test Plan — Offline PWA",
+      "path": "docs/testing/SPRINT-11-TEST-PLAN.md",
+      "category": "testing",
+      "audience": ["Citra", "Fajar", "Dimas", "Pak Zaki"],
+      "tags": ["testing", "sprint", "offline", "pwa"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 11 UAT Final — Offline PWA",
+      "path": "docs/testing/SPRINT-11-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Dimas", "Budi"],
+      "tags": ["testing", "sprint", "uat", "offline", "pwa", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 12 Plan — Offline Hardening + Epic J (Gabungan)",
+      "path": "docs/requirements/SPRINT-12-PLAN.md",
+      "category": "requirements",
+      "audience": ["Pak Zaki", "Hendra", "Fajar", "Dimas", "Rina", "Dewi"],
+      "tags": ["requirements", "sprint", "offline", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 12 Progress — Offline Hardening (Gabungan)",
+      "path": "docs/sprint/SPRINT-12-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Yoga", "Citra"],
+      "tags": ["sprint", "progress", "offline", "bullmq", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 12 Progress — Offline PWA (Frontend detail)",
+      "path": "docs/sprint/SPRINT-12-FRONTEND-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Dimas", "Bima", "Fajar", "Citra", "Fitri"],
+      "tags": ["sprint", "progress", "offline", "pwa", "conflicts", "hold", "frontend"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 12 Closure — Offline Hardening (Gabungan)",
+      "path": "docs/sprint/SPRINT-12-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fajar", "Dimas", "Yoga", "Hendra"],
+      "tags": ["sprint", "closure", "offline", "bullmq", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 12 Test Plan — BullMQ & Offline Hardening",
+      "path": "docs/testing/SPRINT-12-TEST-PLAN.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Yoga", "Dimas"],
+      "tags": ["testing", "sprint", "offline", "bullmq", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 12 UAT Final — Offline Hardening",
+      "path": "docs/testing/SPRINT-12-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Dimas", "Yoga", "Budi"],
+      "tags": ["testing", "sprint", "uat", "offline", "bullmq", "closed"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sprint 13 Plan — Offline Polish + Epic J Storefront",
+      "path": "docs/requirements/SPRINT-13-PLAN.md",
+      "category": "requirements",
+      "audience": ["Pak Zaki", "Hendra", "Fajar", "Dimas", "Maya", "Budi"],
+      "tags": ["requirements", "sprint", "offline", "omnichannel", "epic-j", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 13 Progress — Offline Polish + Epic J Scaffold",
+      "path": "docs/sprint/SPRINT-13-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Citra", "Budi"],
+      "tags": ["sprint", "progress", "offline", "epic-j", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 13 Closure — Offline Polish + Epic J Scaffold",
+      "path": "docs/sprint/SPRINT-13-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fajar", "Dimas", "Hendra"],
+      "tags": ["sprint", "closure", "offline", "epic-j", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 13 Test Plan — Hold Idempotency · BullMQ · Storefront",
+      "path": "docs/testing/SPRINT-13-TEST-PLAN.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Dimas"],
+      "tags": ["testing", "sprint", "offline", "epic-j", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 13 UAT Final — Hold Idempotency · Storefront Scaffold",
+      "path": "docs/testing/SPRINT-13-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Dimas", "Budi"],
+      "tags": ["testing", "sprint", "uat", "offline", "epic-j", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 14 Plan — Epic J Online Orders Live",
+      "path": "docs/requirements/SPRINT-14-PLAN.md",
+      "category": "requirements",
+      "audience": ["Pak Zaki", "Hendra", "Fajar", "Dimas", "Citra", "Budi"],
+      "tags": ["requirements", "sprint", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 14 Progress — Epic J Online Orders",
+      "path": "docs/sprint/SPRINT-14-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Fajar", "Dimas", "Citra", "Budi"],
+      "tags": ["sprint", "progress", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 14 Closure — Epic J Online Orders Live",
+      "path": "docs/sprint/SPRINT-14-CLOSURE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fajar", "Dimas", "Hendra"],
+      "tags": ["sprint", "closure", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 14 Test Plan — Epic J Online Orders Live",
+      "path": "docs/testing/SPRINT-14-TEST-PLAN.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Dimas"],
+      "tags": ["testing", "sprint", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 14 UAT Final — Epic J Online Orders Live",
+      "path": "docs/testing/SPRINT-14-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Dimas", "Arif", "Budi"],
+      "tags": ["testing", "sprint", "uat", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-05"
+    },
+    {
+      "title": "Sprint 16 Web Plan — Omnichannel Hardening",
+      "path": "docs/sprint/SPRINT-16-WEB-PLAN.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Hendra", "Dimas", "Fajar", "Citra", "Budi"],
+      "tags": ["sprint", "planning", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "Sprint 16 Web Progress — Omnichannel Hardening",
+      "path": "docs/sprint/SPRINT-16-WEB-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Dimas", "Fajar", "Citra", "Budi"],
+      "tags": ["sprint", "progress", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "Sprint 16 UAT Final — Delivery + Midtrans Mock",
+      "path": "docs/testing/SPRINT-16-UAT-FINAL.md",
+      "category": "testing",
+      "audience": ["Pak Zaki", "Citra", "Fajar", "Dimas", "Arif", "Budi"],
+      "tags": ["testing", "sprint", "uat", "epic-j", "omnichannel", "closed"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "Epic J — Online Storefront Discovery",
+      "path": "docs/requirements/EPIC-J-ONLINE-STOREFRONT-DISCOVERY.md",
+      "category": "requirements",
+      "audience": ["Pak Zaki", "Rina", "Dewi", "Hendra", "Maya"],
+      "tags": ["requirements", "discovery", "omnichannel", "epic-j"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Epic J — User Stories P0 (US-J-01-07)",
+      "path": "docs/requirements/EPIC-J-USER-STORIES.md",
+      "category": "requirements",
+      "audience": ["Dewi", "Maya", "Fajar", "Dimas", "Citra"],
+      "tags": ["requirements", "user-story", "epic-j", "omnichannel"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Sync API — Offline PWA",
+      "path": "docs/api/SYNC.md",
+      "category": "api",
+      "audience": ["Fajar", "Dimas", "Fitri"],
+      "tags": ["api", "offline", "sync", "pwa", "conflicts"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "RFC Online Orders API (Epic J)",
+      "path": "docs/api/ONLINE-ORDERS-RFC.md",
+      "category": "api",
+      "audience": ["Fajar", "Dimas", "Arif", "Eko", "Citra"],
+      "tags": ["api", "epic-j", "omnichannel", "online-orders", "draft"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Offline Sync — Conflict & Queue",
+      "path": "docs/algorithm/OFFLINE-SYNC.md",
+      "category": "algorithm",
+      "audience": ["Pak Zaki", "Eko", "Fajar", "Dimas", "Citra"],
+      "tags": ["algorithm", "offline", "sync", "pwa"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "Thermal Print MVP Stub",
+      "path": "docs/integration/THERMAL-PRINT-MVP-STUB.md",
+      "category": "integration",
+      "audience": ["Arif", "Dimas", "Fajar"],
+      "tags": ["integration", "receipt", "hardware"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "ADR-002: Konfirmasi Visi Pak Zaki (Q1-Q6)",
+      "path": "docs/decisions/ADR-002-PAK-ZAKI-CONFIRMATIONS.md",
+      "category": "decisions",
+      "audience": ["Pak Zaki", "Budi", "semua tim"],
+      "tags": ["decision", "vision", "requirements", "building-materials"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "ADR-003: Scope Retail Omnichannel",
+      "path": "docs/decisions/ADR-003-SCOPE-RETAIL-ONLINE-OFFLINE.md",
+      "category": "decisions",
+      "audience": ["Pak Zaki", "Budi", "semua tim"],
+      "tags": ["decision", "vision", "omnichannel", "scope"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "ADR-004: Epic J Defaults Terkunci (Q-J01-Q-J08)",
+      "path": "docs/decisions/ADR-004-EPIC-J-DEFAULTS-LOCKED.md",
+      "category": "decisions",
+      "audience": ["Pak Zaki", "Budi", "Maya", "Fajar", "Dimas"],
+      "tags": ["decision", "omnichannel", "epic-j", "scope"],
+      "lastUpdated": "2026-06-02"
+    },
+    {
+      "title": "ADR-001: Tetap Stack React",
+      "path": "docs/decisions/ADR-001-REACT-STACK.md",
+      "category": "decisions",
+      "audience": ["Budi", "Dimas", "Fajar", "semua tim"],
+      "tags": ["architecture", "decision", "frontend"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Struktur Codebase",
+      "path": "docs/standards/CODEBASE-STRUCTURE.md",
+      "category": "standards",
+      "audience": ["Fajar", "Yoga", "semua dev"],
+      "tags": ["standards", "architecture", "mvp", "codebase"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Error Handling & Validasi",
+      "path": "docs/standards/ERROR-HANDLING-VALIDATION.md",
+      "category": "standards",
+      "audience": ["Fajar", "Fitri", "semua dev"],
+      "tags": ["standards", "api", "errors", "mvp"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Playbook Koordinasi Tim",
+      "path": "docs/team/COORDINATION-PLAYBOOK.md",
+      "category": "team",
+      "audience": ["semua agent"],
+      "tags": ["team", "coordination"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Knowledge Base Tim 2026",
+      "path": "docs/team/KNOWLEDGE-BASE.md",
+      "category": "team",
+      "audience": ["semua agent"],
+      "tags": ["team", "knowledge-base"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Indeks Dokumentasi",
+      "path": "docs/INDEX.md",
+      "category": "meta",
+      "audience": ["semua tim"],
+      "tags": ["meta", "index"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "README Folder docs",
+      "path": "docs/README.md",
+      "category": "meta",
+      "audience": ["semua tim"],
+      "tags": ["meta", "onboarding"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "README Proyek",
+      "path": "README.md",
+      "category": "project",
+      "audience": ["semua"],
+      "tags": ["project", "onboarding"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "AGENTS.md — Tim Agent",
+      "path": "AGENTS.md",
+      "category": "project",
+      "audience": ["semua agent"],
+      "tags": ["team", "agents", "coordination"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Dokumen Rencana Pak Zaki (sumber)",
+      "path": ".cursor/dokument rencana zaki.md",
+      "category": "project",
+      "audience": ["Pak Zaki", "semua tim"],
+      "tags": ["vision", "requirements", "source"],
+      "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Web Completion UAT Phase 4",
+      "path": "docs/testing/WEB-COMPLETION-UAT-2026-06.md",
+      "category": "testing",
+      "audience": ["Citra", "Dimas", "Fajar", "Fitri", "Pak Zaki"],
+      "tags": ["testing", "uat", "web", "completion"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "Web Completion Plan",
+      "path": "docs/sprint/WEB-COMPLETION-PLAN.md",
+      "category": "sprint",
+      "audience": ["Dimas", "Fajar", "Hendra", "Pak Zaki"],
+      "tags": ["sprint", "web", "completion", "closed"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "Web Completion Progress Pass 4",
+      "path": "docs/sprint/WEB-COMPLETION-PROGRESS.md",
+      "category": "sprint",
+      "audience": ["Dimas", "Fajar", "Eko", "Fitri", "Pak Zaki"],
+      "tags": ["sprint", "web", "completion", "phase-4"],
+      "lastUpdated": "2026-06-06"
+    },
+    {
+      "title": "CHANGELOG",
+      "path": "CHANGELOG.md",
+      "category": "project",
+      "audience": ["Fitri", "Yoga"],
+      "tags": ["changelog", "release"],
+      "lastUpdated": "2026-06-02"
+    }
+  ],
+  "skills": [
+    { "agent": "Rina", "path": ".cursor/skills/pos-domain-expert/SKILL.md" },
+    { "agent": "Dewi", "path": ".cursor/skills/pos-business-analyst/SKILL.md" },
+    { "agent": "Hendra", "path": ".cursor/skills/pos-project-planner/SKILL.md" },
+    { "agent": "Fitri", "path": ".cursor/skills/pos-documentation/SKILL.md" },
+    { "agent": "Arif", "path": ".cursor/skills/pos-integration/SKILL.md" },
+    { "agent": "Eko", "path": ".cursor/skills/pos-algorithm/SKILL.md" },
+    { "agent": "Maya", "path": ".cursor/skills/pos-ui-ux/SKILL.md" },
+    { "agent": "Fajar", "path": ".cursor/skills/pos-senior-developer/SKILL.md" },
+    { "agent": "Dimas", "path": ".cursor/skills/pos-senior-frontend/SKILL.md" },
+    { "agent": "Yoga", "path": ".cursor/skills/pos-devops/SKILL.md" }
+  ]
+}

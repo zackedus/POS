@@ -1,0 +1,115 @@
+/**
+ * API response envelope and error types — Barokah Core POS
+ * @see docs/standards/ERROR-HANDLING-VALIDATION.md
+ */
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages?: number;
+}
+
+export interface ApiSuccessResponse<T> {
+  success: true;
+  data: T;
+  meta?: PaginationMeta;
+}
+
+export interface ValidationErrorDetail {
+  field: string;
+  message: string;
+  value?: unknown;
+  constraint?: string;
+}
+
+export interface ApiErrorPayload {
+  code: string;
+  message: string;
+  details?: ValidationErrorDetail[];
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  error: ApiErrorPayload;
+}
+
+export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+
+/** @deprecated Use ApiErrorResponse for full envelope */
+export interface ApiError {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: ValidationErrorDetail[];
+  };
+}
+
+/**
+ * Common error codes — domain-specific codes may extend with prefix
+ * e.g. AUTH_INVALID_CREDENTIALS, TXN_SHIFT_NOT_OPEN
+ */
+export enum ErrorCodes {
+  // Validation (400 / 422)
+  VALIDATION_FAILED = 'VALIDATION_FAILED',
+  INVALID_INPUT = 'INVALID_INPUT',
+  INVALID_UUID = 'INVALID_UUID',
+  INVALID_MONEY_FORMAT = 'INVALID_MONEY_FORMAT',
+  INVALID_DATE_FORMAT = 'INVALID_DATE_FORMAT',
+  INVALID_PAGINATION = 'INVALID_PAGINATION',
+
+  // Auth (401 / 403)
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  INVALID_CREDENTIALS = 'INVALID_CREDENTIALS',
+  TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+  FORBIDDEN = 'FORBIDDEN',
+  INSUFFICIENT_PERMISSION = 'INSUFFICIENT_PERMISSION',
+
+  // Resource (404 / 409)
+  NOT_FOUND = 'NOT_FOUND',
+  CONFLICT = 'CONFLICT',
+  DUPLICATE_ENTRY = 'DUPLICATE_ENTRY',
+
+  // POS domain (409 / 422)
+  INSUFFICIENT_STOCK = 'INSUFFICIENT_STOCK',
+  SHIFT_NOT_OPEN = 'SHIFT_NOT_OPEN',
+  SHIFT_ALREADY_OPEN = 'SHIFT_ALREADY_OPEN',
+  SHIFT_ALREADY_CLOSED = 'SHIFT_ALREADY_CLOSED',
+  TRANSACTION_ALREADY_CLOSED = 'TRANSACTION_ALREADY_CLOSED',
+  INVALID_BARCODE = 'INVALID_BARCODE',
+  INVALID_QUANTITY = 'INVALID_QUANTITY',
+
+  // Offline sync (409 / 422)
+  SYNC_CONFLICT = 'SYNC_CONFLICT',
+  SYNC_INVALID_PAYLOAD = 'SYNC_INVALID_PAYLOAD',
+  SYNC_QUEUE_NOT_FOUND = 'SYNC_QUEUE_NOT_FOUND',
+
+  // Offline sync (409 / 422 / 503) — @see docs/algorithm/OFFLINE-SYNC.md
+  SYNC_MASTER_STALE = 'SYNC_MASTER_STALE',
+  SYNC_QUEUE_FULL = 'SYNC_QUEUE_FULL',
+  SYNC_CONFLICT_MANUAL = 'SYNC_CONFLICT_MANUAL',
+  SYNC_DEPENDENCY_BLOCKED = 'SYNC_DEPENDENCY_BLOCKED',
+
+  // Integration (502 / 503)
+  PAYMENT_GATEWAY_ERROR = 'PAYMENT_GATEWAY_ERROR',
+  PAYMENT_TIMEOUT = 'PAYMENT_TIMEOUT',
+  PRINTER_OFFLINE = 'PRINTER_OFFLINE',
+  EXTERNAL_SERVICE_UNAVAILABLE = 'EXTERNAL_SERVICE_UNAVAILABLE',
+
+  // Online orders / storefront (Epic J)
+  ONLINE_STORE_NOT_FOUND = 'ONLINE_STORE_NOT_FOUND',
+  ONLINE_PRODUCT_NOT_AVAILABLE = 'ONLINE_PRODUCT_NOT_AVAILABLE',
+  ONLINE_DELIVERY_NOT_AVAILABLE = 'ONLINE_DELIVERY_NOT_AVAILABLE',
+  ONLINE_CHECKOUT_INVALID = 'ONLINE_CHECKOUT_INVALID',
+  ONLINE_ORDER_NOT_FOUND = 'ONLINE_ORDER_NOT_FOUND',
+  ONLINE_ORDER_EXPIRED = 'ONLINE_ORDER_EXPIRED',
+  ONLINE_STATUS_TRANSITION_INVALID = 'ONLINE_STATUS_TRANSITION_INVALID',
+  ONLINE_PAYMENT_ALREADY_PAID = 'ONLINE_PAYMENT_ALREADY_PAID',
+
+  // Rate limiting (429)
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+
+  // Server (500)
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
+}

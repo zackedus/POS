@@ -1,0 +1,14 @@
+---
+description: Konvensi NestJS API Barokah POS
+globs: apps/api/**/*.ts
+alwaysApply: false
+---
+
+# NestJS API Conventions
+
+- Struktur: `module → controller → service → prisma`
+- DTO wajib pakai `class-validator` + `class-transformer`
+- Guard: `JwtAuthGuard` + `RolesGuard` + `TenantGuard`
+- Response: gunakan interceptor envelope `{ success, data, meta }`
+- Error: throw NestJS HTTP exceptions, jangan return error manual
+- Multi-table write: `@Transactional()` atau Prisma `$transaction`

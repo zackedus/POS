@@ -1,0 +1,46 @@
+﻿services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: barokah-postgres
+    environment:
+      POSTGRES_USER: barokah
+      POSTGRES_PASSWORD: barokah
+      POSTGRES_DB: barokah_pos
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - barokah-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barokah -d barokah_pos"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: barokah-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - barokah-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+networks:
+  barokah-dev:
+    name: barokah-dev
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+

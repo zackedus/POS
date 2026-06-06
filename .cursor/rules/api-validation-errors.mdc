@@ -1,0 +1,136 @@
+---
+description: Standar validasi input dan error handling API Barokah POS
+globs: apps/api/**/*.ts, packages/shared/**/*.ts
+alwaysApply: false
+---
+
+# API Validation & Error Handling
+
+Referensi lengkap: `docs/standards/ERROR-HANDLING-VALIDATION.md`
+
+## Response Envelope (Wajib)
+
+```typescript
+// Success
+return { success: true, data: result, meta?: paginationMeta };
+
+// Error — throw HttpException, filter maps to envelope
+throw new ConflictException({
+  code: ErrorCodes.INSUFFICIENT_STOCK,
+  message: 'Stok produk tidak mencukupi.',
+  details: [{ field: 'items[0].quantity', message: 'Stok tersedia: 3' }],
+});
+```
+
+Import types & codes from `@barokah/shared`:
+
+```typescript
+import { ErrorCodes, type ApiSuccessResponse, type ValidationErrorDetail } from '@barokah/shared';
+```
+
+## DTO Validation
+
+Every request DTO must use `class-validator` + `class-transformer`:
+
+```typescript
+import { IsUUID, IsInt, Min, Max, Matches, ValidateNested, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class PaginationQueryDto {
+  @Type(() => Number)
+  @IsInt({ message: 'Halaman harus bilangan bulat' })
+  @Min(1, { message: 'Halaman minimal 1' })
+  page: number = 1;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100, { message: 'Limit maksimal 100' })
+  limit: number = 20;
+}
+
+export class MoneyAmountDto {
+  @IsInt({ message: 'Nominal harus integer rupiah' })
+  @Min(0, { message: 'Nominal tidak boleh negatif' })
+  amount: number;
+}
+```
+
+### Format Rules
+
+| Field | Rule | Never |
+|-------|------|-------|
+| Money | `@IsInt()` rupiah or `@Matches(/^\d+(\.\d{1,2})?$/)` Decimal string | `number` float |
+| UUID | `@IsUUID('4')` | plain `@IsString()` for IDs |
+| Date | `@IsISO8601()` | locale date strings |
+| Barcode | `@Matches(/^[0-9A-Za-z\-]{4,32}$/)` | empty allowed for optional only |
+| Qty | `@IsInt()` `@Min(1)` | float, zero, negative |
+
+## Validation Layers
+
+```typescript
+// Layer 1: DTO (automatic via ValidationPipe) → 422 VALIDATION_FAILED
+
+// Layer 2: Service business rules
+async createTransaction(dto: CreateTransactionDto, ctx: TenantContext) {
+  const shift = await this.shiftService.getOpenShift(ctx.outletId);
+  if (!shift) {
+    throw new UnprocessableEntityException({
+      code: ErrorCodes.SHIFT_NOT_OPEN,
+      message: 'Shift belum dibuka. Buka shift terlebih dahulu.',
+    });
+  }
+  // ...
+}
+```
+
+## HTTP Status Mapping
+
+| Exception | HTTP | When |
+|-----------|------|------|
+| `BadRequestException` | 400 | Malformed input |
+| `UnauthorizedException` | 401 | Missing/invalid token |
+| `ForbiddenException` | 403 | RBAC fail |
+| `NotFoundException` | 404 | Resource not found (scoped) |
+| `ConflictException` | 409 | Business conflict (stock, duplicate) |
+| `UnprocessableEntityException` | 422 | Valid format, invalid state |
+| `InternalServerErrorException` | 500 | Unexpected — log full error, return generic message |
+
+Always include `code` from `ErrorCodes` enum in exception payload.
+
+## Anti-patterns
+
+```typescript
+// ❌ Return error manually from controller
+return { success: false, error: 'something went wrong' };
+
+// ❌ Expose stack trace
+catch (e) { throw new InternalServerErrorException(e.stack); }
+
+// ❌ Hardcoded error strings
+throw new ConflictException('insufficient stock');
+
+// ❌ Float money
+const total = price * 1.11;
+
+// ❌ Skip tenant scope then return 404 for wrong tenant data
+```
+
+## ValidationPipe (main.ts)
+
+Already configured — do not weaken:
+
+```typescript
+new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+});
+```
+
+Enhance with custom `exceptionFactory` to map class-validator errors → `ValidationErrorDetail[]` with `ErrorCodes.VALIDATION_FAILED`.
+
+## Shared Types Location
+
+- `packages/shared/src/api-types.ts` — `ApiResponse`, `ErrorCodes`, `ValidationErrorDetail`
+- Re-export via `packages/shared/src/index.ts`

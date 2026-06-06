@@ -1,0 +1,66 @@
+{
+  "name": "barokah-pos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Barokah Core — Professional POS System (Web + Mobile)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev-all-launcher.mjs",
+    "dev:all": "node scripts/dev-all-launcher.mjs",
+    "dev:all:mobile": "node scripts/dev-all-launcher.mjs -WithMobile",
+    "dev:turbo": "turbo run dev --filter=@barokah/api --filter=@barokah/web --filter=@barokah/shared --filter=@barokah/ui",
+    "dev:apps": "concurrently --kill-others-on-fail -n api,web -c blue,magenta \"npm run dev:api:fallback\" \"npm run dev:web:fallback\"",
+    "dev:apps:strict": "concurrently --kill-others-on-fail -n api,web -c blue,magenta \"npm run dev:api:clean\" \"npm run dev:web:clean\"",
+    "dev:apps:mobile": "concurrently --kill-others-on-fail -n api,web,mobile -c blue,magenta,yellow \"npm run dev:api:fallback\" \"npm run dev:web:fallback\" \"npm run dev:mobile\"",
+    "dev:mobile": "npm run dev --workspace=@barokah/mobile",
+    "dev:api": "npm run dev --workspace=@barokah/api",
+    "dev:api:clean": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-api-safe.ps1 -Port 3000 -ProjectRoot . -StartCommand \"npm run dev --workspace=@barokah/api\"",
+    "dev:api:fallback": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-api-safe.ps1 -Port 3000 -AutoFallback -ProjectRoot . -StartCommand \"npm run dev --workspace=@barokah/api\"",
+    "dev:web:clean": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-web-safe.ps1 -Port 3001 -CleanNext -ProjectRoot . -StartCommand \"npm run dev:watch --workspace=@barokah/web\"",
+    "dev:web:fallback": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-web-safe.ps1 -Port 3001 -AutoFallback -ProjectRoot . -StartCommand \"npm run dev:watch --workspace=@barokah/web\"",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,mdc,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,mdc,yml,yaml}\"",
+    "test": "turbo run test",
+    "smoke": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-check.ps1",
+    "db:generate": "npm run generate --workspace=@barokah/database",
+    "db:migrate": "npm run migrate --workspace=@barokah/database",
+    "db:migrate:deploy": "npm run migrate:deploy --workspace=@barokah/database",
+    "db:seed": "npm run seed --workspace=@barokah/database",
+    "db:studio": "npm run studio --workspace=@barokah/database",
+    "docker:up": "node scripts/docker-up.mjs",
+    "docker:down": "docker compose -f docker/docker-compose.dev.yml down",
+    "docker:full:up": "docker compose -f docker/docker-compose.yml up -d --build",
+    "docker:full:down": "docker compose -f docker/docker-compose.yml down",
+    "docker:full:build": "docker compose -f docker/docker-compose.yml build",
+    "docker:full:logs": "docker compose -f docker/docker-compose.yml logs -f"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "@next/eslint-plugin-next": "^16.2.7",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "prettier": "^3.5.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.33.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "npm@11.12.1",
+  "overrides": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@types/react": "~18.3.0",
+    "@types/react-dom": "~18.3.0"
+  }
+}

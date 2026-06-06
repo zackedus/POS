@@ -1,0 +1,55 @@
+---
+description: Konvensi UI web/mobile Barokah POS — kasir-first
+globs: apps/web/**/*.{tsx,ts},apps/mobile/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# UI/UX Conventions — Barokah POS
+
+Referensi lengkap: `docs/design/DESIGN-SYSTEM.md`, `docs/design/WIREFRAMES-KASIR.md`.
+
+## Design Tokens
+
+- Import tokens dari `@barokah/ui` — jangan hardcode hex di komponen kasir
+- Primary brand: `colors.primary[600]` (#16A34A light)
+- Touch target minimum: **48px** height/width untuk semua CTA kasir
+
+## Layout Kasir Web
+
+- Route `/pos`: grid `1fr 380px` (katalog | keranjang) — full viewport height
+- CartPanel sticky; tombol Bayar selalu visible tanpa scroll
+- Hidden barcode input: autofocus; jangan steal focus kecuali modal terbuka
+
+## Layout Kasir Mobile
+
+- Single column catalog; cart sebagai bottom sheet
+- Tombol Bayar fixed bottom; safe-area inset untuk notch
+
+## Komponen
+
+- Nama komponen kasir: PascalCase (`ProductCard`, `CartPanel`, `Numpad`)
+- Letak shared UI: `packages/ui/` (tokens) → implementasi di `apps/web/src/components/pos/`
+- Format currency: `Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' })`
+
+## States
+
+- Loading: skeleton grid produk, bukan full-page spinner
+- Error: toast + actionable retry; banner untuk persistent (offline/printer)
+- Empty cart: ilustrasi minimal + teks "Scan barcode untuk mulai"
+
+## Accessibility
+
+- Kontras WCAG AA; focus ring 2px primary
+- `aria-live="polite"` pada total keranjang
+- Modal payment: focus trap + Esc close (kecuali shift open blocking)
+
+## Theme
+
+- Support light/dark via CSS variables atau token theme object
+- Default kasir: respect user preference; dark recommended shift malam
+- Bahasa UI: **Indonesia** untuk label kasir
+
+## Handoff
+
+- Wireframe baru → update `docs/design/WIREFRAMES-KASIR.md` via `@ui-ux`
+- Screen ID (SCR-*) map ke route di implementasi

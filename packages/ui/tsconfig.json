@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@barokah/shared": ["../shared/dist"],
+      "@barokah/shared/*": ["../shared/dist/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

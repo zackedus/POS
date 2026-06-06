@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@barokah/shared": ["./packages/shared/src"],
+      "@barokah/shared/*": ["./packages/shared/src/*"],
+      "@barokah/ui": ["./packages/ui/src"],
+      "@barokah/ui/*": ["./packages/ui/src/*"],
+      "@barokah/database": ["./packages/database/src"],
+      "@barokah/database/*": ["./packages/database/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next", ".expo"]
+}
