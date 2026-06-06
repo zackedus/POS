@@ -3,7 +3,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminLayout from './AdminLayout';
 
-const replaceMock = vi.fn();
+const { replaceMock, clearMock, fetchMeMock } = vi.hoisted(() => ({
+  replaceMock: vi.fn(),
+  clearMock: vi.fn(),
+  fetchMeMock: vi.fn(
+    () =>
+      new Promise(() => {
+        /* keep loading state for assertion */
+      }),
+  ),
+}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock }),
@@ -13,16 +22,11 @@ vi.mock('@/lib/auth', () => ({
   tokenStorage: {
     getAccessToken: vi.fn(() => 'token'),
     getRole: vi.fn(() => 'OWNER'),
-    clear: vi.fn(),
+    clear: clearMock,
   },
   hasClientAuthSession: vi.fn(() => true),
   readClientRoleFromCookie: vi.fn(() => 'OWNER'),
-  fetchMe: vi.fn(
-    () =>
-      new Promise(() => {
-        /* keep loading state for assertion */
-      }),
-  ),
+  fetchMe: () => fetchMeMock(),
 }));
 
 vi.mock('@/lib/reports', () => ({
@@ -52,6 +56,14 @@ vi.mock('./DashboardShell', () => ({
 describe('AdminLayout', () => {
   beforeEach(() => {
     replaceMock.mockReset();
+    clearMock.mockReset();
+    fetchMeMock.mockReset();
+    fetchMeMock.mockImplementation(
+      () =>
+        new Promise(() => {
+          /* keep loading state for assertion */
+        }),
+    );
   });
 
   it('renders loading state after client mount with div status text, not paragraph wrapping skeleton', async () => {
@@ -68,5 +80,20 @@ describe('AdminLayout', () => {
     expect(container.querySelector('p')).toBeNull();
     expect(screen.getByLabelText('Memuat data')).toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-shell')).not.toBeInTheDocument();
+  });
+
+  it('redirects to login when profile fetch fails after refresh', async () => {
+    fetchMeMock.mockRejectedValue(new Error('Sesi telah berakhir.'));
+
+    render(
+      <AdminLayout>
+        <div>Child</div>
+      </AdminLayout>,
+    );
+
+    await waitFor(() => {
+      expect(clearMock).toHaveBeenCalled();
+      expect(replaceMock).toHaveBeenCalledWith('/login');
+    });
   });
 });

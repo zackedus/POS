@@ -69,10 +69,13 @@ export class AuthService {
 
   async refresh(refreshToken: string): Promise<AuthTokens> {
     try {
-      const payload = await this.jwtService.verifyAsync<AuthJwtPayload>(refreshToken, {
-        secret: this.configService.get<string>('jwt.refreshSecret'),
-      });
-      return this.issueTokens(payload);
+      const decoded = await this.jwtService.verifyAsync<AuthJwtPayload & { exp?: number; iat?: number }>(
+        refreshToken,
+        {
+          secret: this.configService.get<string>('jwt.refreshSecret'),
+        },
+      );
+      return this.issueTokens(this.toAuthPayload(decoded));
     } catch {
       throw new UnauthorizedException({
         code: ErrorCodes.TOKEN_EXPIRED,
@@ -106,6 +109,17 @@ export class AuthService {
       tenantName: user.tenant.name,
       tenantSlug: user.tenant.slug,
       outletIds: user.userOutlets.map((uo) => uo.outletId),
+    };
+  }
+
+  /** Strip JWT time claims before re-signing (jsonwebtoken rejects expiresIn + exp). */
+  private toAuthPayload(decoded: AuthJwtPayload & { exp?: number; iat?: number }): AuthJwtPayload {
+    return {
+      sub: decoded.sub,
+      email: decoded.email,
+      tenantId: decoded.tenantId,
+      role: decoded.role,
+      outletIds: decoded.outletIds ?? [],
     };
   }
 

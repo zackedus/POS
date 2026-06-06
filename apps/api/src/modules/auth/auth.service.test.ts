@@ -29,6 +29,49 @@ test('Auth: login rejects unknown active user with INVALID_CREDENTIALS', async (
   );
 });
 
+test('Auth: refresh strips JWT exp claim before re-signing tokens', async () => {
+  const decodedPayload = {
+    sub: 'user-1',
+    email: 'manager@barokah.test',
+    tenantId: 'tenant-1',
+    role: UserRole.MANAGER,
+    outletIds: ['outlet-1'],
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    iat: Math.floor(Date.now() / 1000),
+  };
+
+  const signCalls: Array<{ payload: object; options: { expiresIn?: string } }> = [];
+  const jwtService = {
+    verifyAsync: async () => decodedPayload,
+    signAsync: async (payload: object, options: { expiresIn?: string }) => {
+      signCalls.push({ payload, options });
+      return `token-${signCalls.length}`;
+    },
+  };
+  const configService = {
+    get: (key: string) => {
+      if (key === 'jwt.expiresIn') return '15m';
+      if (key === 'jwt.refreshExpiresIn') return '7d';
+      if (key === 'jwt.secret') return 'access-secret';
+      if (key === 'jwt.refreshSecret') return 'refresh-secret';
+      return undefined;
+    },
+  };
+
+  const service = new AuthService({ user: {} } as never, jwtService as never, configService as never);
+  const tokens = await service.refresh('valid-refresh-token');
+
+  assert.equal(tokens.accessToken, 'token-1');
+  assert.equal(tokens.refreshToken, 'token-2');
+  assert.equal(tokens.expiresIn, '15m');
+  assert.equal(signCalls.length, 2);
+  for (const call of signCalls) {
+    assert.equal('exp' in call.payload, false);
+    assert.equal('iat' in call.payload, false);
+    assert.ok(call.options.expiresIn);
+  }
+});
+
 test('Auth: refresh maps invalid token to TOKEN_EXPIRED', async () => {
   const jwtService = {
     verifyAsync: async () => {
