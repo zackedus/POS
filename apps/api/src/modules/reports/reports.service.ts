@@ -13,6 +13,8 @@ import { DailyExportQueryDto } from './dto/daily-export-query.dto';
 import { ReportsQueryDto } from './dto/reports-query.dto';
 import { StockReportQueryDto } from './dto/stock-report-query.dto';
 import { AnalyticsQueryDto, AnalyticsPeriodDays } from './dto/analytics-query.dto';
+import { ScheduledAnalyticsExportQueryDto } from './dto/scheduled-analytics-export-query.dto';
+import { resolveCurrentWeekRangeJakarta } from '../../common/utils/report-date.util';
 
 const PAYMENT_METHOD_ORDER: PaymentMethod[] = [
   PaymentMethod.CASH,
@@ -351,14 +353,25 @@ export class ReportsService {
     const endUtc = new Date();
     const startUtc = new Date(endUtc);
     startUtc.setUTCDate(startUtc.getUTCDate() - days);
+    return this.buildAnalyticsReport(user.tenantId, outletId, startUtc, endUtc, days);
+  }
 
+  private async buildAnalyticsReport(
+    tenantId: string,
+    outletId: string,
+    startUtc: Date,
+    endUtc: Date,
+    periodDays: AnalyticsPeriodDays | number,
+    dateFromOverride?: string,
+    dateToOverride?: string,
+  ) {
     const items = await this.prisma.transactionItem.findMany({
       where: {
         transaction: {
           outletId,
           status: 'COMPLETED',
           completedAt: { gte: startUtc, lt: endUtc },
-          outlet: { tenantId: user.tenantId },
+          outlet: { tenantId },
         },
       },
       select: {
@@ -454,9 +467,9 @@ export class ReportsService {
 
     return {
       outletId,
-      periodDays: days,
-      dateFrom: startUtc.toISOString().slice(0, 10),
-      dateTo: endUtc.toISOString().slice(0, 10),
+      periodDays,
+      dateFrom: dateFromOverride ?? startUtc.toISOString().slice(0, 10),
+      dateTo: dateToOverride ?? endUtc.toISOString().slice(0, 10),
       timezone: 'Asia/Jakarta',
       summary: {
         revenue: totals.revenue,
@@ -478,6 +491,30 @@ export class ReportsService {
     return {
       format: 'csv' as const,
       filename,
+      body: `\uFEFF${buildAnalyticsMarginCsv(report)}`,
+    };
+  }
+
+  async exportAnalyticsScheduled(user: AuthJwtPayload, query: ScheduledAnalyticsExportQueryDto) {
+    const outletId = resolveOutletId(user, query.outletId);
+    await this.ensureOutletExists(user.tenantId, outletId);
+    const weekRange = resolveCurrentWeekRangeJakarta();
+    const report = await this.buildAnalyticsReport(
+      user.tenantId,
+      outletId,
+      weekRange.startUtc,
+      weekRange.endUtc,
+      7,
+      weekRange.dateFrom,
+      weekRange.dateTo,
+    );
+    const filename = `analitik-minggu-ini-${weekRange.dateFrom}_${weekRange.dateTo}-${outletId}.csv`;
+    return {
+      format: 'csv' as const,
+      filename,
+      preset: query.preset ?? 'week',
+      dateFrom: weekRange.dateFrom ?? weekRange.date,
+      dateTo: weekRange.dateTo ?? weekRange.date,
       body: `\uFEFF${buildAnalyticsMarginCsv(report)}`,
     };
   }

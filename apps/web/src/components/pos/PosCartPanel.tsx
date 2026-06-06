@@ -96,6 +96,9 @@ export interface PosCartPanelProps {
   onRecallTransaction: (heldId: string) => void;
   receiptPreview: ReceiptResponse | null;
   onPrintReceipt: () => void;
+  onConnectPrinter?: () => void;
+  onThermalPrint?: () => void;
+  thermalStatus?: string | null;
   onCloseReceipt: () => void;
 }
 
@@ -156,6 +159,9 @@ export function PosCartPanel({
   onRecallTransaction,
   receiptPreview,
   onPrintReceipt,
+  onConnectPrinter,
+  onThermalPrint,
+  thermalStatus,
   onCloseReceipt,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
@@ -608,6 +614,9 @@ export function PosCartPanel({
             receipt={receiptPreview.receipt}
             escpos={receiptPreview.escpos}
             onPrint={onPrintReceipt}
+            onConnectPrinter={onConnectPrinter}
+            onThermalPrint={onThermalPrint}
+            thermalStatus={thermalStatus}
             onClose={onCloseReceipt}
           />
         </div>

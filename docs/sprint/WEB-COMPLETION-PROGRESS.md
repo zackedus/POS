@@ -270,3 +270,31 @@
 - Weighted average HPP
 
 *Pass 8 closed: Budi + tim · 6 Juni 2026*
+
+---
+
+## Phase 9 — Parallel Lanes A–H (PASS 9 — DONE)
+
+> **Tanggal:** 6 Juni 2026  
+> **Koordinasi:** Budi · Lanes A–H paralel
+
+| Lane | Deliverable | Status |
+|------|-------------|--------|
+| **A** | Weighted average HPP partial PO receive + tests BL-09-01 | ✅ Done |
+| **B** | Offline conflict modal server/client wins + Bahasa Indonesia actions | ✅ Done |
+| **C** | Mobile shift open/close SecureStore + QRIS stub honest UX | ✅ Done |
+| **D** | Midtrans live tenant keys + strict production webhook verify | ✅ Done |
+| **E** | Thermal ESC/POS builder + WebUSB print production path | ✅ Done |
+| **F** | Analytics scheduled export minggu ini + dashboard button | ✅ Done |
+| **G** | Business logic audit Phase 9 regression | ✅ Done |
+| **H** | PHASE-9-UAT-FINAL + CHANGELOG v0.9.0 | ✅ Done |
+
+### Defer Phase 10
+
+- Mobile offline queue penuh
+- QRIS native SDK
+- Email cron analytics
+- CSP hardening
+- Midtrans live keys Pak Zaki
+
+*Pass 9 closed: Budi + tim · 6 Juni 2026*

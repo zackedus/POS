@@ -12,7 +12,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import type { CreateOnlineOrderDto } from './dto/create-online-order.dto';
 import type { CatalogProductsQueryDto } from './dto/catalog-products-query.dto';
-import { MidtransService } from './midtrans.service';
+import { MidtransService, type MidtransRuntimeConfig } from './midtrans.service';
 import { OnlineOrdersService } from './online-orders.service';
 import {
   buildOrderNo,
@@ -45,6 +45,14 @@ export class StorefrontService {
       });
     }
     return tenant;
+  }
+
+  private async resolveTenantMidtransConfig(tenantId: string): Promise<MidtransRuntimeConfig> {
+    const settings = await this.prisma.tenantSettings.findUnique({ where: { tenantId } });
+    return {
+      serverKey: settings?.midtransServerKey,
+      isProduction: settings?.midtransIsProduction,
+    };
   }
 
   async listOutlets(tenantSlug: string) {
@@ -323,6 +331,7 @@ export class StorefrontService {
       include: { outlet: true, items: true, payments: true },
     });
     if (existing) {
+      const midtransConfig = await this.resolveTenantMidtransConfig(tenant.id);
       return this.buildCreateOrderResponse(existing, tenant.slug, await this.midtrans.createSnapPayment({
         orderId: existing.midtransOrderId ?? existing.orderNo,
         orderNo: existing.orderNo,
@@ -330,7 +339,7 @@ export class StorefrontService {
         grossAmount: toIdrInteger(existing.total),
         customerName: existing.customerName,
         customerPhone: formatPhoneDisplay(existing.customerPhone),
-      }));
+      }, midtransConfig));
     }
 
     const outlet = await this.prisma.outlet.findFirst({
@@ -511,6 +520,7 @@ export class StorefrontService {
       return created;
     });
 
+    const midtransConfig = await this.resolveTenantMidtransConfig(tenant.id);
     const payment = await this.midtrans.createSnapPayment({
       orderId: order.midtransOrderId ?? order.orderNo,
       orderNo: order.orderNo,
@@ -518,7 +528,7 @@ export class StorefrontService {
       grossAmount: total,
       customerName: order.customerName,
       customerPhone: formatPhoneDisplay(order.customerPhone),
-    });
+    }, midtransConfig);
 
     return {
       order: {
@@ -663,6 +673,7 @@ export class StorefrontService {
       });
     }
 
+    const midtransConfig = await this.resolveTenantMidtransConfig(tenant.id);
     const payment = await this.midtrans.createSnapPayment({
       orderId: order.midtransOrderId ?? order.orderNo,
       orderNo: order.orderNo,
@@ -670,7 +681,7 @@ export class StorefrontService {
       grossAmount: toIdrInteger(order.total),
       customerName: order.customerName,
       customerPhone: formatPhoneDisplay(order.customerPhone),
-    });
+    }, midtransConfig);
 
     return { payment };
   }

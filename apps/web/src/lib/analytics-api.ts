@@ -88,3 +88,25 @@ export async function downloadAnalyticsMarginCsv(options?: {
     return null;
   }
 }
+
+export async function downloadAnalyticsWeeklyCsv(options?: {
+  outletId?: string;
+}): Promise<{ filename: string; blob: Blob } | null> {
+  const params = new URLSearchParams({ preset: 'week' });
+  if (options?.outletId) params.set('outletId', options.outletId);
+  const url = `${REPORTS_BASE}/analytics/export/scheduled?${params.toString()}`;
+
+  try {
+    const res = await authFetch(url);
+    if (!res.ok) {
+      return null;
+    }
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const match = /filename="([^"]+)"/.exec(disposition);
+    const filename = match?.[1] ?? 'analitik-minggu-ini.csv';
+    const blob = await res.blob();
+    return { filename, blob };
+  } catch {
+    return null;
+  }
+}

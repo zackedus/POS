@@ -19,44 +19,52 @@ export interface MidtransNotification {
   transaction_id?: string;
 }
 
+export interface MidtransRuntimeConfig {
+  serverKey?: string | null;
+  isProduction?: boolean;
+}
+
 @Injectable()
 export class MidtransService {
   private readonly logger = new Logger(MidtransService.name);
 
   constructor(private readonly config: ConfigService) {}
 
-  private get serverKey(): string | undefined {
-    return this.config.get<string>('MIDTRANS_SERVER_KEY');
+  resolveRuntimeConfig(override?: MidtransRuntimeConfig): {
+    serverKey: string | undefined;
+    isProduction: boolean;
+  } {
+    const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
+    const tenantKey = override?.serverKey?.trim();
+    const effectiveKey = tenantKey || envKey || undefined;
+    const isProduction =
+      override?.isProduction ??
+      this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
+    return { serverKey: effectiveKey, isProduction };
   }
 
-  private get isProduction(): boolean {
-    return this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
+  isMockMode(override?: MidtransRuntimeConfig): boolean {
+    return !this.resolveRuntimeConfig(override).serverKey?.trim();
   }
 
-  private get snapBaseUrl(): string {
-    return this.isProduction
-      ? 'https://app.midtrans.com'
-      : 'https://app.sandbox.midtrans.com';
-  }
+  verifySignature(
+    notification: MidtransNotification,
+    override?: MidtransRuntimeConfig,
+  ): boolean {
+    const { serverKey, isProduction } = this.resolveRuntimeConfig(override);
 
-  private get apiBaseUrl(): string {
-    return this.isProduction
-      ? 'https://api.midtrans.com'
-      : 'https://api.sandbox.midtrans.com';
-  }
-
-  isMockMode(): boolean {
-    return !this.serverKey?.trim();
-  }
-
-  verifySignature(notification: MidtransNotification): boolean {
-    const serverKey = this.serverKey;
     if (!serverKey) {
+      if (isProduction) {
+        this.logger.warn('Webhook ditolak — mode produksi tanpa server key.');
+        return false;
+      }
       return this.config.get<string>('MIDTRANS_WEBHOOK_SKIP_VERIFY') === 'true';
     }
+
     if (!notification.signature_key) {
       return false;
     }
+
     const payload = `${notification.order_id}${notification.status_code}${notification.gross_amount}${serverKey}`;
     const expected = createHash('sha512').update(payload).digest('hex');
     return expected === notification.signature_key;
@@ -70,15 +78,20 @@ export class MidtransService {
     return ['expire', 'cancel', 'deny', 'failure'].includes(notification.transaction_status);
   }
 
-  async createSnapPayment(input: {
-    orderId: string;
-    orderNo: string;
-    tenantSlug: string;
-    grossAmount: number;
-    customerName: string;
-    customerPhone: string;
-  }): Promise<SnapPaymentResult> {
-    if (this.isMockMode()) {
+  async createSnapPayment(
+    input: {
+      orderId: string;
+      orderNo: string;
+      tenantSlug: string;
+      grossAmount: number;
+      customerName: string;
+      customerPhone: string;
+    },
+    override?: MidtransRuntimeConfig,
+  ): Promise<SnapPaymentResult> {
+    const { serverKey, isProduction } = this.resolveRuntimeConfig(override);
+
+    if (!serverKey) {
       const base = this.config.get<string>('STOREFRONT_BASE_URL') ?? 'http://localhost:3001';
       const token = `mock-snap-${input.orderId}`;
       return {
@@ -87,7 +100,13 @@ export class MidtransService {
       };
     }
 
-    const serverKey = this.serverKey as string;
+    const apiBaseUrl = isProduction
+      ? 'https://api.midtrans.com'
+      : 'https://api.sandbox.midtrans.com';
+    const snapBaseUrl = isProduction
+      ? 'https://app.midtrans.com'
+      : 'https://app.sandbox.midtrans.com';
+
     const body = {
       transaction_details: {
         order_id: input.orderId,
@@ -99,7 +118,7 @@ export class MidtransService {
       },
     };
 
-    const response = await fetch(`${this.apiBaseUrl}/snap/v1/transactions`, {
+    const response = await fetch(`${apiBaseUrl}/snap/v1/transactions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -120,7 +139,7 @@ export class MidtransService {
     const data = (await response.json()) as { token: string; redirect_url: string };
     return {
       snapToken: data.token,
-      redirectUrl: data.redirect_url ?? `${this.snapBaseUrl}/snap/v2/vtweb/${data.token}`,
+      redirectUrl: data.redirect_url ?? `${snapBaseUrl}/snap/v2/vtweb/${data.token}`,
     };
   }
 
@@ -161,15 +180,22 @@ export class MidtransService {
     }
   }
 
-  getWebhookHealth(): {
+  getWebhookHealth(override?: MidtransRuntimeConfig): {
     endpoint: string;
     mockMode: boolean;
     signatureVerification: boolean;
+    productionMode: boolean;
+    strictProductionWebhook: boolean;
   } {
+    const { serverKey, isProduction } = this.resolveRuntimeConfig(override);
+    const mockMode = !serverKey?.trim();
+    const skipVerify = this.config.get<string>('MIDTRANS_WEBHOOK_SKIP_VERIFY') === 'true';
     return {
       endpoint: '/api/v1/webhooks/midtrans/online',
-      mockMode: this.isMockMode(),
-      signatureVerification: !this.isMockMode() || this.config.get<string>('MIDTRANS_WEBHOOK_SKIP_VERIFY') !== 'true',
+      mockMode,
+      signatureVerification: mockMode ? !skipVerify : true,
+      productionMode: isProduction,
+      strictProductionWebhook: isProduction && !mockMode,
     };
   }
 }

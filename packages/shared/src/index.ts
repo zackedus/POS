@@ -34,6 +34,7 @@ export {
   derivePackageSellPrice,
   deriveBaseCostFromPurchaseCost,
   derivePurchaseCostFromBaseCost,
+  computeWeightedAverageBaseCost,
   resolveSellUnitPrice,
   formatMultiUnitPricingPreview,
 } from './utils/product-pricing';

@@ -50,18 +50,34 @@ export function getConflictUserMessage(
   }
 }
 
+/** Resolve strategy label for conflict modal (server wins vs client wins). */
+export function getConflictStrategyLabel(conflictCode: string | null): string {
+  switch (conflictCode) {
+    case ErrorCodes.SYNC_MASTER_STALE:
+    case ErrorCodes.SHIFT_ALREADY_OPEN:
+    case ErrorCodes.SHIFT_NOT_OPEN:
+      return 'Server menang — sesuaikan dengan kondisi server';
+    case ErrorCodes.INSUFFICIENT_STOCK:
+      return 'Server menang stok — sesuaikan keranjang atau batalkan';
+    case ErrorCodes.CONFLICT:
+      return 'Manual — hold/transaksi sudah diproses sesi lain';
+    default:
+      return 'Manual — pilih terima server atau coba ulang klien';
+  }
+}
+
 /** Resolve actions offered per conflict code (OFFLINE-SYNC.md § Manual resolve). */
 export function getConflictActions(conflictCode: string | null): SyncConflictResolutionAction[] {
   switch (conflictCode) {
     case ErrorCodes.INSUFFICIENT_STOCK:
-      return ['ADJUST_QTY', 'RETRY', 'CANCEL', 'ESCALATE_MANAGER'];
+      return ['USE_SERVER', 'ADJUST_QTY', 'KEEP_CLIENT', 'CANCEL', 'ESCALATE_MANAGER'];
     case ErrorCodes.SYNC_MASTER_STALE:
-      return ['RETRY', 'CANCEL', 'ESCALATE_MANAGER'];
+      return ['USE_SERVER', 'KEEP_CLIENT', 'CANCEL', 'ESCALATE_MANAGER'];
     case ErrorCodes.SHIFT_ALREADY_OPEN:
     case ErrorCodes.SHIFT_NOT_OPEN:
-      return ['ESCALATE_MANAGER', 'CANCEL'];
+      return ['USE_SERVER', 'ESCALATE_MANAGER', 'CANCEL'];
     default:
-      return ['RETRY', 'CANCEL', 'ESCALATE_MANAGER'];
+      return ['USE_SERVER', 'KEEP_CLIENT', 'RETRY', 'CANCEL', 'ESCALATE_MANAGER'];
   }
 }
 
@@ -71,6 +87,8 @@ export function getConflictActionLabel(action: SyncConflictResolutionAction): st
     ADJUST_QTY: 'Sesuaikan keranjang',
     CANCEL: 'Batalkan antrean',
     ESCALATE_MANAGER: 'Eskalasi manager',
+    USE_SERVER: 'Terima data server',
+    KEEP_CLIENT: 'Coba ulang (data lokal)',
   };
   return labels[action];
 }

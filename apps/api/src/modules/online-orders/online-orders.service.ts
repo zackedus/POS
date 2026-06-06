@@ -282,17 +282,26 @@ export class OnlineOrdersService {
   }
 
   async handleMidtransWebhook(notification: MidtransNotification) {
-    if (!this.midtrans.verifySignature(notification)) {
+    const order = await this.prisma.onlineOrder.findFirst({
+      where: { midtransOrderId: notification.order_id },
+      include: { items: true, payments: true },
+    });
+
+    const tenantSettings = order
+      ? await this.prisma.tenantSettings.findUnique({ where: { tenantId: order.tenantId } })
+      : null;
+    const midtransRuntime = {
+      serverKey: tenantSettings?.midtransServerKey,
+      isProduction: tenantSettings?.midtransIsProduction ?? undefined,
+    };
+
+    if (!this.midtrans.verifySignature(notification, midtransRuntime)) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.PAYMENT_GATEWAY_ERROR,
         message: 'Verifikasi pembayaran gagal.',
       });
     }
 
-    const order = await this.prisma.onlineOrder.findFirst({
-      where: { midtransOrderId: notification.order_id },
-      include: { items: true, payments: true },
-    });
     if (!order) {
       return { ok: true, message: 'Order not found — ignored' };
     }

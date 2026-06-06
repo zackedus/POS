@@ -117,4 +117,42 @@
 - Mobile native QRIS + shift UI
 - Weighted average HPP partial receives
 
-*Audit Phase 8 closed: Rina + Eko + Citra · 6 Juni 2026*
+---
+
+## Phase 9 — Parallel Lanes Regression (6 Jun 2026)
+
+> **Auditor:** Rina (domain) + Eko (algoritma) + Citra (QA regression)  
+> **Scope:** Defer items Phase 8 · lanes A–G
+
+| Flow | Status | Catatan |
+|------|--------|---------|
+| Weighted average HPP partial PO receive | **PASS** | `BL-09-01` — formula `(q1×c1 + q2×c2)/(q1+q2)`; test 10@68000 + 10@72000 → 70000 |
+| Offline conflict resolve (server/client wins) | **PASS** | Modal Bahasa Indonesia + `USE_SERVER` / `KEEP_CLIENT` actions |
+| Mobile shift open/close + QRIS stub | **PASS** | SecureStore shift state; QRIS honest "coming soon" |
+| Midtrans live production guardrails | **PASS** | Tenant key + strict webhook verify production; mock fallback tanpa key |
+| Thermal ESC/POS WebUSB production path | **PASS** | `buildEscPosReceiptFromDto` + `printEscPosWebUsb` transfer |
+| Analytics scheduled export (minggu ini) | **PASS** | `GET /reports/analytics/export/scheduled?preset=week` |
+
+### Formula HPP weighted average (Lane A)
+
+```
+HPP_baru = (stok_lama × HPP_lama + qty_terima × HPP_terima) / (stok_lama + qty_terima)
+```
+
+Implementasi: `computeWeightedAverageBaseCost` di `@barokah/shared` · dipanggil saat `receivePurchaseOrder`.
+
+### Bugs fixed (Phase 9)
+
+| ID | Severity | Issue | Fix |
+|----|----------|-------|-----|
+| BL-09-01 | P0 | Partial PO receive overwrite HPP dengan receive terakhir saja | Weighted average pada `costPrice` update |
+
+### Defer Phase 10
+
+- Mobile offline queue + sync penuh
+- QRIS native deep link / payment SDK
+- Email cron analytics export
+- CSP hardening production
+- Midtrans live credentials Pak Zaki (production keys)
+
+*Audit Phase 9 closed: Rina + Eko + Citra · 6 Juni 2026*

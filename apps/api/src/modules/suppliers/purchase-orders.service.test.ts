@@ -183,6 +183,51 @@ test('PurchaseOrders: partial receive updates stock, HPP, and status', async () 
   assert.equal(result.status, 'PARTIALLY_RECEIVED');
 });
 
+test('PurchaseOrders: weighted average HPP on second partial receive (BL-09-01)', async () => {
+  const state = { updatedCost: null as number | null };
+  const po = buildPo({ status: 'PARTIALLY_RECEIVED' });
+  po.items[0]!.orderedQuantity = new Decimal(20);
+  po.items[0]!.receivedQuantity = new Decimal(10);
+  po.items[0]!.unitId = 'unit-kg';
+  po.items[0]!.unit = { id: 'unit-kg', symbol: 'kg', name: 'Kilogram' };
+  po.items[0]!.unitCost = new Decimal(68000);
+  po.items[0]!.product.costPrice = new Decimal(68000);
+
+  const prisma = {
+    purchaseOrder: { findFirst: async () => po },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        purchaseOrderReceipt: { create: async () => ({ id: 'receipt-2' }) },
+        purchaseOrderReceiptLine: { create: async () => ({}) },
+        purchaseOrderItem: {
+          findMany: async () => [{ orderedQuantity: new Decimal(20), receivedQuantity: new Decimal(20) }],
+          update: async () => ({}),
+        },
+        inventoryItem: {
+          findUnique: async () => ({ id: 'inv-1', quantity: new Decimal(10) }),
+          update: async () => ({}),
+        },
+        stockMovement: { create: async () => ({ id: 'mov-2' }) },
+        product: {
+          update: async (args: { data: { costPrice: Decimal } }) => {
+            state.updatedCost = Number(args.data.costPrice);
+            return {};
+          },
+        },
+        purchaseOrder: {
+          update: async () => buildPo({ status: 'RECEIVED', receivedAt: new Date() }),
+        },
+      }),
+  };
+
+  const service = new PurchaseOrdersService(prisma as never);
+  await service.receivePurchaseOrder(createUser(), 'po-1', {
+    items: [{ purchaseOrderItemId: 'po-item-1', quantityReceived: 10, unitCost: 72000 }],
+  });
+
+  assert.equal(state.updatedCost, 70000);
+});
+
 test('PurchaseOrders: full receive sets RECEIVED status', async () => {
   const state = { movementQty: null as number | null, updatedCost: null as number | null };
   const po = buildPo({});

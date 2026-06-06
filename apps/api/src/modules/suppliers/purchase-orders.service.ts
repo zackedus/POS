@@ -7,6 +7,7 @@ import {
 import { PurchaseOrderStatus, Prisma } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
+  computeWeightedAverageBaseCost,
   convertToBaseQuantity,
   deriveBaseCostFromPurchaseCost,
   derivePurchaseCostFromBaseCost,
@@ -427,9 +428,17 @@ export class PurchaseOrdersService {
         });
 
         if (baseCostApplied > 0) {
+          const existingBaseCost = Number(product.costPrice);
+          const existingBaseQty = Number(quantityBefore);
+          const weightedBaseCost = computeWeightedAverageBaseCost(
+            existingBaseQty,
+            existingBaseCost,
+            baseQuantity,
+            baseCostApplied,
+          );
           await tx.product.update({
             where: { id: poItem.productId },
-            data: { costPrice: new Decimal(baseCostApplied) },
+            data: { costPrice: new Decimal(weightedBaseCost) },
           });
         }
 

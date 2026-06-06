@@ -16,11 +16,23 @@ export default function HomeScreen() {
         <Text style={styles.userLine}>Belum login</Text>
       )}
       {mobileSession.isLoggedIn() ? (
-        <Link href="/pos" asChild>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Buka Kasir</Text>
-          </TouchableOpacity>
-        </Link>
+        <>
+          <Link href="/pos" asChild>
+            <TouchableOpacity style={styles.button}>
+              <Text style={styles.buttonText}>Buka Kasir</Text>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/shift/open" asChild>
+            <TouchableOpacity style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Buka Shift</Text>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/shift/close" asChild>
+            <TouchableOpacity style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Tutup Shift</Text>
+            </TouchableOpacity>
+          </Link>
+        </>
       ) : (
         <Link href="/login" asChild>
           <TouchableOpacity style={styles.button}>

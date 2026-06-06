@@ -15,6 +15,28 @@ export function deriveBaseCostFromPurchaseCost(
   return Math.round(purchaseCost / conversionToBase);
 }
 
+/**
+ * Weighted average base-unit HPP after partial PO receives at different costs.
+ * Formula: (existingQty × existingCost + incomingQty × incomingCost) / (existingQty + incomingQty)
+ */
+export function computeWeightedAverageBaseCost(
+  existingQty: number,
+  existingBaseCost: number,
+  incomingQty: number,
+  incomingBaseCost: number,
+): number {
+  if (incomingQty <= 0 || incomingBaseCost <= 0) {
+    return existingBaseCost > 0 ? Math.round(existingBaseCost) : 0;
+  }
+  if (existingQty <= 1e-9 || existingBaseCost <= 0) {
+    return Math.round(incomingBaseCost);
+  }
+  const totalQty = existingQty + incomingQty;
+  if (totalQty <= 0) return Math.round(incomingBaseCost);
+  const weighted = (existingQty * existingBaseCost + incomingQty * incomingBaseCost) / totalQty;
+  return Math.round(weighted);
+}
+
 /** Distributor purchase-unit cost from stored base-unit cost. */
 export function derivePurchaseCostFromBaseCost(
   baseCost: number,

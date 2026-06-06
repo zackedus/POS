@@ -10,6 +10,7 @@ import { ReportsQueryDto } from './dto/reports-query.dto';
 import { StockReportQueryDto } from './dto/stock-report-query.dto';
 import { CrossOutletStockQueryDto } from './dto/cross-outlet-stock-query.dto';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
+import { ScheduledAnalyticsExportQueryDto } from './dto/scheduled-analytics-export-query.dto';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -62,6 +63,19 @@ export class ReportsController {
   @Header('Cache-Control', 'no-store')
   async exportAnalytics(@CurrentUser() user: AuthJwtPayload, @Query() query: AnalyticsQueryDto) {
     const result = await this.reportsService.exportAnalyticsMargin(user, query);
+    return new StreamableFile(Buffer.from(result.body, 'utf-8'), {
+      type: 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="${result.filename}"`,
+    });
+  }
+
+  @Get('analytics/export/scheduled')
+  @Header('Cache-Control', 'no-store')
+  async exportAnalyticsScheduled(
+    @CurrentUser() user: AuthJwtPayload,
+    @Query() query: ScheduledAnalyticsExportQueryDto,
+  ) {
+    const result = await this.reportsService.exportAnalyticsScheduled(user, query);
     return new StreamableFile(Buffer.from(result.body, 'utf-8'), {
       type: 'text/csv; charset=utf-8',
       disposition: `attachment; filename="${result.filename}"`,

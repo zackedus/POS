@@ -41,7 +41,11 @@ export type SyncConflictResolutionAction =
   | 'RETRY'
   | 'ADJUST_QTY'
   | 'CANCEL'
-  | 'ESCALATE_MANAGER';
+  | 'ESCALATE_MANAGER'
+  /** Server wins — discard local queue entry and accept server state */
+  | 'USE_SERVER'
+  /** Client wins — retry sync with local payload */
+  | 'KEEP_CLIENT';
 
 export interface SyncConflictResolution {
   queueEntryId: string;

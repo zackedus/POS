@@ -4,6 +4,24 @@ Semua perubahan penting pada Barokah Core POS dicatat di file ini.
 
 Format mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan Semantic Versioning.
 
+## [0.9.0] - 2026-06-06
+
+### Added
+- **HPP weighted average:** Partial PO receive memperbarui `costPrice` dengan rata-rata tertimbang stok (bukan overwrite terakhir).
+- **Offline sync:** Modal konflik Bahasa Indonesia dengan aksi *Terima data server* / *Coba ulang (data lokal)*.
+- **Mobile:** Layar buka/tutup shift + state aman SecureStore; tombol QRIS stub jujur (coming soon).
+- **Midtrans live:** Kunci tenant per outlet + verifikasi webhook ketat di mode produksi; mock jika belum ada key.
+- **Thermal:** Builder ESC/POS dari struk transaksi + cetak WebUSB production path.
+- **Analytics:** `GET /reports/analytics/export/scheduled?preset=week` + tombol **Export minggu ini** di dashboard.
+
+### Fixed
+- HPP partial receive sebelumnya hanya memakai harga receive terakhir (`BL-09-01`).
+
+### Docs
+- `docs/domain/BUSINESS-LOGIC-AUDIT-2026-06.md` Phase 9
+- `docs/testing/PHASE-9-UAT-FINAL.md`
+- `docs/integration/MIDTRANS-LIVE-PRODUCTION.md`
+
 ## [0.8.0] - 2026-06-06
 
 ### Added

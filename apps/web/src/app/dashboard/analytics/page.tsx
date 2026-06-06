@@ -9,7 +9,7 @@ import {
   PageHeader,
   StatCard,
 } from '@/components/dashboard/dashboard-ui';
-import { downloadAnalyticsMarginCsv, fetchAnalytics, type AnalyticsReport } from '@/lib/analytics-api';
+import { downloadAnalyticsMarginCsv, downloadAnalyticsWeeklyCsv, fetchAnalytics, type AnalyticsReport } from '@/lib/analytics-api';
 import { mapApiError } from '@/lib/api-client';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { useAdminTheme } from '@/hooks/useAdminTheme';
@@ -62,6 +62,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingWeekly, setExportingWeekly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,6 +112,29 @@ export default function AnalyticsPage() {
     }
   }
 
+  async function handleExportWeeklyCsv() {
+    setExportingWeekly(true);
+    setError(null);
+    try {
+      const result = await downloadAnalyticsWeeklyCsv({
+        outletId: selectedOutletId ?? undefined,
+      });
+      if (!result) {
+        setError('Gagal mengekspor CSV minggu ini.');
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(result.blob);
+      link.download = result.filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      setError(mapApiError(err, 'Gagal mengekspor CSV minggu ini.'));
+    } finally {
+      setExportingWeekly(false);
+    }
+  }
+
   return (
     <div style={{ maxWidth: 1100, display: 'grid', gap: '1.25rem' }}>
       <PageHeader
@@ -140,6 +164,20 @@ export default function AnalyticsPage() {
               }}
             >
               Muat ulang
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportWeeklyCsv()}
+              disabled={loading || exportingWeekly}
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: 8,
+                border: `1px solid ${tokens.cardBorder}`,
+                background: tokens.cardBg,
+                cursor: 'pointer',
+              }}
+            >
+              {exportingWeekly ? 'Mengekspor…' : 'Export minggu ini'}
             </button>
             <button
               type="button"

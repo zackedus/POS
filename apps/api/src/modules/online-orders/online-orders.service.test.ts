@@ -64,6 +64,9 @@ test('OnlineOrders: webhook ignores already paid order', async () => {
         payments: [],
       }),
     },
+    tenantSettings: {
+      findUnique: async () => null,
+    },
     onlineOrderPayment: {
       findFirst: async () => null,
     },

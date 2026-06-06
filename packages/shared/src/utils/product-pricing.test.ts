@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  computeWeightedAverageBaseCost,
   deriveBaseCostFromPurchaseCost,
   derivePackageSellPrice,
   derivePurchaseCostFromBaseCost,
@@ -14,6 +15,14 @@ test('derivePackageSellPrice: paku 18.000/kg × 20 = 360.000/dus', () => {
 
 test('deriveBaseCostFromPurchaseCost: dus 300.000 / 20 = 15.000/kg', () => {
   assert.equal(deriveBaseCostFromPurchaseCost(300000, 20), 15000);
+});
+
+test('computeWeightedAverageBaseCost: 10@68000 + 10@72000 = 70000', () => {
+  assert.equal(computeWeightedAverageBaseCost(10, 68000, 10, 72000), 70000);
+});
+
+test('computeWeightedAverageBaseCost: first receive uses incoming cost only', () => {
+  assert.equal(computeWeightedAverageBaseCost(0, 0, 10, 68000), 68000);
 });
 
 test('derivePurchaseCostFromBaseCost: 15.000/kg × 20 = 300.000/dus', () => {

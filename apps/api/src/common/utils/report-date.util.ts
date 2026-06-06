@@ -78,3 +78,18 @@ export function resolveReportDayRange(
 
   return { date, isRange: false, startUtc, endUtc };
 }
+
+/** Current calendar week (Mon–Sun) in Asia/Jakarta. */
+export function resolveCurrentWeekRangeJakarta(now = new Date()): ReportDayRange {
+  const jakartaNow = new Date(now.getTime() + JAKARTA_OFFSET_MS);
+  const day = jakartaNow.getUTCDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(jakartaNow);
+  monday.setUTCDate(jakartaNow.getUTCDate() + mondayOffset);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+
+  const dateFrom = monday.toISOString().slice(0, 10);
+  const dateTo = sunday.toISOString().slice(0, 10);
+  return resolveReportDayRange(undefined, dateFrom, dateTo);
+}

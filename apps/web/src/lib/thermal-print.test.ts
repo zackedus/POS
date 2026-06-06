@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildEscPosReceiptFromDto,
   formatEscPosIntegrationHint,
   formatWebUsbIntegrationHint,
   paymentMethodLabel,
@@ -37,6 +38,31 @@ describe('thermal-print helpers', () => {
     expect(renderEscPosPreview(stub)).toMatch(/\[INIT\]/);
     expect(renderEscPosPreview(stub)).toMatch(/Toko Barokah/);
     expect(renderEscPosPreview(stub)).toMatch(/\[CUT\]/);
+  });
+
+  it('buildEscPosReceiptFromDto includes receipt header and total', () => {
+    const receipt = {
+      receiptNo: 'RCPT-1',
+      transactionId: 'trx-1',
+      tenantName: 'Toko Barokah',
+      outlet: { id: 'o1', name: 'Cabang Utama', code: 'MAIN', address: 'Jl. Test' },
+      cashier: { id: 'u1', fullName: 'Kasir Demo' },
+      status: 'COMPLETED',
+      items: [{ name: 'Semen', quantity: 2, unitPrice: 65000, subtotal: 130000 }],
+      payments: [{ method: 'CASH', amount: 130000, reference: null }],
+      subtotal: 130000,
+      discount: 0,
+      tax: 0,
+      total: 130000,
+      netTotal: 130000,
+      notes: null,
+      completedAt: '2026-06-06T10:00:00.000Z',
+      adjustments: [],
+      refundedTotal: 0,
+    };
+    const text = buildEscPosReceiptFromDto(receipt);
+    expect(text).toMatch(/Toko Barokah/);
+    expect(text).toMatch(/TOTAL/);
   });
 
   it('describes WebUSB stub availability', () => {

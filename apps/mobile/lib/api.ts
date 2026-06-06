@@ -107,4 +107,86 @@ export async function checkoutMobileCash(
   };
 }
 
+export interface MobileShiftSummary {
+  id: string;
+  outletId: string;
+  openingCash: number;
+  openedAt: string;
+  closedAt: string | null;
+}
+
+export interface MobileShiftClosePreview {
+  shiftId: string;
+  openingCash: number;
+  cashSales: number;
+  expectedCash: number;
+  transactionCount: number;
+  heldCount: number;
+  heldWarning: string | null;
+}
+
+export async function fetchMobileActiveShift(accessToken: string): Promise<MobileShiftSummary | null> {
+  const res = await fetch(`${API_BASE}/shifts/active`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const json = (await res.json()) as ApiEnvelope<MobileShiftSummary | null>;
+  if (!res.ok || !json.success) {
+    throw new Error(json.error?.message ?? 'Gagal memuat shift aktif.');
+  }
+  return json.data ?? null;
+}
+
+export async function openMobileShift(
+  accessToken: string,
+  openingCash: number,
+): Promise<MobileShiftSummary> {
+  const res = await fetch(`${API_BASE}/shifts/open`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ openingCash }),
+  });
+  const json = (await res.json()) as ApiEnvelope<MobileShiftSummary>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal membuka shift.');
+  }
+  return json.data;
+}
+
+export async function fetchMobileShiftClosePreview(
+  accessToken: string,
+  shiftId: string,
+): Promise<MobileShiftClosePreview> {
+  const res = await fetch(`${API_BASE}/shifts/${shiftId}/close-preview`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const json = (await res.json()) as ApiEnvelope<MobileShiftClosePreview>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat ringkasan tutup shift.');
+  }
+  return json.data;
+}
+
+export async function closeMobileShift(
+  accessToken: string,
+  shiftId: string,
+  closingCash: number,
+): Promise<MobileShiftSummary> {
+  const res = await fetch(`${API_BASE}/shifts/${shiftId}/close`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ closingCash }),
+  });
+  const json = (await res.json()) as ApiEnvelope<MobileShiftSummary>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal menutup shift.');
+  }
+  return json.data;
+}
+
 export { API_BASE };

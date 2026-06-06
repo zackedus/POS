@@ -6,6 +6,7 @@ import type { DigitalReceipt, EscPosStub } from '@/lib/transactions';
 import {
   formatReceiptDateTime,
   formatEscPosIntegrationHint,
+  formatWebUsbIntegrationHint,
   paymentMethodLabel,
 } from '@/lib/thermal-print';
 
@@ -14,6 +15,9 @@ interface ReceiptPanelProps {
   escpos?: EscPosStub;
   printElementId?: string;
   onPrint?: () => void;
+  onConnectPrinter?: () => void;
+  onThermalPrint?: () => void;
+  thermalStatus?: string | null;
   onClose?: () => void;
   compact?: boolean;
 }
@@ -23,6 +27,9 @@ export function ReceiptPanel({
   escpos,
   printElementId = 'barokah-receipt-print',
   onPrint,
+  onConnectPrinter,
+  onThermalPrint,
+  thermalStatus,
   onClose,
   compact = false,
 }: ReceiptPanelProps) {
@@ -100,11 +107,27 @@ export function ReceiptPanel({
       {escpos && !compact ? (
         <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>{formatEscPosIntegrationHint(escpos)}</p>
       ) : null}
+      {!compact && (onConnectPrinter || onThermalPrint) ? (
+        <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>{formatWebUsbIntegrationHint()}</p>
+      ) : null}
+      {thermalStatus ? (
+        <p style={{ margin: 0, fontSize: '0.78rem', color: '#334155' }}>{thermalStatus}</p>
+      ) : null}
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {onPrint ? (
           <Button type="button" variant="secondary" onClick={onPrint}>
             Cetak Struk
+          </Button>
+        ) : null}
+        {onConnectPrinter ? (
+          <Button type="button" variant="ghost" onClick={onConnectPrinter}>
+            Hubungkan Printer
+          </Button>
+        ) : null}
+        {onThermalPrint ? (
+          <Button type="button" variant="ghost" onClick={onThermalPrint}>
+            Cetak Thermal USB
           </Button>
         ) : null}
         {onClose ? (

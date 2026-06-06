@@ -20,7 +20,7 @@ import {
   type RecentTransactionSummary,
   type ReceiptResponse,
 } from '@/lib/transactions';
-import { printReceiptBrowser } from '@/lib/thermal-print';
+import { connectWebUsbThermalPrinter, printEscPosWebUsb, printReceiptBrowser } from '@/lib/thermal-print';
 import { createClientRequestId } from '@/lib/offline-queue';
 import {
   CATALOG_CATEGORIES_STALE_MS,
@@ -33,6 +33,7 @@ import { loadCatalogCache, saveCatalogCache } from '@/lib/catalog-cache';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useOfflinePos } from '@/hooks/useOfflinePos';
 import { OfflineBanner } from '@/components/pos/OfflineBanner';
+import { SyncConflictModal } from '@/components/pos/SyncConflictModal';
 import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
 import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
@@ -156,11 +157,34 @@ export default function PosPage() {
   const [recentTransactions, setRecentTransactions] = useState<RecentTransactionSummary[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<ReceiptResponse | null>(null);
+  const [thermalStatus, setThermalStatus] = useState<string | null>(null);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
   const [voidTarget, setVoidTarget] = useState<RecentTransactionSummary | null>(null);
   const [marginWarnings, setMarginWarnings] = useState<CartMarginWarning[]>([]);
   const [stockIssues, setStockIssues] = useState<CartStockIssue[]>([]);
   const [stockAlert, setStockAlert] = useState<string | null>(null);
+
+  useEffect(() => {
+    const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
+    if (visible.length > 0 && isOnline) {
+      setConflictModalOpen(true);
+    }
+  }, [conflicts, dismissedConflictIds, isOnline]);
+
+  async function handleConnectThermalPrinter() {
+    const result = await connectWebUsbThermalPrinter();
+    setThermalStatus(result.message);
+  }
+
+  async function handleThermalPrint() {
+    if (!receiptPreview) {
+      setThermalStatus('Tidak ada struk untuk dicetak.');
+      return;
+    }
+    const result = await printEscPosWebUsb(receiptPreview.receipt);
+    setThermalStatus(result.message);
+  }
 
   const gridOutletId = user?.outletIds?.length === 1 ? user.outletIds[0] : user?.outletIds?.[0];
   const onlineOrderCount = useOnlineOrderBadge(isOnline && Boolean(user), {
@@ -1126,6 +1150,16 @@ export default function PosPage() {
           void resolveConflict(conflict, action);
         }}
       />
+      <SyncConflictModal
+        open={conflictModalOpen}
+        conflicts={conflicts}
+        dismissedIds={dismissedConflictIds}
+        syncing={syncing}
+        onClose={() => setConflictModalOpen(false)}
+        onResolve={(conflict, action) => {
+          void resolveConflict(conflict, action);
+        }}
+      />
       <div
         style={{
           display: 'grid',
@@ -1210,6 +1244,9 @@ export default function PosPage() {
           onRecallTransaction={(id) => void handleRecallTransaction(id)}
           receiptPreview={receiptPreview}
           onPrintReceipt={() => printReceiptBrowser('barokah-receipt-print')}
+          onConnectPrinter={() => void handleConnectThermalPrinter()}
+          onThermalPrint={() => void handleThermalPrint()}
+          thermalStatus={thermalStatus}
           onCloseReceipt={() => setReceiptPreview(null)}
         />
       </div>

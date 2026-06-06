@@ -134,6 +134,17 @@ export default function PosScreen() {
           >
             <Text style={styles.checkoutBtnText}>{checkingOut ? 'Memproses…' : 'Bayar Tunai'}</Text>
           </Pressable>
+          <Pressable
+            style={styles.qrisBtn}
+            onPress={() =>
+              Alert.alert(
+                'QRIS — Segera Hadir',
+                'Pembayaran QRIS native mobile masih dalam pengembangan. Gunakan kasir web untuk QRIS, atau bayar tunai di mobile MVP.',
+              )
+            }
+          >
+            <Text style={styles.qrisBtnText}>Bayar QRIS (coming soon)</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -161,16 +172,22 @@ export default function PosScreen() {
       <Text style={styles.hint} onPress={() => void openWebPos()}>
         Buka kasir web lengkap → {WEB_POS_URL}
       </Text>
+      <Link href="/shift/open" style={styles.linkInline}>
+        Buka shift mobile
+      </Link>
+      <Link href="/shift/close" style={styles.linkInline}>
+        Tutup shift
+      </Link>
       <Text
         style={styles.hintSecondary}
         onPress={() =>
           Alert.alert(
-            'Scope Phase 8',
-            'Mobile MVP: login aman, grid produk, keranjang tunai sederhana. Offline queue & thermal = Fase 9.',
+            'Scope Phase 9',
+            'Mobile Phase 9: shift open/close aman (SecureStore), keranjang tunai, stub QRIS jujur. Offline queue penuh = Fase 10.',
           )
         }
       >
-        Tentang scope mobile Phase 8
+        Tentang scope mobile Phase 9
       </Text>
     </View>
   );
@@ -217,6 +234,15 @@ const styles = StyleSheet.create({
   },
   checkoutBtnDisabled: { opacity: 0.6 },
   checkoutBtnText: { color: '#fff', fontWeight: '600' },
+  qrisBtn: {
+    marginTop: 8,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  qrisBtnText: { color: '#475569', fontWeight: '600', fontSize: 13 },
   hint: { color: '#2563eb', marginTop: 16, fontSize: 13, textDecorationLine: 'underline' },
+  linkInline: { color: '#16a34a', marginTop: 8, fontSize: 13, fontWeight: '600' },
   hintSecondary: { color: '#64748b', marginTop: 8, fontSize: 12 },
 });

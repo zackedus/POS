@@ -23,6 +23,9 @@ function buildPrisma(overrides: Record<string, unknown> = {}) {
     tenant: {
       findFirst: async () => TENANT,
     },
+    tenantSettings: {
+      findUnique: async () => null,
+    },
     onlineOrder: {
       findUnique: async () => null,
     },

@@ -94,3 +94,24 @@ test('Reports: exportAnalyticsMargin returns CSV with BOM', async () => {
   assert.match(result.body, /^\uFEFF/);
   assert.match(result.body, /Semen/);
 });
+
+test('Reports: exportAnalyticsScheduled returns weekly preset CSV', async () => {
+  const prisma = {
+    outlet: {
+      findFirst: async () => ({ id: 'outlet-1' }),
+    },
+    transactionItem: {
+      findMany: async () => [],
+    },
+  };
+
+  const service = new ReportsService(prisma as never);
+  const result = await service.exportAnalyticsScheduled(createManager(), {
+    outletId: 'outlet-1',
+    preset: 'week' as never,
+  });
+
+  assert.equal(result.format, 'csv');
+  assert.match(result.filename, /analitik-minggu-ini/);
+  assert.equal(result.preset, 'week');
+});

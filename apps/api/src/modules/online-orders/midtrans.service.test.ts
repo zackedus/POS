@@ -19,6 +19,26 @@ test('MidtransService: isMockMode false when server key set', () => {
   assert.equal(service.isMockMode(), false);
 });
 
+test('MidtransService: verifySignature rejects production mode without key', () => {
+  const service = new MidtransService(
+    buildConfig({
+      MIDTRANS_SERVER_KEY: '',
+      MIDTRANS_IS_PRODUCTION: 'true',
+      MIDTRANS_WEBHOOK_SKIP_VERIFY: 'true',
+    }),
+  );
+
+  assert.equal(
+    service.verifySignature({
+      order_id: 'WEB-1',
+      transaction_status: 'settlement',
+      status_code: '200',
+      gross_amount: '100000.00',
+    }),
+    false,
+  );
+});
+
 test('MidtransService: createSnapPayment mock redirect when no server key', async () => {
   const service = new MidtransService(
     buildConfig({

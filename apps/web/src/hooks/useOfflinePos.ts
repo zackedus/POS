@@ -113,7 +113,7 @@ export function useOfflinePos() {
     async (conflict: SyncConflictItem, action: SyncConflictResolutionAction) => {
       recordConflictResolution(conflict.id, action);
 
-      if (action === 'CANCEL') {
+      if (action === 'CANCEL' || action === 'USE_SERVER') {
         const local = await getOfflineQueueEntryByClientRequestId(conflict.clientRequestId);
         if (local) {
           await removeOfflineQueueEntry(local.id);
@@ -121,11 +121,15 @@ export function useOfflinePos() {
         setDismissedConflictIds((prev) => [...prev, conflict.id]);
         await refreshPendingCount();
         await refreshConflicts();
-        setSyncMessage('Antrean dibatalkan. Konflik dihapus dari daftar.');
+        setSyncMessage(
+          action === 'USE_SERVER'
+            ? 'Antrean lokal dibatalkan — kondisi server diterima.'
+            : 'Antrean dibatalkan. Konflik dihapus dari daftar.',
+        );
         return;
       }
 
-      if (action === 'RETRY') {
+      if (action === 'RETRY' || action === 'KEEP_CLIENT') {
         const local = await getOfflineQueueEntryByClientRequestId(conflict.clientRequestId);
         if (local) {
           await updateOfflineQueueEntry(local.id, {

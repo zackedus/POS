@@ -14,6 +14,11 @@ export interface MidtransConfigView {
   serverKeyMasked: string | null;
   keySource: 'env' | 'tenant' | 'none';
   webhookPath: string;
+  productionGuardrails: {
+    liveRequiresServerKey: boolean;
+    webhookStrictInProduction: boolean;
+    warnings: string[];
+  };
 }
 
 export interface TenantSettingsView {
@@ -130,6 +135,14 @@ export class SettingsService {
       mode = isProduction ? 'live' : 'sandbox';
     }
 
+    const warnings: string[] = [];
+    if (isProduction && !effectiveKey) {
+      warnings.push('Mode produksi aktif tanpa server key — checkout online fallback mock.');
+    }
+    if (isProduction && effectiveKey && keySource === 'env') {
+      warnings.push('Live memakai kunci dari env — pertimbangkan simpan per tenant di dashboard.');
+    }
+
     return {
       ppnEnabled: row?.ppnEnabled ?? false,
       ppnRatePercent: row ? Number(row.ppnRatePercent) : 11,
@@ -139,7 +152,12 @@ export class SettingsService {
         serverKeyConfigured: Boolean(effectiveKey),
         serverKeyMasked: maskServerKey(effectiveKey),
         keySource,
-        webhookPath: '/api/v1/webhooks/midtrans',
+        webhookPath: '/api/v1/webhooks/midtrans/online',
+        productionGuardrails: {
+          liveRequiresServerKey: true,
+          webhookStrictInProduction: isProduction,
+          warnings,
+        },
       },
     };
   }

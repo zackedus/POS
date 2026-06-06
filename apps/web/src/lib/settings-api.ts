@@ -10,6 +10,11 @@ export interface MidtransConfigView {
   serverKeyMasked: string | null;
   keySource: 'env' | 'tenant' | 'none';
   webhookPath: string;
+  productionGuardrails?: {
+    liveRequiresServerKey: boolean;
+    webhookStrictInProduction: boolean;
+    warnings: string[];
+  };
 }
 
 export interface TenantSettingsView {
