@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { buildProductCsvTemplate } from '@barokah/shared';
 import { UserRole } from '@barokah/database';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -21,6 +23,9 @@ import { ConvertProductQuantityDto } from './dto/convert-product-quantity.dto';
 import { UpsertProductBundleOutletPolicyDto } from './dto/upsert-product-bundle-outlet-policy.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
+import { ImportProductsQueryDto } from './dto/import-products-query.dto';
+
+type CsvUploadFile = { buffer: Buffer; mimetype?: string; originalname?: string };
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -90,6 +95,40 @@ export class CatalogController {
   @Get('products/grid')
   listProductsGrid(@CurrentUser() user: AuthJwtPayload, @Query() query: ProductGridQueryDto) {
     return this.catalogService.listProductsGrid(user, query);
+  }
+
+  @Get('products/import/template')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  downloadImportTemplate() {
+    return {
+      filename: 'product-import-template.csv',
+      contentType: 'text/csv; charset=utf-8',
+      content: buildProductCsvTemplate(),
+    };
+  }
+
+  @Get('products/lookup')
+  lookupProduct(@CurrentUser() user: AuthJwtPayload, @Query('code') code: string) {
+    return this.catalogService.lookupProductByCode(user, code);
+  }
+
+  @Post('products/import')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    }),
+  )
+  importProducts(
+    @CurrentUser() user: AuthJwtPayload,
+    @UploadedFile() file: CsvUploadFile | undefined,
+    @Query() query: ImportProductsQueryDto,
+  ) {
+    if (!file?.buffer?.length) {
+      return this.catalogService.importProductsFromCsv(user, '', query.outletId);
+    }
+    const content = file.buffer.toString('utf-8');
+    return this.catalogService.importProductsFromCsv(user, content, query.outletId);
   }
 
   @Post('products')

@@ -21,6 +21,8 @@ export interface TenantSettingsView {
   ppnEnabled: boolean;
   ppnRatePercent: number;
   weeklyReportEmailEnabled: boolean;
+  loyaltyPointsEnabled: boolean;
+  loyaltyEarnRateIdr: number;
   midtrans: MidtransConfigView;
 }
 
@@ -47,6 +49,8 @@ export async function updateTenantSettings(input: {
   midtransServerKey?: string;
   midtransIsProduction?: boolean;
   weeklyReportEmailEnabled?: boolean;
+  loyaltyPointsEnabled?: boolean;
+  loyaltyEarnRateIdr?: number;
   clearMidtransServerKey?: boolean;
 }): Promise<TenantSettingsView> {
   const res = await authFetch(`${SETTINGS_BASE}/tenant`, {

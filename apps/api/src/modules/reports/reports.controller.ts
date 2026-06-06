@@ -53,6 +53,16 @@ export class ReportsController {
     return this.reportsService.getStockSummary(user, query);
   }
 
+  @Get('stock/low/export')
+  @Header('Cache-Control', 'no-store')
+  async exportLowStock(@CurrentUser() user: AuthJwtPayload, @Query() query: StockReportQueryDto) {
+    const result = await this.reportsService.exportLowStockCsv(user, query);
+    return new StreamableFile(Buffer.from(result.body, 'utf-8'), {
+      type: 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="${result.filename}"`,
+    });
+  }
+
   @Get('cross-outlet-stock')
   getCrossOutletStock(@CurrentUser() user: AuthJwtPayload, @Query() query: CrossOutletStockQueryDto) {
     return this.reportsService.getCrossOutletStock(user, query);

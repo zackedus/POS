@@ -69,7 +69,15 @@ export class PromoService {
   }
 
   async create(user: AuthJwtPayload, dto: CreatePromoRuleDto) {
-    this.validatePromoDto(dto.type, dto.value, dto.applyTo ?? PromoApplyTo.ALL, dto.categoryId, dto.productId);
+    this.validatePromoDto(
+      dto.type,
+      dto.value,
+      dto.applyTo ?? PromoApplyTo.ALL,
+      dto.categoryId,
+      dto.productId,
+      dto.startsAt,
+      dto.endsAt,
+    );
 
     const row = await this.prisma.promoRule.create({
       data: {
@@ -111,7 +119,15 @@ export class PromoService {
       dto.categoryId !== undefined ? dto.categoryId : existing.categoryId;
     const nextProductId = dto.productId !== undefined ? dto.productId : existing.productId;
 
-    this.validatePromoDto(nextType, nextValue, nextApplyTo, nextCategoryId, nextProductId);
+    this.validatePromoDto(
+      nextType,
+      nextValue,
+      nextApplyTo,
+      nextCategoryId,
+      nextProductId,
+      dto.startsAt !== undefined ? dto.startsAt : existing.startsAt?.toISOString() ?? null,
+      dto.endsAt !== undefined ? dto.endsAt : existing.endsAt?.toISOString() ?? null,
+    );
 
     const row = await this.prisma.promoRule.update({
       where: { id },
@@ -309,6 +325,8 @@ export class PromoService {
     applyTo: PromoApplyTo,
     categoryId?: string | null,
     productId?: string | null,
+    startsAt?: string | null,
+    endsAt?: string | null,
   ) {
     if (type === PromoType.PERCENTAGE && (value < 1 || value > 100)) {
       throw new UnprocessableEntityException({
@@ -333,6 +351,22 @@ export class PromoService {
         code: ErrorCodes.VALIDATION_FAILED,
         message: 'Promo semua produk tidak boleh punya kategori/produk spesifik.',
       });
+    }
+    if (startsAt && endsAt) {
+      const start = new Date(startsAt);
+      const end = new Date(endsAt);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: 'Format tanggal promo tidak valid.',
+        });
+      }
+      if (start >= end) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: 'Tanggal mulai promo harus sebelum tanggal berakhir.',
+        });
+      }
     }
   }
 }

@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ErrorCodes } from '@barokah/shared';
 
-import { convertFromBaseQuantity } from '@barokah/shared';
+import { convertFromBaseQuantity, buildProductSearchWhere } from '@barokah/shared';
 
 import { PrismaService } from '../../common/database/prisma.service';
 
@@ -72,7 +72,7 @@ export class InventoryService {
 
 
 
-    const search = query.search?.trim().toLowerCase();
+    const searchWhere = buildProductSearchWhere(query.search);
 
 
 
@@ -84,25 +84,7 @@ export class InventoryService {
 
         ...(query.categoryId ? { product: { categoryId: query.categoryId } } : {}),
 
-        ...(search
-
-          ? {
-
-              product: {
-
-                OR: [
-
-                  { name: { contains: search, mode: 'insensitive' } },
-
-                  { sku: { contains: search, mode: 'insensitive' } },
-
-                ],
-
-              },
-
-            }
-
-          : {}),
+        ...(searchWhere ? { product: searchWhere } : {}),
 
       },
 

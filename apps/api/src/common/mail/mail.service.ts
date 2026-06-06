@@ -39,7 +39,6 @@ export class MailService {
 
   async send(payload: EmailPayload): Promise<{ sent: boolean; mode: 'console' | 'smtp' }> {
     const smtpHost = this.config.get<string>('SMTP_HOST')?.trim();
-    const nodeEnv = this.config.get<string>('NODE_ENV') ?? process.env.NODE_ENV ?? 'development';
     const from = this.config.get<string>('SMTP_FROM')?.trim() ?? 'noreply@barokah.local';
 
     if (!smtpHost) {

@@ -4,6 +4,20 @@ Semua perubahan penting pada Barokah Core POS dicatat di file ini.
 
 Format mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan Semantic Versioning.
 
+## [1.0.0-beta-fase2-gap] - 2026-06-07
+
+### Added
+- **Import CSV produk:** `POST /products/import`, template download, laporan error per baris, stok awal opsional.
+- **Fuzzy search:** normalized token ILIKE + barcode di katalog master, grid kasir, dan inventory.
+- **Loyalty earn MVP:** 1 poin per Rp 10.000 (configurable), preview di POS, halaman `/dashboard/customers`.
+- **Promo terjadwal:** validasi `startsAt`/`endsAt`, UI jadwal admin, auto-hide expired di POS dropdown.
+- **Opname digital:** scan SKU/barcode quick-add, input qty mobile-friendly.
+- **Stock alert:** export CSV stok rendah + tombol di dashboard.
+
+### Docs
+- `docs/sprint/FASE1-2-GAP-CLOSE.md`
+- Audit scores updated: Fase 1 **95%**, Fase 2 **93%**
+
 ## [1.0.0-beta-fase2] - 2026-06-07
 
 ### Added

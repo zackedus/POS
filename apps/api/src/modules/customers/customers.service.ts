@@ -1,4 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import {
+  computeLoyaltyPointsEarned,
+  DEFAULT_LOYALTY_EARN_RATE_IDR,
+  type LoyaltyEarnConfig,
+} from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { normalizePhone } from '../online-orders/online-order.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
@@ -50,6 +55,30 @@ export class CustomersService {
     }
     const customer = await this.findOrCreateByPhone(tenantId, name, phone);
     return customer.id;
+  }
+
+  async getLoyaltyConfig(tenantId: string): Promise<LoyaltyEarnConfig> {
+    const row = await this.prisma.tenantSettings.findUnique({ where: { tenantId } });
+    return {
+      enabled: row?.loyaltyPointsEnabled ?? true,
+      earnRateIdr: row?.loyaltyEarnRateIdr ?? DEFAULT_LOYALTY_EARN_RATE_IDR,
+    };
+  }
+
+  async earnPointsForCompletedTransaction(
+    tenantId: string,
+    customerId: string | null | undefined,
+    netSpendIdr: number,
+  ): Promise<number> {
+    if (!customerId || netSpendIdr <= 0) return 0;
+    const config = await this.getLoyaltyConfig(tenantId);
+    const earned = computeLoyaltyPointsEarned(netSpendIdr, config);
+    if (earned <= 0) return 0;
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: { points: { increment: earned } },
+    });
+    return earned;
   }
 
   async list(user: AuthJwtPayload, search?: string) {

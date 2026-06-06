@@ -11,3 +11,6 @@ export * from './auto-generate';
 export * from './stock-messages';
 export * from './promo-calculator';
 export * from './tax-calculator';
+export * from './product-search';
+export * from './loyalty-points';
+export * from './product-csv-import';

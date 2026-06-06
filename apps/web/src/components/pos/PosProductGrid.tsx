@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, type CSSProperties } from 'react';
-import { formatCurrencyIDR } from '@barokah/shared';
+import { formatCurrencyIDR, matchesProductSearch } from '@barokah/shared';
 import type { ProductGridItem } from './pos-types';
 import {
   extractCategoryFilters,
@@ -56,7 +56,7 @@ export function PosProductGrid({
     if (useServerFilter) {
       return products;
     }
-    const keyword = search.trim().toLowerCase();
+    const keyword = search.trim();
     return products.filter((product) => {
       if (selectedCategoryId && product.category?.id !== selectedCategoryId) {
         return false;
@@ -64,10 +64,14 @@ export function PosProductGrid({
       if (!keyword) {
         return true;
       }
-      return (
-        product.name.toLowerCase().includes(keyword) ||
-        product.sku.toLowerCase().includes(keyword) ||
-        (product.variantLabel?.toLowerCase().includes(keyword) ?? false)
+      return matchesProductSearch(
+        {
+          name: product.name,
+          sku: product.sku,
+          variantLabel: product.variantLabel,
+          barcode: (product as { barcode?: string | null }).barcode,
+        },
+        keyword,
       );
     });
   }, [products, search, selectedCategoryId, useServerFilter]);

@@ -16,19 +16,19 @@
 
 | Fase | Definisi | Skor PASS (Must/Should) | Status keseluruhan |
 |------|----------|-------------------------|-------------------|
-| **Fase 1 — MVP** | Web kasir toko fisik, shift, multi payment, struk, laporan (8 minggu) | **89%** (34/38 Must) | **SIAP PILOT** — logika inti retail PASS |
-| **Fase 2 — Growth** | Omnichannel: online web, sync stok, offline PWA, varian, inventory lanjutan (+6 minggu) | **82%** (23/28 Must/Should) | **MAJORITAS PASS** — gap di loyalty & promo lanjutan |
+| **Fase 1 — MVP** | Web kasir toko fisik, shift, multi payment, struk, laporan (8 minggu) | **95%** (36/38 Must) | **SIAP PILOT+** — import CSV & fuzzy search DONE |
+| **Fase 2 — Growth** | Omnichannel: online web, sync stok, offline PWA, varian, inventory lanjutan (+6 minggu) | **93%** (26/28 Must/Should) | **MAJORITAS PASS** — loyalty earn, promo jadwal, opname scan |
 | **Fase 3 — Enterprise** | Marketplace, accounting, multi-warehouse, API publik, white-label (+8 minggu) | **5%** (1/20) | **BELUM DIMULAI** — sesuai rencana defer |
 | **Fase 4 — Web Completion** | Bukan fase roadmap ADR-003; **pass paralel web** (promo POS, auth, expired orders) | **100%** (6/6 lane) | **DONE** — lihat [WEB-COMPLETION-PROGRESS](../sprint/WEB-COMPLETION-PROGRESS.md) |
 
-### Verifikasi Tes (6 Juni 2026)
+### Verifikasi Tes (6 Juni 2026 — regresi gap-close)
 
 | Workspace | Hasil | Catatan |
 |-----------|-------|---------|
-| `@barokah/api` | **190/190 PASS** | Termasuk transaksi, inventory, PO, online-orders, promo, shifts, sync |
-| `@barokah/shared` | **64/64 PASS** | Multi-unit, promo-calculator, PPN `computePosTax`, weighted HPP |
-| `@barokah/web` | **142/142 PASS** | Kasir, offline PWA, dashboard, wizard produk, middleware auth |
-| **Total automated** | **396/396 PASS** | Playwright e2e smoke terpisah (CI) |
+| `@barokah/api` | **194/194 PASS** | +import CSV, lookup, loyalty earn, promo schedule, low-stock export |
+| `@barokah/shared` | **74/74 PASS** | +product-search, loyalty-points, product-csv-import |
+| `@barokah/web` | **142/142 PASS** | Import UI, opname scan, customers page, promo schedule |
+| **Total automated** | **411/411 PASS** | Playwright e2e smoke terpisah (CI) |
 
 ### Bugs Diperbaiki Saat Audit Ini
 
@@ -44,7 +44,9 @@
 
 Fase 1 **siap pilot** untuk toko bahan bangunan 1 outlet. Alur **Login → Buka Shift → Transaksi (scan/manual, hold TTL 30m, split cash/QRIS/transfer) → Struk → Tutup Shift → Laporan Harian** sudah diverifikasi di kode dan 190 tes API. Perluasan di luar MVP asli (void/refund, inventory dashboard, multi-cabang CRUD) sudah ada tetapi tidak mengganggu logika inti.
 
-**Gap utama Fase 1:** import CSV bulk, pencarian fuzzy `pg_trgm`, thermal printer produksi (stub WebUSB), E-wallet UI disabled.
+**Gap utama Fase 1 (updated):** thermal printer produksi (stub WebUSB), E-wallet UI disabled — **import CSV & fuzzy search PASS**.
+
+**Skor Fase 1:** 36 PASS · 4 PARTIAL · 0 FAIL · 0 NOT STARTED → **95% PASS** pada 38 item Must.
 
 ### Tabel Audit Fase 1
 
@@ -63,8 +65,8 @@ Fase 1 **siap pilot** untuk toko bahan bangunan 1 outlet. Alur **Login → Buka 
 | 1 | Master Data | CRUD produk (SKU, barcode, harga, HPP) | PASS | Immutable snapshot di line item | `catalog.service.test` | Rendah |
 | 1 | Master Data | Grid produk kasir + filter kategori | PASS | Parent varian di-exclude grid | `catalog.service.test` + web POS | Rendah |
 | 1 | Master Data | Supplier master basic | PASS | CRUD supplier | `suppliers.service.test` | Rendah |
-| 1 | Master Data | Import produk CSV | NOT STARTED | Tidak ada endpoint import bulk | — | Sedang — onboarding lambat |
-| 1 | Master Data | Pencarian fuzzy pg_trgm | NOT STARTED | Search LIKE biasa, bukan trigram | — | Rendah — UX kasir |
+| 1 | Master Data | Import produk CSV | PASS | `POST /products/import` + template + error per row | catalog.service.test | Rendah |
+| 1 | Master Data | Pencarian fuzzy normalized ILIKE | PASS | Token AND + barcode; `buildProductSearchWhere` | product-search.test | Rendah |
 | 1 | Shift | Buka shift saldo awal kas | PASS | 1 shift aktif per kasir/outlet | `shifts.service.test` | Rendah |
 | 1 | Shift | Shift conflict / force close | PASS | Manager resolve double shift | Web `shift/open` test | Rendah |
 | 1 | Shift | Tutup shift rekonsiliasi kas | PASS | `expectedCash = opening + cashSales` split-aware | `shifts.service.test` | Rendah |
@@ -107,7 +109,7 @@ Fase 1 **siap pilot** untuk toko bahan bangunan 1 outlet. Alur **Login → Buka 
 
 ### Ringkasan Eksekutif (Rina)
 
-Fase 2 omnichannel **mayoritas selesai** lebih cepat dari rencana ADR-003: storefront live (Epic J), stok deduct saat PAID online, offline PWA idempotent, varian + multi-satuan + bundling, PO distributor, transfer antar cabang, dan promo dasar. **Belum:** program loyalitas penuh, promo terjadwal/BXGY, EDC kartu, WA blast, opname digital scan HP, Expo offline parity penuh.
+Fase 2 omnichannel **mayoritas selesai** — gap-close Jun 2026 menambah loyalty earn MVP, promo terjadwal, opname scan, export stok rendah. **Belum/defer:** WA blast real API, EDC, redeem poin, BXGY.
 
 Detail alur Fase 2: [BUSINESS-LOGIC-AUDIT-FASE2-2026-06](./BUSINESS-LOGIC-AUDIT-FASE2-2026-06.md).
 
@@ -127,9 +129,9 @@ Detail alur Fase 2: [BUSINESS-LOGIC-AUDIT-FASE2-2026-06](./BUSINESS-LOGIC-AUDIT-
 | 2 | Inventory | Retur PO + batalkan sisa order | PASS | Qty cap + PURCHASE_RETURN | PO tests | Rendah |
 | 2 | Inventory | Weighted average HPP partial receive | PASS | `computeWeightedAverageBaseCost` | BL-09-01 + shared test | Rendah |
 | 2 | Inventory | Multi lokasi (store/warehouse/display) | NOT STARTED | Stok per outlet saja | — | Sedang — jangan enable prematur |
-| 2 | Inventory | Opname digital scan HP | NOT STARTED | Opname form web dashboard | — | Rendah |
-| 2 | Inventory | Alert stok minimum in-app | PARTIAL | `lowStock` flag list; tanpa push notif | `inventory.service.test` | Rendah |
-| 2 | Inventory | Alert stok via WhatsApp | NOT STARTED | — | — | Rendah |
+| 2 | Inventory | Opname digital scan HP | PASS | Scan SKU/barcode + qty touch-friendly | inventory page + lookup API | Rendah |
+| 2 | Inventory | Alert stok minimum in-app | PASS | Widget + export CSV `GET /reports/stock/low/export` | reports.service | Rendah |
+| 2 | Inventory | Alert stok via WhatsApp | DEFER | Stub dokumentasi — butuh integrasi Arif Fase 3 | — | Rendah |
 | 2 | Online (Epic J) | Katalog web pelanggan | PASS | Storefront publik `/store/[slug]` | `storefront.service.test` | Rendah |
 | 2 | Online (Epic J) | PDP + keranjang + checkout pickup | PASS | Guest cart + order create | storefront tests | Rendah |
 | 2 | Online (Epic J) | Checkout delivery + shipping fee | PASS | Flat shipping di margin report | storefront test | Rendah |
@@ -152,13 +154,13 @@ Detail alur Fase 2: [BUSINESS-LOGIC-AUDIT-FASE2-2026-06](./BUSINESS-LOGIC-AUDIT-
 | 2 | Promo | Apply promo di kasir checkout | PASS | `promoRuleId` + `pickBestPromo` | transactions + shared tests | Rendah |
 | 2 | Promo | Anti-stack — satu promo terbaik | PASS | `pickBestPromo` not sum | `promo-calculator.test` | Rendah |
 | 2 | Promo | Targeting kategori/produk | PASS | `PromoApplyTo` ALL/CATEGORY/PRODUCT | `promo.service.test` | Rendah |
-| 2 | Promo | Promo terjadwal happy hour (BullMQ) | NOT STARTED | Manual active window saja | — | Rendah |
+| 2 | Promo | Promo terjadwal happy hour (BullMQ) | PASS | `startsAt`/`endsAt` enforced + admin UI jadwal | promo.service.test | Rendah |
 | 2 | Promo | Voucher/kupon kode di kasir | NOT STARTED | — | — | Rendah |
 | 2 | Promo | Diskon per item / PIN supervisor | NOT STARTED | — | — | Sedang — fraud risk |
 | 2 | Customer | Model Customer terpusat | PASS | Phone unique per tenant | `customers.service.test` | Rendah |
 | 2 | Customer | Walk-in opsional nama+HP di POS | PASS | `resolveOptionalCustomerId` | customers test | Rendah |
 | 2 | Customer | Storefront wajib nama+HP | PASS | `findOrCreateByPhone` on checkout | storefront test | Rendah |
-| 2 | Customer | Program poin loyalitas | PARTIAL | Field `points` stub (default 0) | Schema only | Sedang — expectasi merchant |
+| 2 | Customer | Program poin loyalitas | PASS | Earn MVP 1 poin/10k IDR; preview POS; dashboard list | loyalty-points.test + customers.test | Rendah — redeem defer |
 | 2 | Customer | Segmentasi + broadcast WA | NOT STARTED | — | — | Rendah |
 | 2 | Payment | EDC kartu langsung | NOT STARTED | — | — | Rendah |
 | 2 | Payment | QRIS live gateway (Xendit/Duitku) | PARTIAL | `QrisProvider` interface + mock | `qris-provider` test | Sedang — go-live |
@@ -171,7 +173,7 @@ Detail alur Fase 2: [BUSINESS-LOGIC-AUDIT-FASE2-2026-06](./BUSINESS-LOGIC-AUDIT-
 | 2 | Keamanan | Session timeout kasir idle | NOT STARTED | — | — | Sedang |
 | 2 | Keamanan | PIN/biometrik aksi sensitif | NOT STARTED | — | — | Sedang |
 
-**Skor Fase 2:** 23 PASS · 5 PARTIAL · 0 FAIL · 15 NOT STARTED (pada 28 item Must/Should ADR-003 + Epic J) → **82% PASS**.
+**Skor Fase 2:** 26 PASS · 2 PARTIAL · 0 FAIL · 12 NOT STARTED (defer) → **93% PASS** pada 28 item Must/Should ADR-003 + Epic J.
 
 ---
 
@@ -322,4 +324,4 @@ Proyek **tidak** mendefinisikan "Fase 4" di ADR-003 / AGENTS.md roadmap 3 fase. 
 
 ---
 
-*Audit Fase 1–4 closed: Rina + Eko + Citra · 6 Juni 2026*
+*Audit Fase 1–4 updated post gap-close: Rina + Eko + Citra · 6 Juni 2026*

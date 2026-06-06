@@ -107,3 +107,61 @@ export async function fetchMasterProducts<T>(params: {
   }
   return json.data;
 }
+
+export interface ProductImportResult {
+  imported: number;
+  skipped: number;
+  errors: Array<{ rowNumber: number; field: string; message: string }>;
+}
+
+export async function downloadProductImportTemplate(): Promise<void> {
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/products/import/template`);
+  const json = (await res.json()) as ApiEnvelope<{ filename: string; content: string }>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal mengunduh template.');
+  }
+  const blob = new Blob([json.data.content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = json.data.filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function importProductsCsv(file: File, outletId?: string): Promise<ProductImportResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const query = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/products/import${query}`, {
+    method: 'POST',
+    body: formData,
+  });
+  const json = (await res.json()) as ApiEnvelope<ProductImportResult>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal import produk.');
+  }
+  return json.data;
+}
+
+export async function lookupProductByCode(code: string): Promise<{
+  id: string;
+  sku: string;
+  name: string;
+  variantLabel: string | null;
+  price: number;
+}> {
+  const query = buildQuery({ code: code.trim() });
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/products/lookup${query}`);
+  const json = (await res.json()) as ApiEnvelope<{
+    id: string;
+    sku: string;
+    name: string;
+    variantLabel: string | null;
+    price: number;
+  }>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Produk tidak ditemukan.');
+  }
+  return json.data;
+}

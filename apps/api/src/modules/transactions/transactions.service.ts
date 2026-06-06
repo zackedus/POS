@@ -9,7 +9,7 @@ import {
 import { UserRole } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
-import { ErrorCodes, PaymentMethod, computePosTax } from '@barokah/shared';
+import { ErrorCodes, PaymentMethod, computePosTax, computeLoyaltyPointsEarned } from '@barokah/shared';
 import {
   buildInsufficientStockDetail,
   convertToBaseQuantity,
@@ -413,6 +413,7 @@ export class TransactionsService {
     paymentSummary?: Record<string, number>,
     cashReceived?: number,
     marginWarnings?: MarginWarningItem[],
+    loyalty?: { pointsEarned?: number; customerPoints?: number },
   ) {
     return {
       id: transaction.id,
@@ -434,6 +435,9 @@ export class TransactionsService {
         : { hasNegativeMargin: false }),
       ...(transaction.discount != null
         ? { discount: toIdrInteger(transaction.discount as Decimal) }
+        : {}),
+      ...(loyalty?.pointsEarned != null && loyalty.pointsEarned > 0
+        ? { pointsEarned: loyalty.pointsEarned, customerPoints: loyalty.customerPoints }
         : {}),
     };
   }
@@ -1311,12 +1315,15 @@ export class TransactionsService {
       return created;
     });
 
+    const loyaltyMeta = await this.applyLoyaltyEarn(user.tenantId, customerId, subtotal - discount);
+
     return this.buildCheckoutResponse(
       transaction,
       normalizedItems.length,
       undefined,
       dto.cashReceived,
       marginWarnings,
+      loyaltyMeta,
     );
   }
 
@@ -1428,7 +1435,33 @@ export class TransactionsService {
       return acc;
     }, {});
 
-    return this.buildCheckoutResponse(transaction, normalizedItems.length, paymentSummary, undefined, marginWarnings);
+    const loyaltyMeta = await this.applyLoyaltyEarn(user.tenantId, customerId, subtotal - discount);
+
+    return this.buildCheckoutResponse(
+      transaction,
+      normalizedItems.length,
+      paymentSummary,
+      undefined,
+      marginWarnings,
+      loyaltyMeta,
+    );
+  }
+
+  private async applyLoyaltyEarn(
+    tenantId: string,
+    customerId: string | null,
+    netSpendIdr: number,
+  ): Promise<{ pointsEarned?: number; customerPoints?: number }> {
+    if (!customerId || netSpendIdr <= 0) return {};
+    const config = await this.customersService.getLoyaltyConfig(tenantId);
+    const pointsEarned = computeLoyaltyPointsEarned(netSpendIdr, config);
+    if (pointsEarned <= 0) return {};
+    const updated = await this.prisma.customer.update({
+      where: { id: customerId },
+      data: { points: { increment: pointsEarned } },
+      select: { points: true },
+    });
+    return { pointsEarned, customerPoints: updated.points };
   }
 
   private assertOutletAccess(user: AuthJwtPayload, outletId: string) {

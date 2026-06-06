@@ -34,8 +34,17 @@ export class UpdateTenantSettingsDto {
   @IsBoolean({ message: 'Laporan mingguan email harus boolean' })
   weeklyReportEmailEnabled?: boolean;
 
-  /** Set true to remove tenant-level Midtrans key override. */
   @IsOptional()
   @IsBoolean()
   clearMidtransServerKey?: boolean;
+
+  @IsOptional()
+  @IsBoolean({ message: 'Loyalty enabled harus boolean' })
+  loyaltyPointsEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Rate poin harus angka' })
+  @Min(1000, { message: 'Rate poin minimal Rp 1.000' })
+  loyaltyEarnRateIdr?: number;
 }

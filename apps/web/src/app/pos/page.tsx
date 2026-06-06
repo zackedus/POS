@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput } from '@barokah/shared';
+import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned } from '@barokah/shared';
 import { PosCartPanel } from '@/components/pos/PosCartPanel';
 import { PosProductGrid } from '@/components/pos/PosProductGrid';
 import { PosShiftBar } from '@/components/pos/PosShiftBar';
@@ -40,6 +40,7 @@ import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
 import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
 import { fetchActivePromos, previewPromoLocally, type PromoValidationResult } from '@/lib/promo-checkout-api';
+import { fetchTenantSettings } from '@/lib/settings-api';
 import type { PromoRuleView } from '@/lib/promotions-api';
 import { mapRecallItemsToCart } from '@/lib/recall-cart';
 import { evaluateAddToCartStock, resolveStockErrorMessage } from '@/lib/stock-errors';
@@ -169,6 +170,19 @@ export default function PosPage() {
   const [stockAlert, setStockAlert] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [loyaltyPointsEnabled, setLoyaltyPointsEnabled] = useState(true);
+  const [loyaltyEarnRateIdr, setLoyaltyEarnRateIdr] = useState(10_000);
+
+  useEffect(() => {
+    void fetchTenantSettings()
+      .then((settings) => {
+        setLoyaltyPointsEnabled(settings.loyaltyPointsEnabled);
+        setLoyaltyEarnRateIdr(settings.loyaltyEarnRateIdr);
+      })
+      .catch(() => {
+        /* keep defaults */
+      });
+  }, []);
 
   function buildCustomerCheckoutPayload() {
     const name = customerName.trim();
@@ -367,6 +381,17 @@ export default function PosPage() {
   }, [cart, activePromos, selectedPromoId, subtotal, promoCartLines]);
   const discountAmount = promoPreview.discountAmount;
   const total = Math.max(0, subtotal - discountAmount);
+  const loyaltyPointsPreview = useMemo(() => {
+    const name = customerName.trim();
+    const phone = customerPhone.trim();
+    if (!loyaltyPointsEnabled || name.length < 2 || !/^08\d{8,11}$/.test(phone)) {
+      return null;
+    }
+    return previewLoyaltyPointsEarned(subtotal, discountAmount, {
+      enabled: loyaltyPointsEnabled,
+      earnRateIdr: loyaltyEarnRateIdr,
+    });
+  }, [customerName, customerPhone, discountAmount, loyaltyEarnRateIdr, loyaltyPointsEnabled, subtotal]);
   const checkoutPromoRuleId =
     selectedPromoId === 'none' || !promoPreview.applicable ? undefined : promoPreview.promoRuleId;
   const splitCash = parsePositiveIdrInput(splitCashAmount);
@@ -1292,6 +1317,8 @@ export default function PosPage() {
           customerPhone={customerPhone}
           onCustomerNameChange={setCustomerName}
           onCustomerPhoneChange={setCustomerPhone}
+          loyaltyPointsPreview={loyaltyPointsPreview}
+          loyaltyEarnRateIdr={loyaltyEarnRateIdr}
         />
       </div>
 

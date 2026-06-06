@@ -28,7 +28,26 @@ const emptyForm = {
   value: '10',
   applyTo: 'ALL' as PromoApplyTo,
   isActive: true,
+  startsAt: '',
+  endsAt: '',
 };
+
+function formatPromoScheduleStatus(promo: PromoRuleView): string {
+  const now = Date.now();
+  if (!promo.isActive) return 'Nonaktif';
+  if (promo.startsAt && new Date(promo.startsAt).getTime() > now) return 'Terjadwal';
+  if (promo.endsAt && new Date(promo.endsAt).getTime() < now) return 'Kedaluwarsa';
+  return 'Aktif';
+}
+
+function formatScheduleRange(promo: PromoRuleView): string {
+  if (!promo.startsAt && !promo.endsAt) return 'Tanpa batas';
+  const fmt = (iso: string) =>
+    new Intl.DateTimeFormat('id-ID', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+  if (promo.startsAt && promo.endsAt) return `${fmt(promo.startsAt)} – ${fmt(promo.endsAt)}`;
+  if (promo.startsAt) return `Mulai ${fmt(promo.startsAt)}`;
+  return `Sampai ${fmt(promo.endsAt!)}`;
+}
 
 export default function PromotionsPage() {
   const { tokens } = useAdminTheme();
@@ -70,6 +89,8 @@ export default function PromotionsPage() {
       value: String(promo.value),
       applyTo: promo.applyTo,
       isActive: promo.isActive,
+      startsAt: promo.startsAt ? promo.startsAt.slice(0, 16) : '',
+      endsAt: promo.endsAt ? promo.endsAt.slice(0, 16) : '',
     });
     setFormOpen(true);
   }
@@ -85,6 +106,8 @@ export default function PromotionsPage() {
         value: Number(form.value),
         applyTo: form.applyTo,
         isActive: form.isActive,
+        startsAt: form.startsAt.trim() ? new Date(form.startsAt).toISOString() : undefined,
+        endsAt: form.endsAt.trim() ? new Date(form.endsAt).toISOString() : undefined,
       };
       if (editId) {
         await updatePromotion(editId, payload);
@@ -142,6 +165,7 @@ export default function PromotionsPage() {
                     <th style={{ padding: '0.5rem' }}>Tipe</th>
                     <th style={{ padding: '0.5rem' }}>Nilai</th>
                     <th style={{ padding: '0.5rem' }}>Target</th>
+                    <th style={{ padding: '0.5rem' }}>Jadwal</th>
                     <th style={{ padding: '0.5rem' }}>Status</th>
                     <th style={{ padding: '0.5rem' }}>Aksi</th>
                   </tr>
@@ -155,8 +179,11 @@ export default function PromotionsPage() {
                         {promo.type === 'PERCENTAGE' ? `${promo.value}%` : `Rp ${promo.value.toLocaleString('id-ID')}`}
                       </td>
                       <td style={{ padding: '0.65rem 0.5rem' }}>{PROMO_APPLY_LABELS[promo.applyTo]}</td>
+                      <td style={{ padding: '0.65rem 0.5rem', fontSize: '0.8125rem', color: tokens.muted }}>
+                        {formatScheduleRange(promo)}
+                      </td>
                       <td style={{ padding: '0.65rem 0.5rem', color: promo.isActive ? '#16a34a' : tokens.muted }}>
-                        {promo.isActive ? 'Aktif' : 'Nonaktif'}
+                        {formatPromoScheduleStatus(promo)}
                       </td>
                       <td style={{ padding: '0.65rem 0.5rem' }}>
                         <button type="button" onClick={() => openEdit(promo)} style={{ marginRight: 8 }}>
@@ -232,6 +259,24 @@ export default function PromotionsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
               />
               Aktif
+            </label>
+            <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
+              Mulai (opsional)
+              <input
+                type="datetime-local"
+                value={form.startsAt}
+                onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))}
+                style={{ padding: '0.5rem', borderRadius: 8, border: `1px solid ${tokens.cardBorder}` }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
+              Berakhir (opsional)
+              <input
+                type="datetime-local"
+                value={form.endsAt}
+                onChange={(e) => setForm((f) => ({ ...f, endsAt: e.target.value }))}
+                style={{ padding: '0.5rem', borderRadius: 8, border: `1px solid ${tokens.cardBorder}` }}
+              />
             </label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <Button type="submit" disabled={saving}>

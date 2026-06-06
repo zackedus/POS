@@ -240,6 +240,23 @@ export class ReportsService {
       stockValue,
       hasCostData: stockValue > 0,
       topLowStock: lowStockItems.slice(0, 5),
+      allLowStock: lowStockItems,
+    };
+  }
+
+  async exportLowStockCsv(user: AuthJwtPayload, query: StockReportQueryDto) {
+    const summary = await this.getStockSummary(user, query);
+    const header = 'sku,name,quantity,min_stock,deficit';
+    const lines = (summary.allLowStock ?? []).map((item) => {
+      const deficit = Math.max(0, item.minStock - item.quantity);
+      const escapedName = `"${item.displayName.replace(/"/g, '""')}"`;
+      return `${item.sku},${escapedName},${item.quantity},${item.minStock},${deficit}`;
+    });
+    const body = `\uFEFF${header}\n${lines.join('\n')}\n`;
+    const date = new Date().toISOString().slice(0, 10);
+    return {
+      filename: `low-stock-${date}.csv`,
+      body,
     };
   }
 

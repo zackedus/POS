@@ -240,6 +240,27 @@ export interface StockReportSummary {
   }>;
 }
 
+export async function exportLowStockCsv(outletId?: string): Promise<void> {
+  const params = new URLSearchParams();
+  if (outletId) params.set('outletId', outletId);
+  const qs = params.toString();
+  const url = `${REPORTS_BASE}/stock/low/export${qs ? `?${qs}` : ''}`;
+  const res = await authFetch(url);
+  if (!res.ok) {
+    throw new Error('Gagal export stok rendah.');
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match?.[1] ?? `low-stock-${new Date().toISOString().slice(0, 10)}.csv`;
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export async function fetchStockReport(outletId?: string): Promise<StockReportSummary | null> {
   const params = new URLSearchParams();
   if (outletId) params.set('outletId', outletId);

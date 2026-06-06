@@ -48,6 +48,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/master/products', label: 'Produk' },
       { href: '/master/bundles', label: 'Paket Bundling' },
       { href: '/dashboard/promotions', label: 'Promo & Diskon' },
+      { href: '/dashboard/customers', label: 'Pelanggan & Poin' },
       { href: '/master/categories', label: 'Kategori' },
       { href: '/dashboard/units', label: 'Satuan' },
       { href: '/dashboard/users', label: 'Pengguna' },
@@ -77,6 +78,7 @@ const ICONS: Record<string, string> = {
   Produk: '▦',
   'Paket Bundling': '▣',
   'Promo & Diskon': '％',
+  'Pelanggan & Poin': '★',
   Kategori: '▥',
   Satuan: '⎔',
   Pengguna: '◉',
@@ -146,6 +148,7 @@ function pageTitle(pathname: string): string {
   if (pathname === '/dashboard') return 'Ringkasan';
   if (pathname.startsWith('/dashboard/analytics')) return 'Analitik';
   if (pathname.startsWith('/dashboard/promotions')) return 'Promo & Diskon';
+  if (pathname.startsWith('/dashboard/customers')) return 'Pelanggan & Poin';
   if (pathname.startsWith('/dashboard/inventory') || pathname.startsWith('/dashboard/stock')) return 'Manajemen Stok';
   if (pathname.startsWith('/dashboard/outlets')) return 'Manajemen Cabang';
   if (pathname.startsWith('/dashboard/users')) return 'Manajemen Pengguna';

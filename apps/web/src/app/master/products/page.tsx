@@ -17,6 +17,9 @@ import {
   fetchMasterProducts,
   MASTER_PRODUCTS_PAGE_SIZE,
   MASTER_PRODUCTS_STALE_MS,
+  downloadProductImportTemplate,
+  importProductsCsv,
+  type ProductImportResult,
 } from '@/lib/catalog-api';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { adjustStock, fetchInventory } from '@/lib/inventory-api';
@@ -207,6 +210,8 @@ export default function ProductsPage() {
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [expandedVariantParentId, setExpandedVariantParentId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ProductImportResult | null>(null);
   const showCostFields = viewerRole ? canViewCostPrice(viewerRole) : false;
 
   async function handleImageUpload(file: File | undefined, target: 'create' | 'edit') {
@@ -414,6 +419,33 @@ export default function ProductsPage() {
     setEditForm(createEmptyWizardForm());
   }
 
+  async function handleDownloadImportTemplate() {
+    setError(null);
+    try {
+      await downloadProductImportTemplate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal mengunduh template.');
+    }
+  }
+
+  async function handleImportCsv(file: File | undefined) {
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    setSuccess(null);
+    setImportResult(null);
+    try {
+      const result = await importProductsCsv(file, selectedOutletId ?? undefined);
+      setImportResult(result);
+      await loadMasterData();
+      setSuccess(`Import selesai: ${result.imported} produk ditambahkan, ${result.skipped} dilewati.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal import CSV.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleUpdate(productId: string, product: Product) {
     const isVariantChild = !!product.parentProductId;
     const validation = validateProductForm(editForm, { requireCost: showCostFields, isVariantChild });
@@ -597,6 +629,49 @@ export default function ProductsPage() {
   return (
     <main style={pageStyle}>
       <h1 style={{ marginBottom: '0.5rem' }}>Master Produk</h1>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <Button type="button" variant="secondary" onClick={() => void handleDownloadImportTemplate()}>
+          Unduh Template CSV
+        </Button>
+        <label style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: 'none' }}
+            disabled={importing}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              void handleImportCsv(file);
+              e.target.value = '';
+            }}
+          />
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '0.5rem 0.875rem',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              background: importing ? '#f1f5f9' : '#fff',
+              cursor: importing ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            {importing ? 'Mengimport…' : 'Import CSV'}
+          </span>
+        </label>
+      </div>
+      {importResult && importResult.errors.length > 0 ? (
+        <div style={{ ...stateBoxStyle, background: '#fff7ed', border: '1px solid #fdba74', marginBottom: '0.75rem' }}>
+          <strong>Laporan error import ({importResult.errors.length})</strong>
+          <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem', fontSize: '0.8125rem' }}>
+            {importResult.errors.slice(0, 20).map((row, index) => (
+              <li key={`${row.rowNumber}-${row.field}-${index}`}>
+                Baris {row.rowNumber} ({row.field}): {row.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <p style={{ color: '#64748b', marginTop: 0, marginBottom: '1rem' }}>
         Pilih <strong>tipe produk</strong> terlebih dahulu: Sederhana, Multi-satuan, atau Induk varian.
         Varian (SKU berbeda) dan konversi satuan (dus → kg) tidak dicampur.

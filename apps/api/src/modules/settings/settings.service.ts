@@ -25,6 +25,8 @@ export interface TenantSettingsView {
   ppnEnabled: boolean;
   ppnRatePercent: number;
   weeklyReportEmailEnabled: boolean;
+  loyaltyPointsEnabled: boolean;
+  loyaltyEarnRateIdr: number;
   midtrans: MidtransConfigView;
 }
 
@@ -50,12 +52,20 @@ export class SettingsService {
       midtransServerKey?: string | null;
       midtransIsProduction?: boolean;
       weeklyReportEmailEnabled?: boolean;
+      loyaltyPointsEnabled?: boolean;
+      loyaltyEarnRateIdr?: number;
     } = {};
 
     if (dto.ppnEnabled !== undefined) data.ppnEnabled = dto.ppnEnabled;
     if (dto.ppnRatePercent !== undefined) data.ppnRatePercent = dto.ppnRatePercent;
     if (dto.weeklyReportEmailEnabled !== undefined) {
       data.weeklyReportEmailEnabled = dto.weeklyReportEmailEnabled;
+    }
+    if (dto.loyaltyPointsEnabled !== undefined) {
+      data.loyaltyPointsEnabled = dto.loyaltyPointsEnabled;
+    }
+    if (dto.loyaltyEarnRateIdr !== undefined) {
+      data.loyaltyEarnRateIdr = dto.loyaltyEarnRateIdr;
     }
     if (dto.midtransIsProduction !== undefined) data.midtransIsProduction = dto.midtransIsProduction;
     if (dto.clearMidtransServerKey) {
@@ -74,6 +84,8 @@ export class SettingsService {
         midtransServerKey: data.midtransServerKey ?? null,
         midtransIsProduction: data.midtransIsProduction ?? false,
         weeklyReportEmailEnabled: data.weeklyReportEmailEnabled ?? false,
+        loyaltyPointsEnabled: data.loyaltyPointsEnabled ?? true,
+        loyaltyEarnRateIdr: data.loyaltyEarnRateIdr ?? 10_000,
       },
       update: data,
     });
@@ -123,6 +135,8 @@ export class SettingsService {
       midtransServerKey: string | null;
       midtransIsProduction: boolean;
       weeklyReportEmailEnabled?: boolean;
+      loyaltyPointsEnabled?: boolean;
+      loyaltyEarnRateIdr?: number;
     } | null,
   ): TenantSettingsView {
     const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
@@ -154,6 +168,8 @@ export class SettingsService {
       ppnEnabled: row?.ppnEnabled ?? false,
       ppnRatePercent: row ? Number(row.ppnRatePercent) : 11,
       weeklyReportEmailEnabled: row?.weeklyReportEmailEnabled ?? false,
+      loyaltyPointsEnabled: row?.loyaltyPointsEnabled ?? true,
+      loyaltyEarnRateIdr: row?.loyaltyEarnRateIdr ?? 10_000,
       midtrans: {
         mode,
         isProduction,

@@ -560,3 +560,58 @@ test('Catalog: deleteProductBundle removes bundle by product id', async () => {
   assert.equal(deletedId, 'bundle-1');
   assert.equal(result.deleted, true);
 });
+
+test('Catalog: lookupProductByCode finds by SKU', async () => {
+  const prisma = {
+    product: {
+      findFirst: async () => ({
+        id: 'prod-1',
+        sku: 'SKU-001',
+        barcode: '899123',
+        name: 'Semen 40kg',
+        variantLabel: null,
+        price: { toString: () => '65000' },
+        category: { id: 'cat-1', name: 'Semen' },
+        unit: { id: 'u1', name: 'Sak', symbol: 'sak' },
+      }),
+    },
+  };
+  const service = new CatalogService(prisma as never);
+  const result = await service.lookupProductByCode(createUser(), 'SKU-001');
+  assert.equal(result.sku, 'SKU-001');
+  assert.equal(result.price, 65000);
+});
+
+test('Catalog: importProductsFromCsv imports valid rows', async () => {
+  const createdSkus: string[] = [];
+  const prisma = {
+    category: {
+      findMany: async () => [{ id: 'cat-1', name: 'Bahan', tenantId: 'tenant-1' }],
+      create: async () => {
+        throw new Error('should not create category');
+      },
+    },
+    unit: {
+      findMany: async () => [{ id: 'unit-1', name: 'sak', symbol: 'sak', tenantId: 'tenant-1' }],
+      create: async () => {
+        throw new Error('should not create unit');
+      },
+    },
+    product: {
+      findMany: async () => [],
+      create: async ({ data }: { data: { sku: string } }) => {
+        createdSkus.push(data.sku);
+        return { id: `prod-${createdSkus.length}`, ...data };
+      },
+    },
+    inventoryItem: {
+      upsert: async () => ({ id: 'inv-1' }),
+    },
+  };
+  const csv = `sku,name,price,category,unit,stock
+NEW-1,Produk Baru,12000,Bahan,sak,5`;
+  const service = new CatalogService(prisma as never);
+  const result = await service.importProductsFromCsv(createUser(), csv, 'outlet-1');
+  assert.equal(result.imported, 1);
+  assert.equal(createdSkus[0], 'NEW-1');
+});

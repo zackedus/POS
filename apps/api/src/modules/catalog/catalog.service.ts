@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException, UnprocessableEntityEx
 import { Decimal } from '@prisma/client/runtime/library';
 import { ErrorCodes } from '@barokah/shared';
 import type { UnitConversionDraft } from '@barokah/shared';
+import { buildProductSearchWhere, parseProductCsv, type ProductCsvRowError } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
@@ -464,6 +465,180 @@ export class CatalogService {
     await this.ensureProductExists(user.tenantId, productId);
     await this.prisma.product.delete({ where: { id: productId } });
     return { deleted: true };
+  }
+
+  async lookupProductByCode(user: AuthJwtPayload, code: string) {
+    const trimmed = code.trim();
+    if (!trimmed) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: 'Kode SKU/barcode wajib diisi.',
+      });
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true,
+        hasVariants: false,
+        OR: [
+          { sku: { equals: trimmed, mode: 'insensitive' } },
+          { barcode: { equals: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        sku: true,
+        barcode: true,
+        name: true,
+        variantLabel: true,
+        price: true,
+        category: { select: { id: true, name: true } },
+        unit: { select: { id: true, name: true, symbol: true } },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Produk tidak ditemukan untuk SKU/barcode tersebut.',
+      });
+    }
+
+    return {
+      id: product.id,
+      sku: product.sku,
+      barcode: product.barcode,
+      name: product.name,
+      variantLabel: product.variantLabel,
+      price: toIdrInteger(product.price),
+      category: product.category,
+      unit: product.unit,
+    };
+  }
+
+  async importProductsFromCsv(
+    user: AuthJwtPayload,
+    csvContent: string,
+    outletId?: string,
+  ) {
+    const parsed = parseProductCsv(csvContent);
+    if (parsed.errors.length > 0 && parsed.rows.length === 0) {
+      return {
+        imported: 0,
+        skipped: 0,
+        errors: parsed.errors,
+      };
+    }
+
+    const resolvedOutletId = outletId ? resolveOutletId(user, outletId) : user.outletIds[0];
+    if (!resolvedOutletId) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.INVALID_INPUT,
+        message: 'Outlet wajib dipilih untuk import stok awal.',
+      });
+    }
+
+    const [categories, units, existingProducts] = await Promise.all([
+      this.prisma.category.findMany({ where: { tenantId: user.tenantId } }),
+      this.prisma.unit.findMany({ where: { tenantId: user.tenantId } }),
+      this.prisma.product.findMany({
+        where: { tenantId: user.tenantId },
+        select: { sku: true },
+      }),
+    ]);
+
+    const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c]));
+    const unitByKey = new Map(
+      units.flatMap((u) => [
+        [u.name.trim().toLowerCase(), u] as const,
+        [u.symbol.trim().toLowerCase(), u] as const,
+      ]),
+    );
+    const existingSkus = new Set(existingProducts.map((p) => p.sku.trim().toLowerCase()));
+
+    let imported = 0;
+    let skipped = 0;
+    const errors: ProductCsvRowError[] = [...parsed.errors];
+
+    for (const row of parsed.rows) {
+      const skuKey = row.sku.trim().toLowerCase();
+      if (existingSkus.has(skuKey)) {
+        skipped += 1;
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'sku',
+          message: `SKU "${row.sku}" sudah terdaftar — baris dilewati.`,
+        });
+        continue;
+      }
+
+      try {
+        let category = categoryByName.get(row.category.trim().toLowerCase());
+        if (!category) {
+          category = await this.prisma.category.create({
+            data: { tenantId: user.tenantId, name: row.category.trim() },
+          });
+          categoryByName.set(category.name.trim().toLowerCase(), category);
+        }
+
+        let unit = unitByKey.get(row.unit.trim().toLowerCase());
+        if (!unit) {
+          unit = await this.prisma.unit.create({
+            data: {
+              tenantId: user.tenantId,
+              name: row.unit.trim(),
+              symbol: row.unit.trim().slice(0, 8),
+            },
+          });
+          unitByKey.set(unit.name.trim().toLowerCase(), unit);
+          unitByKey.set(unit.symbol.trim().toLowerCase(), unit);
+        }
+
+        const product = await this.prisma.product.create({
+          data: {
+            tenantId: user.tenantId,
+            sku: row.sku.trim(),
+            name: row.name.trim(),
+            price: idrToDecimal(row.price),
+            costPrice: idrToDecimal(0),
+            unitId: unit.id,
+            categoryId: category.id,
+            hasVariants: false,
+            isActive: true,
+          },
+        });
+
+        if (row.stock != null && row.stock > 0) {
+          await this.prisma.inventoryItem.upsert({
+            where: {
+              outletId_productId: { outletId: resolvedOutletId, productId: product.id },
+            },
+            create: {
+              outletId: resolvedOutletId,
+              productId: product.id,
+              quantity: new Decimal(row.stock),
+              minStock: new Decimal(0),
+            },
+            update: {
+              quantity: new Decimal(row.stock),
+            },
+          });
+        }
+
+        existingSkus.add(skuKey);
+        imported += 1;
+      } catch (error) {
+        skipped += 1;
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'row',
+          message: error instanceof Error ? error.message : 'Gagal import baris.',
+        });
+      }
+    }
+
+    return { imported, skipped, errors };
   }
 
   async createProductBundle(user: AuthJwtPayload, dto: CreateProductBundleDto) {
@@ -1037,38 +1212,23 @@ export class CatalogService {
   }
 
   private buildGridProductWhere(tenantId: string, query: ProductGridQueryDto) {
-    const keyword = query.q?.trim();
+    const searchWhere = buildProductSearchWhere(query.q);
     return {
       tenantId,
       isActive: true,
       hasVariants: false,
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
-      ...(keyword
-        ? {
-            OR: [
-              { name: { contains: keyword, mode: 'insensitive' as const } },
-              { sku: { contains: keyword, mode: 'insensitive' as const } },
-              { variantLabel: { contains: keyword, mode: 'insensitive' as const } },
-            ],
-          }
-        : {}),
+      ...(searchWhere ?? {}),
     };
   }
 
   private buildMasterProductWhere(tenantId: string, query: ListProductsQueryDto) {
-    const keyword = query.q?.trim();
+    const searchWhere = buildProductSearchWhere(query.q);
     return {
       tenantId,
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(query.includeInactive ? {} : { isActive: true }),
-      ...(keyword
-        ? {
-            OR: [
-              { name: { contains: keyword, mode: 'insensitive' as const } },
-              { sku: { contains: keyword, mode: 'insensitive' as const } },
-            ],
-          }
-        : {}),
+      ...(searchWhere ?? {}),
     };
   }
 

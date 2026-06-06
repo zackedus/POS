@@ -104,6 +104,8 @@ export interface PosCartPanelProps {
   customerPhone?: string;
   onCustomerNameChange?: (value: string) => void;
   onCustomerPhoneChange?: (value: string) => void;
+  loyaltyPointsPreview?: number | null;
+  loyaltyEarnRateIdr?: number;
 }
 
 export function PosCartPanel({
@@ -171,6 +173,8 @@ export function PosCartPanel({
   customerPhone = '',
   onCustomerNameChange,
   onCustomerPhoneChange,
+  loyaltyPointsPreview = null,
+  loyaltyEarnRateIdr = 10_000,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
   const stepperStyle = { minHeight: 44, minWidth: 44, padding: 0, fontSize: '1.125rem' };
@@ -397,6 +401,12 @@ export function PosCartPanel({
               fontSize: '0.875rem',
             }}
           />
+          {customerName.trim().length >= 2 && customerPhone.trim().length >= 8 && loyaltyPointsPreview != null && loyaltyPointsPreview > 0 ? (
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#166534' }}>
+              Estimasi poin didapat: <strong>+{loyaltyPointsPreview}</strong> (1 poin / Rp{' '}
+              {loyaltyEarnRateIdr.toLocaleString('id-ID')})
+            </p>
+          ) : null}
         </div>
       ) : null}
 

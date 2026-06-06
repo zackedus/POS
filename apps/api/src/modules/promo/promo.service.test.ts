@@ -173,3 +173,18 @@ test('PromoService: create percentage promo', async () => {
   assert.equal(row.value, 15);
   assert.ok(created);
 });
+
+test('PromoService: create rejects startsAt after endsAt', async () => {
+  const service = new PromoService({ promoRule: {} } as never);
+  await assert.rejects(
+    () =>
+      service.create(owner, {
+        name: 'Invalid schedule',
+        type: PromoType.PERCENTAGE,
+        value: 10,
+        startsAt: '2026-12-31T00:00:00.000Z',
+        endsAt: '2026-06-01T00:00:00.000Z',
+      }),
+    /tanggal mulai/i,
+  );
+});

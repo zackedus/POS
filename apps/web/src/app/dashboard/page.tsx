@@ -17,6 +17,7 @@ import { fetchFulfillmentQueue } from '@/lib/online-orders-api';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   exportDailyReport,
+  exportLowStockCsv,
   fetchDashboard,
   fetchCrossOutletStock,
   fetchStockReport,
@@ -425,6 +426,15 @@ export default function DashboardHomePage() {
               </div>
               {stockReport.topLowStock.length > 0 ? (
                 <div style={{ overflowX: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void exportLowStockCsv(selectedOutletId ?? undefined)}
+                    >
+                      Export CSV Stok Rendah
+                    </Button>
+                  </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>

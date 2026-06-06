@@ -29,6 +29,7 @@ import {
   type StockMovementRow,
 } from '@/lib/inventory-api';
 import { mapApiError } from '@/lib/api-client';
+import { lookupProductByCode } from '@/lib/catalog-api';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 
 type InventoryTab = 'stok' | 'riwayat' | 'opname' | 'transfer';
@@ -60,6 +61,8 @@ export default function InventoryPage() {
   const [opnameProductId, setOpnameProductId] = useState('');
   const [opnameActualQty, setOpnameActualQty] = useState('');
   const [opnameNotes, setOpnameNotes] = useState('');
+  const [opnameScanCode, setOpnameScanCode] = useState('');
+  const [opnameScanError, setOpnameScanError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [adjustQtyWarning, setAdjustQtyWarning] = useState<string | null>(null);
   const [transferToOutletId, setTransferToOutletId] = useState('');
@@ -205,6 +208,25 @@ export default function InventoryPage() {
       setError(mapApiError(err, 'Gagal menyesuaikan stok.'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleOpnameScan() {
+    const code = opnameScanCode.trim();
+    if (!code) return;
+    setOpnameScanError(null);
+    try {
+      const product = await lookupProductByCode(code);
+      const row = items.find((item) => item.productId === product.id);
+      if (!row) {
+        setOpnameScanError('Produk ditemukan di katalog tetapi tidak ada di stok outlet ini.');
+        return;
+      }
+      setOpnameProductId(product.id);
+      setOpnameActualQty(String(row.quantity));
+      setOpnameScanCode('');
+    } catch (err) {
+      setOpnameScanError(mapApiError(err, 'SKU/barcode tidak ditemukan.'));
     }
   }
 
@@ -562,6 +584,37 @@ export default function InventoryPage() {
           </p>
           <form onSubmit={(e) => void handleOpname(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 520 }}>
             <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
+              Scan barcode / ketik SKU
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input
+                  type="search"
+                  value={opnameScanCode}
+                  onChange={(e) => setOpnameScanCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleOpnameScan();
+                    }
+                  }}
+                  placeholder="Scan atau ketik SKU/barcode…"
+                  autoFocus
+                  style={{
+                    flex: '1 1 200px',
+                    minHeight: 44,
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                  }}
+                />
+                <Button type="button" variant="secondary" onClick={() => void handleOpnameScan()}>
+                  Cari
+                </Button>
+              </div>
+              {opnameScanError ? (
+                <span style={{ color: '#b91c1c', fontSize: '0.8125rem' }}>{opnameScanError}</span>
+              ) : null}
+            </label>
+            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
               Produk
               <select
                 value={opnameProductId}
@@ -594,7 +647,7 @@ export default function InventoryPage() {
               value={opnameActualQty}
               onChange={setOpnameActualQty}
               placeholder="0"
-              style={{ maxWidth: 200, padding: '0.5rem' }}
+              style={{ maxWidth: '100%', padding: '0.65rem', minHeight: 44, fontSize: '1rem' }}
             />
             <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
               Catatan opname (opsional)

@@ -43,3 +43,22 @@ test('CustomersService: resolveOptionalCustomerId links by customerId', async ()
   });
   assert.equal(id, 'cust-2');
 });
+
+test('CustomersService: earnPointsForCompletedTransaction increments points', async () => {
+  let increment = 0;
+  const prisma = {
+    tenantSettings: {
+      findUnique: async () => ({ loyaltyPointsEnabled: true, loyaltyEarnRateIdr: 10_000 }),
+    },
+    customer: {
+      update: async ({ data }: { data: { points: { increment: number } } }) => {
+        increment = data.points.increment;
+        return { points: 5 };
+      },
+    },
+  };
+  const service = new CustomersService(prisma as never);
+  const earned = await service.earnPointsForCompletedTransaction('tenant-1', 'cust-1', 25_000);
+  assert.equal(earned, 2);
+  assert.equal(increment, 2);
+});
