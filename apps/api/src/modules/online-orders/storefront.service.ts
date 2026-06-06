@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -304,6 +305,13 @@ export class StorefrontService {
   }
 
   async createOrder(tenantSlug: string, dto: CreateOnlineOrderDto) {
+    if (dto.website?.trim()) {
+      throw new BadRequestException({
+        code: ErrorCodes.INVALID_INPUT,
+        message: 'Permintaan checkout tidak dapat diproses.',
+      });
+    }
+
     const tenant = await this.resolveTenant(tenantSlug);
     const existing = await this.prisma.onlineOrder.findUnique({
       where: {

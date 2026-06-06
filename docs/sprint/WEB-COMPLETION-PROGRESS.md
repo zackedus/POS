@@ -67,3 +67,65 @@
 ---
 
 *Pass 4 closed: Dimas + Fajar + tim · 6 Juni 2026*
+
+---
+
+## Phase 6 — Dev Health + CI + Mobile + E2E (PASS 6 — DONE)
+
+> **Tanggal:** 6 Juni 2026  
+> **Koordinasi:** Budi · Lane owners: Yoga (A/B), Dimas (C/D), Fajar (E honeypot), Fitri (docs)
+
+| Lane | Deliverable | Status |
+|------|-------------|--------|
+| **A** | `db:migrate:deploy` OK, seed OK, lint/test/build/smoke pass | ✅ Done |
+| **B** | CI trigger `master` + README badge & CI/deploy section | ✅ Done |
+| **C** | Mobile login screen + README status Phase 2 | ✅ Done |
+| **D** | Playwright smoke 3 path (`e2e/smoke.spec.ts`) | ✅ Done |
+| **E** | Storefront honeypot checkout + export filename range | ✅ Done |
+
+### Lane A — Dev environment
+
+- `npm run db:migrate:deploy` — 16 migrations, no pending
+- `npm run db:seed` — OK (no FK reset needed)
+- `npm run lint && typecheck && test && build` — pass
+- `npm run smoke` — health 200
+
+### Lane B — CI
+
+- `.github/workflows/ci.yml` — branches: `main`, `master`, `develop`
+- README CI badge + testing/deploy docs
+
+### Lane C — Mobile MVP
+
+- `apps/mobile/app/login.tsx` — POST auth API
+- `apps/mobile/README.md` — honest Phase 2 scope
+
+### Lane D — E2E
+
+- `playwright.config.ts` + `e2e/smoke.spec.ts`
+- Scripts: `npm run test:e2e`, `test:e2e:install`
+
+### Lane E — Quick wins
+
+- Guest checkout honeypot field `website` (API reject if filled)
+- Dashboard export: CSV/PDF filename + message for date range
+
+### Test Results (Pass 6)
+
+| Suite | Result |
+|-------|--------|
+| `@barokah/api` | ✅ (incl. honeypot test) |
+| `@barokah/web` | ✅ 137+ |
+| `lint` / `typecheck` / `build` | ✅ |
+| `smoke` | ✅ |
+| Playwright e2e | ✅ 3/3 (local, dev stack) |
+
+### Defer Phase 7
+
+- Citra UAT sign-off Phase 4 checklist
+- Playwright in CI (needs PG + seed service)
+- Mobile secure storage + full POS offline
+- Midtrans live credentials & printer hardware POC
+- Analytics scheduled export / margin drill-down
+
+*Pass 6 closed: Budi + tim · 6 Juni 2026*

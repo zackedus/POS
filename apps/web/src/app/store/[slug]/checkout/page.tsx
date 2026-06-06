@@ -43,6 +43,8 @@ export default function StoreCheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  /** Honeypot — hidden from users; bots that fill this are rejected server-side. */
+  const [website, setWebsite] = useState('');
 
   const subtotal = calculateSubtotal(lines);
   const shippingFee = fulfillmentType === 'DELIVERY' ? DELIVERY_FLAT_FEE : 0;
@@ -108,6 +110,7 @@ export default function StoreCheckoutPage() {
                 postalCode: postalCode.trim() || undefined,
               }
             : undefined,
+        website: website.trim() || undefined,
       });
       sessionStorage.setItem(`barokah-order-phone:${slug}:${result.order.orderNo}`, phone.trim());
       clearCart();
@@ -216,6 +219,16 @@ export default function StoreCheckoutPage() {
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Data kontak</h2>
+        <input
+          type="text"
+          name="website"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+        />
         <Input label="Nama lengkap *" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
         <Input
           label="No. HP (WhatsApp) *"

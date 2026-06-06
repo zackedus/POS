@@ -90,4 +90,10 @@ export class CreateOnlineOrderDto {
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
   deliveryAddress?: DeliveryAddressDto;
+
+  /** Honeypot — must stay empty; bots that fill this field are rejected. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  website?: string;
 }

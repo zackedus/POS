@@ -159,6 +159,7 @@ export async function createOrder(input: {
   clientRequestId: string;
   fulfillmentType?: StoreFulfillmentType;
   deliveryAddress?: DeliveryAddressInput;
+  website?: string;
 }): Promise<CreateOrderResult> {
   const fulfillmentType = input.fulfillmentType ?? 'PICKUP';
   return storeFetch<CreateOrderResult>(`/${input.slug}/orders`, {
@@ -175,6 +176,7 @@ export async function createOrder(input: {
       ...(fulfillmentType === 'DELIVERY' && input.deliveryAddress
         ? { deliveryAddress: input.deliveryAddress }
         : {}),
+      ...(input.website ? { website: input.website } : {}),
     }),
   });
 }

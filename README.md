@@ -1,5 +1,7 @@
 # Barokah Core POS
 
+[![CI](https://github.com/zackedus/POS/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/zackedus/POS/actions/workflows/ci.yml)
+
 Professional Point of Sale system — Web + Mobile.
 
 **Repository:** [github.com/zackedus/POS](https://github.com/zackedus/POS)  
@@ -61,6 +63,46 @@ Rantai migrasi saat ini: index `is_purchase_unit` digabung ke `20260606140000_mu
 | API | http://localhost:3000 | 3000 |
 | Web | http://localhost:3001 | 3001 |
 | Mobile | Expo DevTools | — |
+
+## CI & Testing
+
+GitHub Actions menjalankan `lint`, `typecheck`, `test`, dan `build` pada push/PR ke `main`, `master`, atau `develop`.
+
+```bash
+npm run lint && npm run typecheck && npm run test && npm run build
+npm run smoke          # API health (butuh API :3000)
+npm run test:e2e:install   # sekali — install browser Playwright
+PLAYWRIGHT_SKIP_WEBSERVER=1 npm run test:e2e   # butuh web :3001 + API :3000 + seed
+```
+
+E2E smoke (3 path): login owner → dashboard, login kasir → `/pos`, storefront katalog.
+
+## Deployment (Docker / Staging)
+
+Stack lengkap via Docker Compose — pola **Yoga**:
+
+```bash
+# Infra saja (Postgres + Redis) — dev lokal
+npm run docker:up
+
+# Full stack: postgres + redis + migrate + seed + api + web
+npm run docker:full:up
+```
+
+| Service | URL (default) | Catatan |
+|---------|---------------|---------|
+| API | http://localhost:3000 | Health: `/api/v1/health` |
+| Web | http://localhost:3001 | `NEXT_PUBLIC_API_URL` → API |
+| Postgres | localhost:5433 | User/pass/db: `barokah` / `barokah` / `barokah_pos` |
+
+**Staging checklist:**
+
+1. Set `JWT_SECRET`, `JWT_REFRESH_SECRET` (bukan default dev)
+2. `npm run db:migrate:deploy` (otomatis via service `db-migrate` di compose)
+3. Seed opsional: `SEED_DATABASE=true` (default) — matikan di prod
+4. Smoke: `npm run smoke` + login web manual
+
+Log container: `npm run docker:full:logs` · Stop: `npm run docker:full:down`
 
 ## Standar Saat Port API Bentrok (Windows PowerShell)
 

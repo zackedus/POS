@@ -316,10 +316,15 @@ export async function exportDailyReport(options: {
     const blob = await res.blob();
     const disposition = res.headers.get('Content-Disposition');
     const filenameMatch = disposition?.match(/filename="?([^";]+)"?/i);
+    const isRange = Boolean(options.dateFrom && options.dateTo);
     const defaultName =
       options.format === 'pdf'
-        ? `laporan-${options.dateFrom && options.dateTo ? 'rentang' : 'harian'}.pdf`
-        : `laporan-harian-${options.date ?? todayIsoDate()}.csv`;
+        ? isRange
+          ? `laporan-${options.dateFrom}_${options.dateTo}.pdf`
+          : `laporan-harian-${options.date ?? todayIsoDate()}.pdf`
+        : isRange
+          ? `laporan-${options.dateFrom}_${options.dateTo}.csv`
+          : `laporan-harian-${options.date ?? todayIsoDate()}.csv`;
     const filename = filenameMatch?.[1] ?? defaultName;
 
     const objectUrl = URL.createObjectURL(blob);

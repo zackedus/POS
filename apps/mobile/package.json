@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "expo start",
     "build": "echo \"Use EAS Build for production\"",
-    "lint": "eslint app --max-warnings 0",
+    "lint": "eslint app lib --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "node -e \"console.log('no tests yet')\""
   },

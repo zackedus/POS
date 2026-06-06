@@ -159,7 +159,13 @@ export default function DashboardHomePage() {
     try {
       const result = await exportDailyReport({ ...reportQuery, format });
       if (result.status === 'downloaded') {
-        setExportMessage(`File ${result.filename} berhasil diunduh.`);
+        const periodLabel =
+          reportMode === 'range' && dateFrom && dateTo
+            ? ` (${dateFrom} — ${dateTo})`
+            : date
+              ? ` (${date})`
+              : '';
+        setExportMessage(`File ${result.filename}${periodLabel} berhasil diunduh.`);
       } else {
         setExportMessage(result.message);
       }

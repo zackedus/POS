@@ -138,3 +138,24 @@ test('Storefront: createOrder PICKUP has zero shipping fee', async () => {
   assert.equal(result.order.total, 65000 + 7150);
   assert.equal(prisma.createdOrders[0]?.deliveryAddress, undefined);
 });
+
+test('Storefront: createOrder rejects honeypot website field', async () => {
+  const prisma = buildPrisma();
+  const service = new StorefrontService(prisma as never, buildMidtrans(), buildOnlineOrders());
+
+  await assert.rejects(
+    () =>
+      service.createOrder('barokah-bangunan', {
+        clientRequestId: 'req-bot-1',
+        outletId: 'outlet-1',
+        fulfillmentType: 'PICKUP',
+        customer: { name: 'Bot', phone: '081234567890' },
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        website: 'http://spam.example',
+      }),
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      return true;
+    },
+  );
+});
