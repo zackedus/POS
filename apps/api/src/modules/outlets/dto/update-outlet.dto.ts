@@ -18,6 +18,21 @@ export class UpdateOutletDto {
   address?: string | null;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(20, { message: 'Nomor telepon maksimal 20 karakter' })
+  @Matches(/^[0-9+\-\s()]*$/, { message: 'Format telepon tidak valid' })
+  phone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120, { message: 'Jam operasional maksimal 120 karakter' })
+  operatingHours?: string | null;
+
+  @IsOptional()
   @IsBoolean({ message: 'isActive harus boolean' })
   isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean({ message: 'isDefault harus boolean' })
+  isDefault?: boolean;
 }

@@ -178,3 +178,48 @@ test('SettingsService: manager can update PPN and loyalty settings', async () =>
   assert.equal(upsertPayload?.ppnEnabled, true);
   assert.equal(upsertPayload?.loyaltyEarnRateIdr, 8000);
 });
+
+test('SettingsService: getTenantProfile returns tenant fields', async () => {
+  const prisma = {
+    tenant: {
+      findFirst: async () => ({
+        id: 't1',
+        name: 'Barokah Toko Bangunan',
+        slug: 'barokah-bangunan',
+        contactPhone: '021-5551234',
+        logoUrl: null,
+        isActive: true,
+        updatedAt: new Date('2026-06-08T00:00:00Z'),
+      }),
+    },
+  };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const profile = await service.getTenantProfile({
+    sub: 'u1',
+    email: 'owner@barokah.local',
+    tenantId: 't1',
+    role: 'OWNER',
+    outletIds: ['o1'],
+  });
+  assert.equal(profile.slug, 'barokah-bangunan');
+  assert.equal(profile.contactPhone, '021-5551234');
+});
+
+test('SettingsService: manager cannot change tenant name', async () => {
+  const prisma = { tenant: { update: async () => ({}) } };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  await assert.rejects(
+    () =>
+      service.updateTenantProfile(
+        {
+          sub: 'u1',
+          email: 'm@b.c',
+          tenantId: 't1',
+          role: 'MANAGER',
+          outletIds: ['o1'],
+        },
+        { name: 'Nama Baru' },
+      ),
+    ForbiddenException,
+  );
+});

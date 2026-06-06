@@ -112,3 +112,39 @@ export async function fetchMidtransWebhookHealth(): Promise<{
   }
   return json.data;
 }
+
+export interface TenantProfileView {
+  id: string;
+  name: string;
+  slug: string;
+  contactPhone: string | null;
+  logoUrl: string | null;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+export async function fetchTenantProfile(): Promise<TenantProfileView> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant/profile`);
+  const json = (await res.json()) as ApiEnvelope<TenantProfileView>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat profil toko.');
+  }
+  return json.data;
+}
+
+export async function updateTenantProfile(input: {
+  name?: string;
+  contactPhone?: string | null;
+  logoUrl?: string | null;
+}): Promise<TenantProfileView> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json()) as ApiEnvelope<TenantProfileView>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal menyimpan profil toko.');
+  }
+  return json.data;
+}

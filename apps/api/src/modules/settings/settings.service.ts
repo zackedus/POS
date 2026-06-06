@@ -5,6 +5,7 @@ import { UserRole } from '@barokah/database';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { MidtransService } from '../online-orders/midtrans.service';
+import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 
 export type MidtransMode = 'mock' | 'sandbox' | 'live';
@@ -35,6 +36,16 @@ export interface TenantSettingsView {
   midtrans: MidtransConfigView;
 }
 
+export interface TenantProfileView {
+  id: string;
+  name: string;
+  slug: string;
+  contactPhone: string | null;
+  logoUrl: string | null;
+  isActive: boolean;
+  updatedAt: string;
+}
+
 @Injectable()
 export class SettingsService {
   constructor(
@@ -48,6 +59,81 @@ export class SettingsService {
       where: { tenantId: user.tenantId },
     });
     return this.buildView(row);
+  }
+
+  async getTenantProfile(user: AuthJwtPayload): Promise<TenantProfileView> {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: user.tenantId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        contactPhone: true,
+        logoUrl: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!tenant) {
+      throw new ForbiddenException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Profil toko tidak ditemukan.',
+      });
+    }
+
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      contactPhone: tenant.contactPhone,
+      logoUrl: tenant.logoUrl,
+      isActive: tenant.isActive,
+      updatedAt: tenant.updatedAt.toISOString(),
+    };
+  }
+
+  async updateTenantProfile(user: AuthJwtPayload, dto: UpdateTenantProfileDto): Promise<TenantProfileView> {
+    if (user.role !== UserRole.OWNER && dto.name !== undefined) {
+      throw new ForbiddenException({
+        code: ErrorCodes.FORBIDDEN,
+        message: 'Hanya pemilik yang dapat mengubah nama toko.',
+      });
+    }
+
+    const data: {
+      name?: string;
+      contactPhone?: string | null;
+      logoUrl?: string | null;
+    } = {};
+
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.contactPhone !== undefined) data.contactPhone = dto.contactPhone?.trim() || null;
+    if (dto.logoUrl !== undefined) data.logoUrl = dto.logoUrl?.trim() || null;
+
+    const tenant = await this.prisma.tenant.update({
+      where: { id: user.tenantId },
+      data,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        contactPhone: true,
+        logoUrl: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      contactPhone: tenant.contactPhone,
+      logoUrl: tenant.logoUrl,
+      isActive: tenant.isActive,
+      updatedAt: tenant.updatedAt.toISOString(),
+    };
   }
 
   async updateTenantSettings(user: AuthJwtPayload, dto: UpdateTenantSettingsDto): Promise<TenantSettingsView> {

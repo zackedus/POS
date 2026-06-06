@@ -151,6 +151,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/customers')) return 'Pelanggan & Poin';
   if (pathname.startsWith('/dashboard/inventory') || pathname.startsWith('/dashboard/stock')) return 'Manajemen Stok';
   if (pathname.startsWith('/dashboard/outlets')) return 'Manajemen Cabang';
+  if (pathname.startsWith('/dashboard/store')) return 'Profil Toko';
   if (pathname.startsWith('/dashboard/users')) return 'Manajemen Pengguna';
   if (pathname.startsWith('/dashboard/expenses')) return 'Pengeluaran Operasional';
   if (pathname.startsWith('/dashboard/purchase-orders')) return 'Order Distributor';

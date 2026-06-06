@@ -160,14 +160,16 @@ export class ReportsService {
 
     const outlets = await this.prisma.outlet.findMany({
       where,
-      orderBy: [{ name: 'asc' }],
-      select: { id: true, name: true, code: true, address: true, isActive: true },
+      orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+      select: { id: true, name: true, code: true, address: true, isActive: true, isDefault: true },
     });
+
+    const defaultFromFlag = outlets.find((o) => o.isDefault)?.id ?? null;
 
     return {
       outlets,
       requiresOutletSelection: outlets.length > 1,
-      defaultOutletId: outlets.length === 1 ? outlets[0]?.id ?? null : null,
+      defaultOutletId: defaultFromFlag ?? (outlets.length === 1 ? (outlets[0]?.id ?? null) : null),
     };
   }
 

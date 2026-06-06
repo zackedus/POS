@@ -15,27 +15,44 @@ export class OutletsController {
   constructor(private readonly outletsService: OutletsService) {}
 
   @Get()
-  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER, UserRole.INVENTORY, UserRole.ACCOUNTANT)
   listOutlets(
     @CurrentUser() user: AuthJwtPayload,
     @Query('includeInactive') includeInactive?: string,
   ) {
-    return this.outletsService.listOutlets(user, includeInactive === 'true');
+    const canIncludeInactive =
+      user.role === UserRole.OWNER || user.role === UserRole.MANAGER;
+    return this.outletsService.listOutlets(
+      user,
+      includeInactive === 'true' && canIncludeInactive,
+    );
+  }
+
+  @Get(':outletId')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER, UserRole.INVENTORY, UserRole.ACCOUNTANT)
+  getOutletDetail(@CurrentUser() user: AuthJwtPayload, @Param('outletId') outletId: string) {
+    return this.outletsService.getOutletDetail(user, outletId);
   }
 
   @Post()
-  @Roles(UserRole.OWNER)
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   createOutlet(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreateOutletDto) {
     return this.outletsService.createOutlet(user, dto);
   }
 
   @Patch(':outletId')
-  @Roles(UserRole.OWNER)
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   updateOutlet(
     @CurrentUser() user: AuthJwtPayload,
     @Param('outletId') outletId: string,
     @Body() dto: UpdateOutletDto,
   ) {
     return this.outletsService.updateOutlet(user, outletId, dto);
+  }
+
+  @Post(':outletId/set-default')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  setDefaultOutlet(@CurrentUser() user: AuthJwtPayload, @Param('outletId') outletId: string) {
+    return this.outletsService.setDefaultOutlet(user, outletId);
   }
 }

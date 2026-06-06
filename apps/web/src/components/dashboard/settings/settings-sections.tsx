@@ -95,6 +95,22 @@ export function TokoTenantSection({
           >
             Buka Storefront
           </Link>
+          <Link
+            href="/dashboard/store"
+            style={{
+              display: 'inline-block',
+              padding: '0.5rem 1rem',
+              borderRadius: 8,
+              border: '1px solid #e2e8f0',
+              background: '#fff',
+              color: '#334155',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+            }}
+          >
+            Kelola Profil Toko →
+          </Link>
         </div>
       ) : null}
 

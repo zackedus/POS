@@ -5,6 +5,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { SettingsService } from './settings.service';
 
@@ -17,6 +18,17 @@ export class SettingsController {
   @Get('tenant')
   getTenantSettings(@CurrentUser() user: AuthJwtPayload) {
     return this.settingsService.getTenantSettings(user);
+  }
+
+  @Get('tenant/profile')
+  getTenantProfile(@CurrentUser() user: AuthJwtPayload) {
+    return this.settingsService.getTenantProfile(user);
+  }
+
+  @Patch('tenant/profile')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  updateTenantProfile(@CurrentUser() user: AuthJwtPayload, @Body() dto: UpdateTenantProfileDto) {
+    return this.settingsService.updateTenantProfile(user, dto);
   }
 
   @Patch('tenant')

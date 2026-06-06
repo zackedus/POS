@@ -20,10 +20,14 @@ const DEV_PASSWORDS: Record<string, string> = {
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'barokah-bangunan' },
-    update: { name: 'Barokah Toko Bangunan' },
+    update: {
+      name: 'Barokah Toko Bangunan',
+      contactPhone: '021-5551234',
+    },
     create: {
       name: 'Barokah Toko Bangunan',
       slug: 'barokah-bangunan',
+      contactPhone: '021-5551234',
     },
   });
 
@@ -31,12 +35,20 @@ async function main() {
     where: {
       tenantId_code: { tenantId: tenant.id, code: 'MAIN' },
     },
-    update: { name: 'Cabang Utama' },
+    update: {
+      name: 'Cabang Utama',
+      phone: '021-5551234',
+      operatingHours: 'Sen–Sab 08:00–17:00',
+      isDefault: true,
+    },
     create: {
       tenantId: tenant.id,
       name: 'Cabang Utama',
       code: 'MAIN',
       address: 'Jl. Contoh No. 1',
+      phone: '021-5551234',
+      operatingHours: 'Sen–Sab 08:00–17:00',
+      isDefault: true,
     },
   });
 
@@ -44,12 +56,20 @@ async function main() {
     where: {
       tenantId_code: { tenantId: tenant.id, code: 'NORTH' },
     },
-    update: { name: 'Cabang Utara' },
+    update: {
+      name: 'Cabang Utara',
+      phone: '021-5555678',
+      operatingHours: 'Sen–Sab 08:00–16:00',
+      isDefault: false,
+    },
     create: {
       tenantId: tenant.id,
       name: 'Cabang Utara',
       code: 'NORTH',
       address: 'Jl. Utara No. 12',
+      phone: '021-5555678',
+      operatingHours: 'Sen–Sab 08:00–16:00',
+      isDefault: false,
     },
   });
 

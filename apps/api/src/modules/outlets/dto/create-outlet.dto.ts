@@ -14,4 +14,15 @@ export class CreateOutletDto {
   @IsString()
   @MaxLength(300, { message: 'Alamat maksimal 300 karakter' })
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20, { message: 'Nomor telepon maksimal 20 karakter' })
+  @Matches(/^[0-9+\-\s()]*$/, { message: 'Format telepon tidak valid' })
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120, { message: 'Jam operasional maksimal 120 karakter' })
+  operatingHours?: string;
 }

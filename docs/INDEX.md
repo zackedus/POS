@@ -179,7 +179,7 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 
 | Judul | Path | Deskripsi | Audience | Update | Tags |
 |-------|------|-----------|----------|--------|------|
-| Pilot Go-Live Checklist | [manual/PILOT-GO-LIVE-CHECKLIST.md](./manual/PILOT-GO-LIVE-CHECKLIST.md) | Checklist infra, master data, shift kasir, UAT manual sebelum operasional harian | Pak Zaki, Yoga, Citra, Manager | 2026-06-07 | `#manual` `#pilot` `#go-live` `#uat` |
+| Pilot Go-Live Checklist | [manual/PILOT-GO-LIVE-CHECKLIST.md](./manual/PILOT-GO-LIVE-CHECKLIST.md) | Checklist infra, master data, cabang (`/dashboard/outlets`), profil toko (`/dashboard/store`), shift kasir, UAT manual | Pak Zaki, Yoga, Citra, Manager | 2026-06-08 | `#manual` `#pilot` `#go-live` `#uat` `#outlet` |
 | Kasir Quick Start | [manual/KASIR-QUICK-START.md](./manual/KASIR-QUICK-START.md) | Panduan singkat kasir: buka shift, jual, hold, bayar, tutup shift | Kasir, Manager, Pak Zaki | 2026-06-07 | `#manual` `#kasir` `#onboarding` |
 | Offline Sync — Conflict & Queue | [algorithm/OFFLINE-SYNC.md](./algorithm/OFFLINE-SYNC.md) | Kebijakan konflik LWW vs manual, urutan antrian idempotent, kontrak API/frontend | Pak Zaki, Eko, Fajar, Dimas, Citra | 2026-06-02 | `#algorithm` `#offline` `#sync` `#pwa` |
 | Thermal Print MVP Stub | [integration/THERMAL-PRINT-MVP-STUB.md](./integration/THERMAL-PRINT-MVP-STUB.md) | Ringkasan stub browser print + konsumsi `escpos` API untuk Sprint 10 | Arif, Dimas | 2026-06-02 | `#integration` `#receipt` |

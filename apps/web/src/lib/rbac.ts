@@ -5,9 +5,9 @@ export function canAccessDashboard(role: string): boolean {
   return role === UserRole.OWNER || role === UserRole.MANAGER;
 }
 
-/** Owner dapat mengelola cabang (CRUD). */
+/** Owner & Manager dapat mengelola cabang (CRUD). */
 export function canManageOutlets(role: string): boolean {
-  return role === UserRole.OWNER;
+  return role === UserRole.OWNER || role === UserRole.MANAGER;
 }
 
 /** Hanya Owner yang dapat membuat/menghapus pengguna. */

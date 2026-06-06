@@ -18,6 +18,8 @@ Organisasi/bisnis yang menggunakan sistem POS ( satu entitas SaaS ).
 | id | UUID | Tidak | Primary key unik tenant |
 | name | String | Tidak | Nama bisnis/usaha |
 | slug | String | Tidak | Identifier unik global untuk subdomain atau routing |
+| contact_phone | String | Ya | Telepon kontak tenant (struk/storefront) |
+| logo_url | String | Ya | URL logo tenant (stub upload — Fase 2) |
 | is_active | Boolean | Tidak | Status aktif tenant; false = dinonaktifkan (soft delete) |
 | created_at | DateTime | Tidak | Waktu pendaftaran tenant |
 | updated_at | DateTime | Tidak | Waktu terakhir data tenant diubah |
@@ -35,6 +37,9 @@ Cabang/toko fisik di bawah satu tenant.
 | name | String | Tidak | Nama cabang/toko |
 | code | String | Tidak | Kode singkat outlet; unik per tenant (contoh: "OUT01") |
 | address | String | Ya | Alamat lengkap outlet |
+| phone | String | Ya | Nomor telepon cabang |
+| operating_hours | String | Ya | Jam operasional (teks bebas, contoh: Sen–Sab 08:00–17:00) |
+| is_default | Boolean | Tidak | Cabang utama/default tenant (satu per tenant) |
 | is_active | Boolean | Tidak | Status aktif outlet |
 | created_at | DateTime | Tidak | Waktu outlet dibuat |
 | updated_at | DateTime | Tidak | Waktu terakhir outlet diubah |

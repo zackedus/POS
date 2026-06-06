@@ -14,9 +14,29 @@ export interface OutletRecord {
   name: string;
   code: string;
   address: string | null;
+  phone: string | null;
+  operatingHours: string | null;
+  isDefault: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  inventorySkuCount?: number;
+  assignedUserCount?: number;
+}
+
+export interface OutletDetail extends OutletRecord {
+  stockSummary: {
+    skuCount: number;
+    totalQuantity: number;
+    lowStockCount: number;
+  };
+  assignedUsers: Array<{
+    id: string;
+    fullName: string;
+    email: string;
+    role: string;
+    isActive: boolean;
+  }>;
 }
 
 export interface OutletsListResponse {
@@ -41,10 +61,23 @@ export async function fetchOutletsList(includeInactive = false): Promise<Outlets
   return json.data;
 }
 
+export async function fetchOutletDetail(outletId: string): Promise<OutletDetail> {
+  const res = await authFetch(`${BASE}/${outletId}`);
+  const json = await parseEnvelope<OutletDetail>(res);
+
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat detail cabang.');
+  }
+
+  return json.data;
+}
+
 export async function createOutlet(body: {
   name: string;
   code: string;
   address?: string;
+  phone?: string;
+  operatingHours?: string;
 }): Promise<OutletRecord> {
   const res = await authFetch(BASE, {
     method: 'POST',
@@ -66,7 +99,10 @@ export async function updateOutlet(
     name?: string;
     code?: string;
     address?: string | null;
+    phone?: string | null;
+    operatingHours?: string | null;
     isActive?: boolean;
+    isDefault?: boolean;
   },
 ): Promise<OutletRecord> {
   const res = await authFetch(`${BASE}/${outletId}`, {
@@ -78,6 +114,17 @@ export async function updateOutlet(
 
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memperbarui cabang.');
+  }
+
+  return json.data;
+}
+
+export async function setDefaultOutlet(outletId: string): Promise<OutletRecord> {
+  const res = await authFetch(`${BASE}/${outletId}/set-default`, { method: 'POST' });
+  const json = await parseEnvelope<OutletRecord>(res);
+
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal menetapkan cabang utama.');
   }
 
   return json.data;

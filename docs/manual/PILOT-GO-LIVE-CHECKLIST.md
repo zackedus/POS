@@ -154,12 +154,18 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Import CSV produk awal (`GET /products/import/template`)
 - [ ] Stok awal per outlet diisi (via import atau adjust)
 - [ ] Supplier master untuk PO
+- [ ] **Cabang/outlet** — [`/dashboard/outlets`](http://localhost:3001/dashboard/outlets): CRUD cabang, cabang utama (★), telepon & jam operasional, nonaktifkan (bukan hapus) jika ada transaksi
+- [ ] Assign kasir/manager ke cabang via [`/dashboard/users`](http://localhost:3001/dashboard/users)
+- [ ] Transfer stok antar cabang di Inventori → tab Transfer (jika multi-outlet)
 
 ## 3. Pengaturan Tenant (Owner)
 
-> **Halaman:** [`/dashboard/settings`](http://localhost:3001/dashboard/settings) — hub pengaturan aplikasi (tab: Toko, Kasir, Loyalty, Promo, Pembayaran, Online, Outlet).
+> **Halaman:** [`/dashboard/settings`](http://localhost:3001/dashboard/settings) — hub pengaturan aplikasi (tab: Toko, Kasir, Loyalty, Promo, Pembayaran, Online, Outlet).  
+> **Profil toko:** [`/dashboard/store`](http://localhost:3001/dashboard/store) — nama, telepon kontak, URL logo (stub).
 
 - [ ] Dashboard → **Pengaturan Aplikasi** (`/dashboard/settings`): PPN aktif/nonaktif sesuai kebutuhan PKP
+- [ ] **Profil Toko** (`/dashboard/store`): nama bisnis, telepon kontak, slug storefront (`/store/{slug}`)
+- [ ] Tab **Outlet** di settings → link **Kelola cabang** ke `/dashboard/outlets`
 - [ ] Tab **Loyalty**: earn 1 poin / Rp 10.000 (default OK)
 - [ ] Tab **Loyalty**: redeem 1 poin = Rp 1.000, maks 50% total (default OK)
 - [ ] Tab **Pembayaran** → Midtrans: sandbox key untuk uji online; live key **defer** sampai ready
