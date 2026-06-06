@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { createServer } from 'node:net';
@@ -9,6 +10,7 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
+import { logProductionStartupWarnings } from './config/production-startup.util';
 
 async function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -69,6 +71,8 @@ async function bootstrap() {
   }
 
   await app.listen(port);
+  const config = app.get(ConfigService);
+  logProductionStartupWarnings(config, new Logger('Bootstrap'));
   console.log(`Barokah POS API running on http://localhost:${port}`);
 }
 

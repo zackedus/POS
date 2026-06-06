@@ -30,6 +30,10 @@ export class UpdateTenantSettingsDto {
   @IsBoolean({ message: 'Mode produksi Midtrans harus boolean' })
   midtransIsProduction?: boolean;
 
+  @IsOptional()
+  @IsBoolean({ message: 'Laporan mingguan email harus boolean' })
+  weeklyReportEmailEnabled?: boolean;
+
   /** Set true to remove tenant-level Midtrans key override. */
   @IsOptional()
   @IsBoolean()

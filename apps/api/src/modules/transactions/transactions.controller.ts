@@ -29,7 +29,11 @@ import { ValidateCartDto } from './dto/validate-cart.dto';
 
 import { VoidTransactionDto } from './dto/void-transaction.dto';
 
+import { InitiateQrisDto } from './dto/initiate-qris.dto';
+
 import { TransactionsService } from './transactions.service';
+
+import { QrisPaymentService } from './qris-payment.service';
 
 
 
@@ -39,7 +43,10 @@ import { TransactionsService } from './transactions.service';
 
 export class TransactionsController {
 
-  constructor(private readonly transactionsService: TransactionsService) {}
+  constructor(
+    private readonly transactionsService: TransactionsService,
+    private readonly qrisPaymentService: QrisPaymentService,
+  ) {}
 
 
 
@@ -64,6 +71,21 @@ export class TransactionsController {
 
     return this.transactionsService.checkoutSplit(user, dto);
 
+  }
+
+  @Post('qris/initiate')
+  initiateQris(@CurrentUser() user: AuthJwtPayload, @Body() dto: InitiateQrisDto) {
+    return this.qrisPaymentService.initiate(user, dto);
+  }
+
+  @Get('qris/:paymentId/status')
+  getQrisStatus(@CurrentUser() user: AuthJwtPayload, @Param('paymentId') paymentId: string) {
+    return this.qrisPaymentService.getStatus(user, paymentId);
+  }
+
+  @Post('qris/:paymentId/confirm-mock')
+  confirmQrisMock(@CurrentUser() user: AuthJwtPayload, @Param('paymentId') paymentId: string) {
+    return this.qrisPaymentService.confirmMockPayment(user, paymentId);
   }
 
 

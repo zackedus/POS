@@ -4,6 +4,20 @@ Semua perubahan penting pada Barokah Core POS dicatat di file ini.
 
 Format mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan Semantic Versioning.
 
+## [1.0.0-rc1] - 2026-06-06
+
+### Added
+- **QRIS MVP:** `POST/GET /transactions/qris/*` — static mock QR + polling + web modal + mobile API.
+- **Mobile offline:** AsyncStorage queue checkout/hold + sync on reconnect.
+- **Email analytics:** Weekly CSV report scheduler + toggle **Kirim laporan mingguan** di Settings.
+- **Production hardening:** CSP headers (Next.js prod), startup guardrails Midtrans/JWT/SMTP.
+- **MVP sign-off:** `docs/testing/MVP-RELEASE-SIGNOFF-2026-06.md` — Fase 1 COMPLETE.
+
+### Docs
+- `docs/integration/QRIS-PHASE-10.md`
+- `docs/standards/PRODUCTION-DEPLOYMENT.md`
+- `docs/domain/BUSINESS-LOGIC-AUDIT-2026-06.md` Phase 10
+
 ## [0.9.0] - 2026-06-06
 
 ### Added

@@ -8,10 +8,11 @@
     "build": "echo \"Use EAS Build for production\"",
     "lint": "eslint app lib --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"console.log('no tests yet')\""
+    "test": "node --import tsx --test lib/offline-queue.test.ts"
   },
   "dependencies": {
     "@barokah/shared": "*",
+    "@react-native-async-storage/async-storage": "1.23.1",
     "expo": "~52.0.0",
     "expo-secure-store": "~14.0.0",
     "expo-router": "~4.0.0",

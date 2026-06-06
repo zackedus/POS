@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Query, StreamableFile, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Post, Query, StreamableFile, UseGuards } from '@nestjs/common';
 import { UserRole } from '@barokah/database';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -12,12 +12,16 @@ import { CrossOutletStockQueryDto } from './dto/cross-outlet-stock-query.dto';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { ScheduledAnalyticsExportQueryDto } from './dto/scheduled-analytics-export-query.dto';
 import { ReportsService } from './reports.service';
+import { AnalyticsEmailScheduler } from './analytics-email.scheduler';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.OWNER, UserRole.MANAGER)
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly analyticsEmailScheduler: AnalyticsEmailScheduler,
+  ) {}
 
   @Get('daily')
   getDailySales(@CurrentUser() user: AuthJwtPayload, @Query() query: ReportsQueryDto) {
@@ -102,5 +106,11 @@ export class ReportsController {
     }
 
     return result;
+  }
+
+  @Post('analytics/email/weekly')
+  @Roles(UserRole.OWNER)
+  async triggerWeeklyAnalyticsEmail() {
+    return this.analyticsEmailScheduler.runWeeklyJob();
   }
 }

@@ -109,6 +109,7 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 | Judul | Path | Deskripsi | Audience | Update | Tags |
 |-------|------|-----------|----------|--------|------|
 | Keuangan & Ekonomi POS | [domain/FINANCE-ECONOMICS-POS.md](./domain/FINANCE-ECONOMICS-POS.md) | Domain keuangan retail SMB Indonesia: margin, arus kas, KPI, pajak bisnis | Rina, Dewi, Budi, Eko | 2026-06-01 | `#domain` `#finance` `#mvp` |
+| Business Logic Audit 2026 | [domain/BUSINESS-LOGIC-AUDIT-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-2026-06.md) | Audit bisnis Phase 7–10 — ALL PASS Fase 1 MVP | Rina, Eko, Citra | 2026-06-06 | `#domain` `#audit` `#mvp` |
 
 ### Rapat
 
@@ -172,6 +173,8 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 | Offline Sync — Conflict & Queue | [algorithm/OFFLINE-SYNC.md](./algorithm/OFFLINE-SYNC.md) | Kebijakan konflik LWW vs manual, urutan antrian idempotent, kontrak API/frontend | Pak Zaki, Eko, Fajar, Dimas, Citra | 2026-06-02 | `#algorithm` `#offline` `#sync` `#pwa` |
 | Thermal Print MVP Stub | [integration/THERMAL-PRINT-MVP-STUB.md](./integration/THERMAL-PRINT-MVP-STUB.md) | Ringkasan stub browser print + konsumsi `escpos` API untuk Sprint 10 | Arif, Dimas | 2026-06-02 | `#integration` `#receipt` |
 | Integrasi Thermal ESC/POS (Stub) | [integration/THERMAL-ESC-POS.md](./integration/THERMAL-ESC-POS.md) | Spec pola integrasi printer thermal + konsumsi `escpos.payload` dari API | Arif, Fajar, Dimas | 2026-06-02 | `#integration` `#receipt` `#hardware` |
+| QRIS Phase 10 MVP | [integration/QRIS-PHASE-10.md](./integration/QRIS-PHASE-10.md) | Alur QRIS mock web/mobile + polling API + business logic stock deduct | Arif, Fajar, Dimas | 2026-06-06 | `#integration` `#qris` `#payment` |
+| Midtrans Live Production | [integration/MIDTRANS-LIVE-PRODUCTION.md](./integration/MIDTRANS-LIVE-PRODUCTION.md) | Guardrails live/sandbox/mock Midtrans tenant keys | Arif, Fajar | 2026-06-06 | `#integration` `#midtrans` |
 
 ### Standar
 
@@ -179,6 +182,7 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 |-------|------|-----------|----------|--------|------|
 | Struktur Codebase | [standards/CODEBASE-STRUCTURE.md](./standards/CODEBASE-STRUCTURE.md) | Layout monorepo, konvensi penamaan, aturan import, batas modul NestJS/Next.js/Expo | Fajar, Yoga, semua dev | 2026-06-01 | `#standards` `#architecture` `#mvp` `#codebase` |
 | Error Handling & Validasi | [standards/ERROR-HANDLING-VALIDATION.md](./standards/ERROR-HANDLING-VALIDATION.md) | Standar wajib P0: error handling, validasi input/output, API envelope | Fajar, Fitri, semua dev | 2026-06-01 | `#standards` `#api` `#errors` `#mvp` |
+| Production Deployment | [standards/PRODUCTION-DEPLOYMENT.md](./standards/PRODUCTION-DEPLOYMENT.md) | CSP, secure cookies, env guardrails, deploy checklist Phase 10 | Yoga, Fajar | 2026-06-06 | `#standards` `#deploy` `#security` |
 
 ### Tim
 

@@ -48,9 +48,10 @@ model TenantSettings {
   tenantId             String   @unique @map("tenant_id")
   ppnEnabled           Boolean  @default(false) @map("ppn_enabled")
   ppnRatePercent       Decimal  @default(11) @map("ppn_rate_percent") @db.Decimal(5, 2)
-  midtransServerKey    String?  @map("midtrans_server_key")
-  midtransIsProduction Boolean  @default(false) @map("midtrans_is_production")
-  createdAt            DateTime @default(now()) @map("created_at")
+  midtransServerKey           String?  @map("midtrans_server_key")
+  midtransIsProduction        Boolean  @default(false) @map("midtrans_is_production")
+  weeklyReportEmailEnabled    Boolean  @default(false) @map("weekly_report_email_enabled")
+  createdAt                   DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)

@@ -482,6 +482,45 @@ export class TransactionsService {
     });
   }
 
+  /** Public wrapper for QRIS idempotency checks. */
+  async findExistingTransactionByRequestPublic(outletId: string, clientRequestId?: string) {
+    const existing = await this.findExistingTransactionByRequest(outletId, clientRequestId);
+    if (!existing) {
+      return null;
+    }
+    return {
+      id: existing.id,
+      receiptNo: existing.receiptNo,
+      total: toIdrInteger(existing.total),
+    };
+  }
+
+  /** Preview checkout total (subtotal − promo + PPN) without persisting. */
+  async previewCheckoutTotal(
+    user: AuthJwtPayload,
+    input: {
+      outletId: string;
+      items: CheckoutCartItem[];
+      promoRuleId?: string;
+    },
+  ): Promise<{ subtotal: number; discount: number; tax: number; total: number }> {
+    const { normalizedItems, subtotal, productMap } = await this.resolveActiveShiftAndCart(
+      user,
+      input.outletId,
+      input.items,
+    );
+    const promoLines = this.buildPromoCartLines(normalizedItems, productMap);
+    const promo = await this.promoService.resolveCheckoutDiscount(user, input.promoRuleId, promoLines);
+    const discount = promo.discountAmount;
+    const taxConfig = await this.getTenantTaxConfig(user.tenantId);
+    const { tax, total } = computePosTax({
+      subtotal,
+      discount,
+      ...taxConfig,
+    });
+    return { subtotal, discount, tax, total };
+  }
+
   private async findExistingHeldByRequest(
     outletId: string,
     clientRequestId?: string,

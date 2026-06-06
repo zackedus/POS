@@ -34,6 +34,8 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useOfflinePos } from '@/hooks/useOfflinePos';
 import { OfflineBanner } from '@/components/pos/OfflineBanner';
 import { SyncConflictModal } from '@/components/pos/SyncConflictModal';
+import { QrisPaymentModal } from '@/components/pos/QrisPaymentModal';
+import { initiateQrisPayment, type QrisInitiateResult } from '@/lib/qris-payment';
 import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
 import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
@@ -131,6 +133,7 @@ export default function PosPage() {
   const [recallingId, setRecallingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [qrisSession, setQrisSession] = useState<QrisInitiateResult | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [activeShift, setActiveShift] = useState<ShiftSummary | null>(null);
   const [onlineOrderToast, setOnlineOrderToast] = useState<string | null>(null);
@@ -1025,6 +1028,26 @@ export default function PosPage() {
     }
 
     const cartItems = mapCartItemsForCheckout(cart);
+
+    if (method === 'QRIS' && isOnline) {
+      setProcessingSplit(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        const session = await initiateQrisPayment({
+          items: cartItems,
+          clientRequestId: createClientRequestId(),
+          ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
+        });
+        setQrisSession(session);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Gagal memulai QRIS.');
+      } finally {
+        setProcessingSplit(false);
+      }
+      return;
+    }
+
     const payments = [
       {
         method,
@@ -1277,6 +1300,19 @@ export default function PosPage() {
           }}
         />
       ) : null}
+
+      <QrisPaymentModal
+        session={qrisSession}
+        onClose={() => setQrisSession(null)}
+        onPaid={({ transactionId, receiptNo, total: paidTotal }) => {
+          setQrisSession(null);
+          setSuccess(`Checkout QRIS berhasil (${receiptNo}). Total: ${formatCurrencyIDR(paidTotal)}.`);
+          setCart([]);
+          setNonCashReference('');
+          void loadRecentTransactions();
+          void openReceipt(transactionId);
+        }}
+      />
     </div>
   );
 }

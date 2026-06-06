@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const [ppnRate, setPpnRate] = useState('11');
   const [midtransKeyInput, setMidtransKeyInput] = useState('');
   const [midtransProduction, setMidtransProduction] = useState(false);
+  const [weeklyReportEmail, setWeeklyReportEmail] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [testingMidtrans, setTestingMidtrans] = useState(false);
@@ -61,6 +62,7 @@ export default function SettingsPage() {
       setPpnEnabled(settings.ppnEnabled);
       setPpnRate(String(settings.ppnRatePercent));
       setMidtransProduction(settings.midtrans.isProduction);
+      setWeeklyReportEmail(settings.weeklyReportEmailEnabled);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat pengaturan.');
     } finally {
@@ -79,6 +81,7 @@ export default function SettingsPage() {
         ppnEnabled,
         ppnRatePercent: Number(ppnRate),
         midtransIsProduction: midtransProduction,
+        weeklyReportEmailEnabled: weeklyReportEmail,
         ...(midtransKeyInput.trim() ? { midtransServerKey: midtransKeyInput.trim() } : {}),
       });
       setTenantSettings(updated);
@@ -291,6 +294,24 @@ export default function SettingsPage() {
                       />
                       Mode produksi Midtrans (live)
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={weeklyReportEmail}
+                        onChange={(e) => setWeeklyReportEmail(e.target.checked)}
+                      />
+                      Kirim laporan analitik mingguan ke email pemilik
+                    </label>
+                    {tenantSettings.midtrans.productionGuardrails?.warnings.length ? (
+                      <div style={{ fontSize: '0.8125rem', color: '#b45309' }}>
+                        <strong>Checklist produksi Midtrans:</strong>
+                        <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+                          {tenantSettings.midtrans.productionGuardrails.warnings.map((warning) => (
+                            <li key={warning}>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
                       Sandbox Server Key (opsional, tenant)
                       <input

@@ -298,3 +298,80 @@
 - Midtrans live keys Pak Zaki
 
 *Pass 9 closed: Budi + tim · 6 Juni 2026*
+
+---
+
+## Phase 10 — Final Parallel Lanes A–G (PASS 10 — DONE)
+
+> **Tanggal:** 6 Juni 2026  
+> **Koordinasi:** Budi · Lanes A–G paralel · **Fase 1 MVP COMPLETE**
+
+| Lane | Deliverable | Status |
+|------|-------------|--------|
+| **A** | Business logic audit Phase 10 regression — ALL PASS | ✅ Done |
+| **B** | Mobile offline queue AsyncStorage + sync on reconnect | ✅ Done |
+| **C** | QRIS web modal + API polling + mobile mock + docs | ✅ Done |
+| **D** | Weekly analytics email cron (BullMQ scheduler + mock mail) | ✅ Done |
+| **E** | CSP production headers + PRODUCTION-DEPLOYMENT.md | ✅ Done |
+| **F** | Midtrans live startup guardrails + settings checklist UI | ✅ Done |
+| **G** | MVP sign-off + CHANGELOG v1.0.0-rc1 + INDEX/README | ✅ Done |
+
+### Lane A highlights
+
+- `docs/domain/BUSINESS-LOGIC-AUDIT-2026-06.md` Phase 10 — 7/7 PASS
+- Regression: weighted HPP, PPN+promo+split, offline conflict, mobile shift, thermal, cross-outlet
+
+### Lane B highlights
+
+- `apps/mobile/lib/offline-queue.ts` + `useOfflinePos.ts`
+- Mirror web `useOfflinePos` patterns (enqueue cash, sync on reconnect)
+
+### Lane C highlights
+
+- `POST/GET /transactions/qris/*` + `QrisPaymentModal` web
+- Mobile QRIS mock API + deep link stub
+- `docs/integration/QRIS-PHASE-10.md`
+
+### Lane D highlights
+
+- `weeklyReportEmailEnabled` tenant setting + toggle dashboard
+- `AnalyticsEmailScheduler` + `MailService` (console mock)
+- `POST /reports/analytics/email/weekly` manual trigger
+
+### Lane E highlights
+
+- `apps/web/next.config.js` CSP + security headers (production)
+- `docs/standards/PRODUCTION-DEPLOYMENT.md`
+
+### Lane F highlights
+
+- `production-startup.util.ts` — warn not crash without live keys
+- Settings Midtrans production checklist UI
+
+### Lane G highlights
+
+- `docs/testing/MVP-RELEASE-SIGNOFF-2026-06.md`
+- CHANGELOG v1.0.0-rc1
+
+### Test Results (Pass 10)
+
+| Suite | Result |
+|-------|--------|
+| `@barokah/shared` | ✅ |
+| `@barokah/api` | ✅ (+ QRIS, mail, production guardrails) |
+| `@barokah/web` | ✅ |
+| `@barokah/mobile` | ✅ offline queue test |
+| `lint` / `typecheck` / `build` | ✅ |
+| Playwright e2e | ✅ best effort |
+
+### Web MVP status
+
+**Fase 1 MVP COMPLETE** — siap pilot produksi web retail POS.
+
+### Remaining caveats (post-MVP)
+
+- Midtrans live credentials (Pak Zaki)
+- QRIS gateway live / native SDK
+- SMTP production for weekly email
+
+*Pass 10 closed: Budi + tim · 6 Juni 2026*

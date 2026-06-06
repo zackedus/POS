@@ -13,6 +13,8 @@ import { Link } from 'expo-router';
 import { formatCurrencyIDR } from '@barokah/shared';
 import { checkoutMobileCash, fetchMobileProductGrid, type MobileProductGridItem } from '../lib/api';
 import { mobileSession } from '../lib/session';
+import { useMobileOfflinePos } from '../lib/useOfflinePos';
+import { initiateMobileQris, pollMobileQrisStatus } from '../lib/qris-api';
 
 const WEB_POS_URL = process.env.EXPO_PUBLIC_WEB_POS_URL ?? 'http://localhost:3001/pos';
 
@@ -26,6 +28,9 @@ export default function PosScreen() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
+  const [qrisPayload, setQrisPayload] = useState<string | null>(null);
+  const token = mobileSession.getAccessToken();
+  const { isOnline, pendingCount, syncMessage, queueCashCheckout, syncNow } = useMobileOfflinePos(token);
 
   const cartTotal = useMemo(
     () => cart.reduce((sum, line) => sum + line.price * line.quantity, 0),
@@ -68,15 +73,24 @@ export default function PosScreen() {
   }
 
   async function handleCheckoutCash() {
-    const token = mobileSession.getAccessToken();
-    if (!token || cart.length === 0) {
+    const accessToken = mobileSession.getAccessToken();
+    if (!accessToken || cart.length === 0) {
       return;
     }
     setCheckingOut(true);
     setCheckoutMessage(null);
     setError(null);
     try {
-      const result = await checkoutMobileCash(token, {
+      if (!isOnline) {
+        const requestId = await queueCashCheckout({
+          items: cart.map((line) => ({ productId: line.id, quantity: line.quantity })),
+          cashReceived: cartTotal,
+        });
+        setCheckoutMessage(`Offline — antrean ${requestId.slice(0, 8)}… akan disinkronkan saat online.`);
+        setCart([]);
+        return;
+      }
+      const result = await checkoutMobileCash(accessToken, {
         items: cart.map((line) => ({ productId: line.id, quantity: line.quantity })),
         cashReceived: cartTotal,
       });
@@ -84,6 +98,32 @@ export default function PosScreen() {
       setCart([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Checkout gagal. Pastikan shift aktif di API.');
+    } finally {
+      setCheckingOut(false);
+    }
+  }
+
+  async function handleCheckoutQris() {
+    const accessToken = mobileSession.getAccessToken();
+    if (!accessToken || cart.length === 0 || !isOnline) {
+      Alert.alert('QRIS', isOnline ? 'Keranjang kosong atau belum login.' : 'QRIS membutuhkan koneksi online.');
+      return;
+    }
+    setCheckingOut(true);
+    setError(null);
+    try {
+      const initiated = await initiateMobileQris(accessToken, {
+        items: cart.map((line) => ({ productId: line.id, quantity: line.quantity })),
+      });
+      setQrisPayload(initiated.qrPayload);
+      const status = await pollMobileQrisStatus(accessToken, initiated.paymentId);
+      if (status.status === 'PAID' && status.receiptNo) {
+        setCheckoutMessage(`QRIS berhasil — ${status.receiptNo} · ${formatCurrencyIDR(status.total ?? cartTotal)}`);
+        setCart([]);
+        setQrisPayload(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'QRIS gagal.');
     } finally {
       setCheckingOut(false);
     }
@@ -117,6 +157,16 @@ export default function PosScreen() {
       {loading ? <ActivityIndicator color="#16a34a" style={{ marginVertical: 12 }} /> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {checkoutMessage ? <Text style={styles.success}>{checkoutMessage}</Text> : null}
+      {!isOnline ? (
+        <Text style={styles.offlineBanner}>Offline — {pendingCount} item antrean</Text>
+      ) : null}
+      {syncMessage ? <Text style={styles.success}>{syncMessage}</Text> : null}
+      {qrisPayload ? (
+        <View style={styles.qrBox}>
+          <Text style={styles.cartTitle}>QRIS Mock</Text>
+          <Text style={styles.qrPayload}>{qrisPayload}</Text>
+        </View>
+      ) : null}
 
       {cart.length > 0 ? (
         <View style={styles.cartBox}>
@@ -136,14 +186,12 @@ export default function PosScreen() {
           </Pressable>
           <Pressable
             style={styles.qrisBtn}
-            onPress={() =>
-              Alert.alert(
-                'QRIS — Segera Hadir',
-                'Pembayaran QRIS native mobile masih dalam pengembangan. Gunakan kasir web untuk QRIS, atau bayar tunai di mobile MVP.',
-              )
-            }
+            onPress={() => void handleCheckoutQris()}
           >
-            <Text style={styles.qrisBtnText}>Bayar QRIS (coming soon)</Text>
+            <Text style={styles.qrisBtnText}>{checkingOut ? 'Memproses QRIS…' : 'Bayar QRIS (Mock API)'}</Text>
+          </Pressable>
+          <Pressable style={styles.syncBtn} onPress={() => void syncNow()}>
+            <Text style={styles.syncBtnText}>Sinkronkan antrean</Text>
           </Pressable>
         </View>
       ) : null}
@@ -182,8 +230,8 @@ export default function PosScreen() {
         style={styles.hintSecondary}
         onPress={() =>
           Alert.alert(
-            'Scope Phase 9',
-            'Mobile Phase 9: shift open/close aman (SecureStore), keranjang tunai, stub QRIS jujur. Offline queue penuh = Fase 10.',
+            'Scope Phase 10',
+            'Mobile Phase 10: offline queue AsyncStorage, QRIS mock API + deep link stub, shift SecureStore.',
           )
         }
       >
@@ -242,6 +290,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   qrisBtnText: { color: '#475569', fontWeight: '600', fontSize: 13 },
+  syncBtn: {
+    marginTop: 8,
+    backgroundColor: '#dbeafe',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  syncBtnText: { color: '#1d4ed8', fontWeight: '600', fontSize: 13 },
+  offlineBanner: { color: '#b45309', marginTop: 8, fontWeight: '600' },
+  qrBox: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  qrPayload: { fontFamily: 'monospace', fontSize: 11, color: '#334155' },
   hint: { color: '#2563eb', marginTop: 16, fontSize: 13, textDecorationLine: 'underline' },
   linkInline: { color: '#16a34a', marginTop: 8, fontSize: 13, fontWeight: '600' },
   hintSecondary: { color: '#64748b', marginTop: 8, fontSize: 12 },

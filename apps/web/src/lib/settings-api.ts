@@ -20,6 +20,7 @@ export interface MidtransConfigView {
 export interface TenantSettingsView {
   ppnEnabled: boolean;
   ppnRatePercent: number;
+  weeklyReportEmailEnabled: boolean;
   midtrans: MidtransConfigView;
 }
 
@@ -45,6 +46,7 @@ export async function updateTenantSettings(input: {
   ppnRatePercent?: number;
   midtransServerKey?: string;
   midtransIsProduction?: boolean;
+  weeklyReportEmailEnabled?: boolean;
   clearMidtransServerKey?: boolean;
 }): Promise<TenantSettingsView> {
   const res = await authFetch(`${SETTINGS_BASE}/tenant`, {

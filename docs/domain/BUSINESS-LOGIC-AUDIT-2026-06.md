@@ -156,3 +156,34 @@ Implementasi: `computeWeightedAverageBaseCost` di `@barokah/shared` · dipanggil
 - Midtrans live credentials Pak Zaki (production keys)
 
 *Audit Phase 9 closed: Rina + Eko + Citra · 6 Juni 2026*
+
+---
+
+## Phase 10 — Final Regression (6 Jun 2026)
+
+> **Auditor:** Rina (domain) + Eko (algoritma) + Citra (QA regression)  
+> **Scope:** Defer items Phase 9 · lanes A–G · target ALL PASS
+
+| Flow | Status | Catatan |
+|------|--------|---------|
+| Weighted HPP + sell at POS margin | **PASS** | BL-09-01 weighted average + margin warning pre-promo |
+| PPN on checkout with promo + split | **PASS** | `computePosTax` + split+promo tests regression |
+| Offline conflict resolution (stock/money) | **PASS** | USE_SERVER / KEEP_CLIENT modal + sync queue |
+| Mobile shift + cash checkout | **PASS** | SecureStore shift + offline queue Phase 10 |
+| Thermal print doesn't alter transaction | **PASS** | Print read-only from receipt DTO |
+| Cross-outlet stock view accuracy | **PASS** | `GET /reports/cross-outlet-stock` + widget |
+| QRIS payment marks PAID + stock once | **PASS** | `QrisPaymentService` → idempotent `checkoutSplit` |
+
+### Bugs fixed (Phase 10)
+
+| ID | Severity | Issue | Fix |
+|----|----------|-------|-----|
+| — | — | Tidak ada P0/P1 baru ditemukan | — |
+
+### Defer post-MVP
+
+- Midtrans live production keys (Pak Zaki)
+- QRIS native SDK / gateway live
+- SMTP production weekly email
+
+*Audit Phase 10 closed: ALL PASS · Rina + Eko + Citra · 6 Juni 2026*

@@ -100,7 +100,16 @@ npm run docker:full:up
 1. Set `JWT_SECRET`, `JWT_REFRESH_SECRET` (bukan default dev)
 2. `npm run db:migrate:deploy` (otomatis via service `db-migrate` di compose)
 3. Seed opsional: `SEED_DATABASE=true` (default) — matikan di prod
-4. Smoke: `npm run smoke` + login web manual
+4. Set `MIDTRANS_SERVER_KEY` jika go-live Midtrans (tanpa key = mock fallback + startup warn)
+5. Set `SMTP_HOST` untuk laporan mingguan email (tanpa = console mock)
+6. Smoke: `npm run smoke` + login web manual
+7. Review CSP & cookie flags: `docs/standards/PRODUCTION-DEPLOYMENT.md`
+
+**Production pilot (Fase 1 MVP COMPLETE):**
+
+- Web kasir + dashboard + storefront mock pay siap pilot toko bahan bangunan
+- Caveats: Midtrans live keys (Pak Zaki), QRIS gateway live, SMTP prod
+- Sign-off: `docs/testing/MVP-RELEASE-SIGNOFF-2026-06.md`
 
 Log container: `npm run docker:full:logs` · Stop: `npm run docker:full:down`
 

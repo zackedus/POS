@@ -356,6 +356,27 @@ export class ReportsService {
     return this.buildAnalyticsReport(user.tenantId, outletId, startUtc, endUtc, days);
   }
 
+  /** Public wrapper for scheduled email export (no auth context). */
+  async buildAnalyticsReportPublic(
+    tenantId: string,
+    outletId: string,
+    startUtc: Date,
+    endUtc: Date,
+    periodDays: AnalyticsPeriodDays | number,
+    dateFromOverride?: string,
+    dateToOverride?: string,
+  ) {
+    return this.buildAnalyticsReport(
+      tenantId,
+      outletId,
+      startUtc,
+      endUtc,
+      periodDays,
+      dateFromOverride,
+      dateToOverride,
+    );
+  }
+
   private async buildAnalyticsReport(
     tenantId: string,
     outletId: string,

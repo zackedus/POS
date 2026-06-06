@@ -24,6 +24,7 @@ export interface MidtransConfigView {
 export interface TenantSettingsView {
   ppnEnabled: boolean;
   ppnRatePercent: number;
+  weeklyReportEmailEnabled: boolean;
   midtrans: MidtransConfigView;
 }
 
@@ -48,10 +49,14 @@ export class SettingsService {
       ppnRatePercent?: number;
       midtransServerKey?: string | null;
       midtransIsProduction?: boolean;
+      weeklyReportEmailEnabled?: boolean;
     } = {};
 
     if (dto.ppnEnabled !== undefined) data.ppnEnabled = dto.ppnEnabled;
     if (dto.ppnRatePercent !== undefined) data.ppnRatePercent = dto.ppnRatePercent;
+    if (dto.weeklyReportEmailEnabled !== undefined) {
+      data.weeklyReportEmailEnabled = dto.weeklyReportEmailEnabled;
+    }
     if (dto.midtransIsProduction !== undefined) data.midtransIsProduction = dto.midtransIsProduction;
     if (dto.clearMidtransServerKey) {
       data.midtransServerKey = null;
@@ -68,6 +73,7 @@ export class SettingsService {
         ppnRatePercent: data.ppnRatePercent ?? 11,
         midtransServerKey: data.midtransServerKey ?? null,
         midtransIsProduction: data.midtransIsProduction ?? false,
+        weeklyReportEmailEnabled: data.weeklyReportEmailEnabled ?? false,
       },
       update: data,
     });
@@ -116,6 +122,7 @@ export class SettingsService {
       ppnRatePercent: { toString(): string };
       midtransServerKey: string | null;
       midtransIsProduction: boolean;
+      weeklyReportEmailEnabled?: boolean;
     } | null,
   ): TenantSettingsView {
     const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
@@ -146,6 +153,7 @@ export class SettingsService {
     return {
       ppnEnabled: row?.ppnEnabled ?? false,
       ppnRatePercent: row ? Number(row.ppnRatePercent) : 11,
+      weeklyReportEmailEnabled: row?.weeklyReportEmailEnabled ?? false,
       midtrans: {
         mode,
         isProduction,
