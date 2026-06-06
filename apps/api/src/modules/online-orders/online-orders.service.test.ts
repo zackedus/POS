@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import { ErrorCodes } from '@barokah/shared';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { OnlineOrdersService } from './online-orders.service';
 import { MidtransService } from './midtrans.service';
@@ -129,4 +130,69 @@ test('OnlineOrders: listManagerOrders paginates with date filter', async () => {
   assert.equal(result.items.length, 1);
   assert.equal(result.meta.total, 1);
   assert.equal(result.items[0]?.orderNo, 'WEB-20260606-0001');
+});
+
+test('Edge BL-EC-05: markOrderPaid rejects when stock race depletes inventory (409 INSUFFICIENT_STOCK)', async () => {
+  const prisma = {
+    onlineOrder: {
+      findFirst: async () => ({
+        id: 'order-race',
+        status: 'PENDING_PAYMENT',
+        tenantId: 'tenant-1',
+        outletId: 'outlet-1',
+        orderNo: 'WEB-20260606-0099',
+        midtransOrderId: 'WEB-20260606-0099',
+        items: [{ productId: 'prod-1', quantity: 5 }],
+        payments: [],
+      }),
+      findUnique: async () => ({
+        id: 'order-race',
+        status: 'PENDING_PAYMENT',
+        tenantId: 'tenant-1',
+        outletId: 'outlet-1',
+        orderNo: 'WEB-20260606-0099',
+        total: 100000,
+        items: [{ productId: 'prod-1', quantity: 5 }],
+      }),
+    },
+    tenantSettings: {
+      findUnique: async () => null,
+    },
+    onlineOrderPayment: {
+      findFirst: async () => null,
+    },
+    inventoryItem: {
+      findMany: async () => [{ productId: 'prod-1', quantity: 2 }],
+    },
+    user: {
+      findFirst: async () => ({ id: 'system-1' }),
+    },
+    $transaction: async () => {
+      throw new Error('$transaction should not run when stock insufficient');
+    },
+  };
+
+  const midtrans = {
+    verifySignature: () => true,
+    isPaidNotification: () => true,
+    isCancelledNotification: () => false,
+  };
+
+  const service = new OnlineOrdersService(prisma as never, midtrans as never, noopRealtime() as never);
+  await assert.rejects(
+    () =>
+      service.handleMidtransWebhook({
+        order_id: 'WEB-20260606-0099',
+        transaction_status: 'settlement',
+        status_code: '200',
+        gross_amount: '100000.00',
+        transaction_id: 'mt-race-1',
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ConflictException);
+      const response = error.getResponse() as { code?: string };
+      assert.equal(response.code, ErrorCodes.INSUFFICIENT_STOCK);
+      return true;
+    },
+  );
 });

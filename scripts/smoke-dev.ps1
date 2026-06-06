@@ -27,24 +27,24 @@ function Test-ApiHealth {
 
 if ($env:STAGING_API_URL) {
     $ApiBase = $env:STAGING_API_URL
-    Write-Host "Barokah POS dev smoke — using STAGING_API_URL: $ApiBase" -ForegroundColor Cyan
+    Write-Host "Barokah POS dev smoke - using STAGING_API_URL: $ApiBase" -ForegroundColor Cyan
 } else {
     $ApiBase = $null
     foreach ($url in $candidates) {
         if (Test-ApiHealth -ApiBase $url) {
             $ApiBase = $url
-            Write-Host "Barokah POS dev smoke — detected API at $ApiBase" -ForegroundColor Green
+            Write-Host "Barokah POS dev smoke - detected API at $ApiBase" -ForegroundColor Green
             break
         }
     }
     if (-not $ApiBase) {
         $ApiBase = 'http://localhost:3000/api/v1'
-        Write-Host "Barokah POS dev smoke — no API on 3000/3010; defaulting to $ApiBase" -ForegroundColor Yellow
+        Write-Host "Barokah POS dev smoke - no API on 3000/3010; defaulting to $ApiBase" -ForegroundColor Yellow
         Write-Host "Start dev API first: npm run dev:api (or npm run dev:all)" -ForegroundColor DarkYellow
     }
 }
 
-Write-Host "Prerequisites: DB migrated + seeded (npm run db:migrate && npm run db:seed)" -ForegroundColor DarkGray
+Write-Host "Prerequisites: DB migrated + seeded (npm run db:migrate; npm run db:seed)" -ForegroundColor DarkGray
 Write-Host ""
 
 & $StagingScript -ApiBase $ApiBase -SmokeEmail $SmokeEmail -SmokePassword $SmokePassword -TenantSlug $TenantSlug -TimeoutSec $TimeoutSec

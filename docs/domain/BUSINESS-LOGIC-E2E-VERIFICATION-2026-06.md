@@ -20,7 +20,22 @@ Verifikasi alur bisnis kritis toko bahan bangunan — **expected vs actual** via
 | **FAIL** | 0 |
 | **PARTIAL** | 0 |
 
-**Automated tests:** **417/417 PASS** (api 196 · shared 78 · web 142 — 7 Jun 2026 re-run)
+**Automated tests:** **422/422 PASS** (api 201 · shared 78 · web 142 · mobile 1 — parallel pass #3)
+
+---
+
+## Edge Cases Beyond 13 E2E (Parallel Pass #3)
+
+| ID | Rule | Test | Status |
+|----|------|------|--------|
+| BL-EC-01 | Qty negatif ditolak | `transactions.service.test` validateCart | **PASS** |
+| BL-EC-02 | Qty nol ditolak | `transactions.service.test` validateCart | **PASS** |
+| BL-EC-03 | Promo + redeem poin stack (bukan 2 promo) | `transactions.service.test` checkoutSplit | **PASS** |
+| BL-EC-04 | Split payment = total persis (PPN) | `transactions.service.test` checkoutSplit | **PASS** |
+| BL-EC-05 | Online pay stock race → 409 | `online-orders.service.test` webhook | **PASS** |
+| — | Parent variant blocked | BL-08-04 regression (existing) | **PASS** |
+| — | PO retur > received blocked | `purchase-orders.service.test` (existing) | **PASS** |
+| — | Storefront rate limit 429 | `storefront-rate-limit.guard.test` (existing) | **PASS** |
 
 ---
 

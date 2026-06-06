@@ -1516,3 +1516,167 @@ test('Phase 8 BL-08-04: validateCart rejects parent variant (regression BL-07-01
     },
   );
 });
+
+test('Edge BL-EC-01: validateCart rejects negative quantity', async () => {
+  const prisma = {
+    product: {
+      findMany: async () => [
+        {
+          id: 'prod-1',
+          name: 'Semen',
+          price: { toString: () => '100000' },
+          costPrice: { toString: () => '90000' },
+          hasVariants: false,
+          unitId: 'unit-1',
+          moq: 1,
+          orderStep: 1,
+          unit: { id: 'unit-1', symbol: 'sak', name: 'Sak' },
+          unitConversions: [],
+          bundleDefinition: null,
+        },
+      ],
+    },
+    inventoryItem: { findMany: async () => [{ productId: 'prod-1', quantity: 10 }] },
+  };
+  const service = createTransactionsService(prisma);
+  await assert.rejects(
+    () =>
+      service.validateCart(createUser(), {
+        outletId: 'outlet-1',
+        items: [{ productId: 'prod-1', quantity: -1 }],
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof UnprocessableEntityException);
+      const response = error.getResponse() as { code?: string };
+      assert.equal(response.code, ErrorCodes.INVALID_INPUT);
+      return true;
+    },
+  );
+});
+
+test('Edge BL-EC-02: validateCart rejects zero quantity', async () => {
+  const prisma = {
+    product: {
+      findMany: async () => [
+        {
+          id: 'prod-1',
+          name: 'Semen',
+          price: { toString: () => '100000' },
+          costPrice: { toString: () => '90000' },
+          hasVariants: false,
+          unitId: 'unit-1',
+          moq: 1,
+          orderStep: 1,
+          unit: { id: 'unit-1', symbol: 'sak', name: 'Sak' },
+          unitConversions: [],
+          bundleDefinition: null,
+        },
+      ],
+    },
+    inventoryItem: { findMany: async () => [{ productId: 'prod-1', quantity: 10 }] },
+  };
+  const service = createTransactionsService(prisma);
+  await assert.rejects(
+    () =>
+      service.validateCart(createUser(), {
+        outletId: 'outlet-1',
+        items: [{ productId: 'prod-1', quantity: 0 }],
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof UnprocessableEntityException);
+      return true;
+    },
+  );
+});
+
+test('Edge BL-EC-03: checkoutSplit stacks promo discount + loyalty redeem (not promo stack)', async () => {
+  const promoService = {
+    resolveCheckoutDiscount: async () => ({
+      discountAmount: 20_000,
+      promoRuleId: 'promo-1',
+      promoName: 'Diskon 10%',
+    }),
+  };
+  const customersService = {
+    resolveOptionalCustomerId: async () => 'cust-1',
+    resolveLoyaltyRedeem: async () => ({ pointsRedeemed: 10, discountIdr: 10_000 }),
+    getLoyaltyConfig: async () => ({
+      earnRateIdr: 10_000,
+      pointValueIdr: 1_000,
+      maxRedeemPercent: 50,
+    }),
+  };
+  const base = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
+  const customerStub = {
+    update: async () => ({ points: 100 }),
+  };
+  const prisma = {
+    ...base,
+    customer: customerStub,
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        ...base,
+        customer: customerStub,
+      }),
+  };
+  const service = new TransactionsService(
+    prisma as never,
+    promoService as never,
+    customersService as never,
+  );
+
+  const result = await service.checkoutSplit(createUser(), {
+    outletId: 'outlet-1',
+    items: [{ productId: 'prod-1', quantity: 1 }],
+    payments: [{ method: PaymentMethod.CASH, amount: 70_000 }],
+    promoRuleId: 'promo-1',
+    loyaltyPointsToRedeem: 10,
+    customerPhone: '081234567890',
+  });
+
+  assert.equal(result.subtotal, 100_000);
+  assert.equal(result.discount, 30_000);
+  assert.equal(result.total, 70_000);
+});
+
+test('Edge BL-EC-04: checkoutSplit split payment must equal total exactly with PPN (no rounding drift)', async () => {
+  const base = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
+  const prisma = {
+    ...base,
+    tenantSettings: {
+      findUnique: async () => ({
+        ppnEnabled: true,
+        ppnRatePercent: { toString: () => '11' },
+      }),
+    },
+  };
+  const service = createTransactionsService(prisma);
+
+  await assert.rejects(
+    () =>
+      service.checkoutSplit(createUser(), {
+        outletId: 'outlet-1',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        payments: [
+          { method: PaymentMethod.CASH, amount: 60_000 },
+          { method: PaymentMethod.TRANSFER, amount: 50_999 },
+        ],
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof UnprocessableEntityException);
+      const response = error.getResponse() as { code?: string };
+      assert.equal(response.code, ErrorCodes.INVALID_INPUT);
+      return true;
+    },
+  );
+
+  const ok = await service.checkoutSplit(createUser(), {
+    outletId: 'outlet-1',
+    items: [{ productId: 'prod-1', quantity: 1 }],
+    payments: [
+      { method: PaymentMethod.CASH, amount: 60_000 },
+      { method: PaymentMethod.TRANSFER, amount: 51_000 },
+    ],
+  });
+  assert.equal(ok.total, 111_000);
+});
