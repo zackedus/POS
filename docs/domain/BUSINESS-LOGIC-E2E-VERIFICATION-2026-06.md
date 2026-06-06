@@ -6,9 +6,9 @@ Verifikasi alur bisnis kritis toko bahan bangunan — **expected vs actual** via
 
 | Field | Nilai |
 |-------|-------|
-| **Tanggal** | 6 Juni 2026 |
-| **Metode** | Code review layanan inti + regresi `npm run test` |
-| **Baseline** | Commit gap-close ~d45ff09 + parallel pass final |
+| **Tanggal** | 7 Juni 2026 (re-verify parallel pass) |
+| **Metode** | Code review layanan inti + regresi `npm run lint && npm run typecheck && npm run test` |
+| **Baseline** | Commit `73c2686` (loyalty redeem + PPN UI) · `a67bd88` (smoke:staging fix) |
 
 ---
 
@@ -20,7 +20,7 @@ Verifikasi alur bisnis kritis toko bahan bangunan — **expected vs actual** via
 | **FAIL** | 0 |
 | **PARTIAL** | 0 |
 
-**Automated tests:** 417+ PASS (post redeem + tax UI fix)
+**Automated tests:** **417/417 PASS** (api 196 · shared 78 · web 142 — 7 Jun 2026 re-run)
 
 ---
 
@@ -51,6 +51,17 @@ Verifikasi alur bisnis kritis toko bahan bangunan — **expected vs actual** via
 | POS UI total tanpa PPN saat tenant PPN aktif | `computePosTax` di `pos/page.tsx` + breakdown di `PosCartPanel` |
 | Loyalty redeem defer | MVP redeem: 1 poin = Rp 1.000, maks 50%, saldo guard |
 | BXGY belum ada | UI admin: "coming soon" + workaround diskon persen ~9% |
+| Smoke dev DX | `npm run smoke:dev` — auto-detect API port 3000/3010 |
+
+## Re-verify Parallel Pass (7 Jun 2026)
+
+| Lane | Owner | Hasil |
+|------|-------|-------|
+| A — 13 E2E flows | Rina · Eko · Citra | **13/13 PASS** — tidak ada regresi baru |
+| B — PosCartPanel | Dimas | UI breakdown = `computePosTax` + checkout payload (promo + poin + PPN) |
+| C — Storefront | Dimas · Bima | Tax `TAX_RATE` sinkron API `storefront.service`; phone wajib checkout |
+| D — Regression | Citra | lint + typecheck + test **417/417 PASS** |
+| E — smoke:dev | Yoga | Script baru `scripts/smoke-dev.ps1` |
 
 ---
 

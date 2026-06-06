@@ -1,8 +1,8 @@
 {
   "version": "1.0.0",
   "maintainer": "Fitri Nugroho",
-  "lastUpdated": "2026-06-06",
-  "notes": "Business Logic Audit Fase 1–4 — lihat BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md; Web Completion Phase 4 DONE",
+  "lastUpdated": "2026-06-07",
+  "notes": "E2E verification 13/13 PASS; Fase 1 98%, Fase 2 95%; Pilot go-live checklist; CHANGELOG v1.0.0",
   "teamSize": 11,
   "indexPath": "docs/INDEX.md",
   "documents": [
@@ -92,7 +92,15 @@
       "category": "domain",
       "audience": ["Pak Zaki", "Rina", "Eko", "Citra", "Budi"],
       "tags": ["domain", "audit", "mvp", "fase2", "roadmap"],
-      "lastUpdated": "2026-06-06"
+      "lastUpdated": "2026-06-07"
+    },
+    {
+      "title": "Business Logic E2E Verification",
+      "path": "docs/domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md",
+      "category": "domain",
+      "audience": ["Pak Zaki", "Rina", "Eko", "Citra"],
+      "tags": ["domain", "audit", "e2e", "mvp", "fase2"],
+      "lastUpdated": "2026-06-07"
     },
     {
       "title": "Business Logic Audit 2026 (Phase 7–10)",
@@ -679,12 +687,36 @@
       "lastUpdated": "2026-06-06"
     },
     {
+      "title": "Fase 1+2 Gap Close",
+      "path": "docs/sprint/FASE1-2-GAP-CLOSE.md",
+      "category": "sprint",
+      "audience": ["Pak Zaki", "Budi", "Fajar", "Dimas", "Citra"],
+      "tags": ["sprint", "fase1", "fase2", "gap-close", "closed"],
+      "lastUpdated": "2026-06-07"
+    },
+    {
+      "title": "Pilot Go-Live Checklist",
+      "path": "docs/manual/PILOT-GO-LIVE-CHECKLIST.md",
+      "category": "manual",
+      "audience": ["Pak Zaki", "Yoga", "Citra", "Manager"],
+      "tags": ["manual", "pilot", "go-live", "uat"],
+      "lastUpdated": "2026-06-07"
+    },
+    {
+      "title": "Kasir Quick Start",
+      "path": "docs/manual/KASIR-QUICK-START.md",
+      "category": "manual",
+      "audience": ["Kasir", "Manager", "Pak Zaki"],
+      "tags": ["manual", "kasir", "onboarding"],
+      "lastUpdated": "2026-06-07"
+    },
+    {
       "title": "CHANGELOG",
       "path": "CHANGELOG.md",
       "category": "project",
       "audience": ["Fitri", "Yoga"],
       "tags": ["changelog", "release"],
-      "lastUpdated": "2026-06-02"
+      "lastUpdated": "2026-06-07"
     }
   ],
   "skills": [

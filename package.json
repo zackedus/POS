@@ -30,6 +30,7 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "smoke": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-check.ps1",
+    "smoke:dev": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-dev.ps1",
     "smoke:staging": "powershell -ExecutionPolicy Bypass -File ./scripts/staging-health-check.ps1",
     "db:generate": "npm run generate --workspace=@barokah/database",
     "db:migrate": "npm run migrate --workspace=@barokah/database",

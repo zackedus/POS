@@ -13,9 +13,11 @@ Jalankan dari **root monorepo** (`barokah-pos`), **bukan** dari `packages/databa
 ```powershell
 cd "g:\\baru 2026\\juni\\pos"
 npm run smoke:staging
+# Dev lokal (API port 3000, tanpa Docker staging):
+npm run smoke:dev
 ```
 
-**Prasyarat:** API staging/dev sudah jalan (default `http://localhost:3010/api/v1`), DB migrate + seed.
+**Prasyarat:** API staging/dev sudah jalan (`smoke:staging` → port **3010**; `smoke:dev` → auto-detect **3000** lalu **3010**), DB migrate + seed.
 
 | Variabel opsional | Default |
 |-------------------|---------|

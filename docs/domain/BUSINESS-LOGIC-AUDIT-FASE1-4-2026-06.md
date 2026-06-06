@@ -21,7 +21,7 @@
 | **Fase 3 — Enterprise** | Marketplace, accounting, multi-warehouse, API publik, white-label (+8 minggu) | **5%** (1/20) | **BELUM DIMULAI** — sesuai rencana defer |
 | **Fase 4 — Web Completion** | Bukan fase roadmap ADR-003; **pass paralel web** (promo POS, auth, expired orders) | **100%** (6/6 lane) | **DONE** — lihat [WEB-COMPLETION-PROGRESS](../sprint/WEB-COMPLETION-PROGRESS.md) |
 
-### Verifikasi Tes (6 Juni 2026 — parallel pass final)
+### Verifikasi Tes (7 Juni 2026 — parallel pass re-verify)
 
 | Workspace | Hasil | Catatan |
 |-----------|-------|---------|
@@ -29,6 +29,7 @@
 | `@barokah/shared` | **78/78 PASS** | +loyalty redeem calculator |
 | `@barokah/web` | **142/142 PASS** | PPN breakdown PosCartPanel, redeem UI |
 | **Total automated** | **417/417 PASS** | Playwright e2e smoke terpisah (CI) |
+| **E2E bisnis** | **13/13 PASS** | Lihat [BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md](./BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md) |
 
 ### Bugs Diperbaiki Saat Audit Ini
 

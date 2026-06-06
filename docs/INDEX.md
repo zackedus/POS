@@ -1,6 +1,6 @@
 # Indeks Dokumentasi — Barokah Core POS
 
-> 📚 **Indeks master** · Maintainer: **Fitri Nugroho** · Terakhir diperbarui: **6 Juni 2026** (Business Logic Audit Fase 1–4 + Sprint 16 **CLOSED**)
+> 📚 **Indeks master** · Maintainer: **Fitri Nugroho** · Terakhir diperbarui: **7 Juni 2026** (E2E verification 13/13 PASS · Pilot go-live · v1.0.0)
 
 ---
 
@@ -29,7 +29,7 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 
 | Role | Agent | Dokumen yang Sering Dibutuhkan | Path |
 |------|-------|-------------------------------|------|
-| **Zaki** · Pemilik Proyek | — | Visi matang, scope ADR-003, Epic J ADR-004, backlog | [requirements/VISION-ZAKI-MATURED.md](./requirements/VISION-ZAKI-MATURED.md), [decisions/ADR-004-EPIC-J-DEFAULTS-LOCKED.md](./decisions/ADR-004-EPIC-J-DEFAULTS-LOCKED.md), [decisions/ADR-003-SCOPE-RETAIL-ONLINE-OFFLINE.md](./decisions/ADR-003-SCOPE-RETAIL-ONLINE-OFFLINE.md) |
+| **Zaki** · Pemilik Proyek | — | Visi matang, pilot go-live, UAT manual | [manual/PILOT-GO-LIVE-CHECKLIST.md](./manual/PILOT-GO-LIVE-CHECKLIST.md), [domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md](./domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md), [requirements/VISION-ZAKI-MATURED.md](./requirements/VISION-ZAKI-MATURED.md) |
 | **Budi** · CEO | `@budi` | Visi Pak Zaki, kickoff, koordinasi | [requirements/VISION-ZAKI-MATURED.md](./requirements/VISION-ZAKI-MATURED.md), [meetings/2026-06-01-VISION-ZAKI-DISCUSSION.md](./meetings/2026-06-01-VISION-ZAKI-DISCUSSION.md), [team/COORDINATION-PLAYBOOK.md](./team/COORDINATION-PLAYBOOK.md) |
 | **Rina** · POS Domain | `@pos-expert` | Checklist MVP, domain keuangan | [requirements/MVP-CHECKLIST.md](./requirements/MVP-CHECKLIST.md), [domain/FINANCE-ECONOMICS-POS.md](./domain/FINANCE-ECONOMICS-POS.md) |
 | **Dewi** · Business Analyst | `@analyst` | Checklist, backlog, data dictionary | [requirements/MVP-CHECKLIST.md](./requirements/MVP-CHECKLIST.md), [requirements/FEATURE-BACKLOG.md](./requirements/FEATURE-BACKLOG.md), [database/DATA-DICTIONARY.md](./database/DATA-DICTIONARY.md) |
@@ -40,7 +40,7 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 | **Maya** · UI/UX | `@ui-ux` | Design system, user flows, wireframes | [design/DESIGN-SYSTEM.md](./design/DESIGN-SYSTEM.md), [design/USER-FLOWS.md](./design/USER-FLOWS.md), [design/WIREFRAMES-KASIR.md](./design/WIREFRAMES-KASIR.md), [design/WIREFRAMES-STOREFRONT.md](./design/WIREFRAMES-STOREFRONT.md) |
 | **Fajar** · Senior Developer (Backend/API) | `@senior-dev` | Arsitektur API, database, standar error, struktur codebase | [architecture/OVERVIEW.md](./architecture/OVERVIEW.md), [standards/CODEBASE-STRUCTURE.md](./standards/CODEBASE-STRUCTURE.md), [standards/ERROR-HANDLING-VALIDATION.md](./standards/ERROR-HANDLING-VALIDATION.md) |
 | **Dimas** · Senior Frontend Developer | `@frontend` | ADR React stack, design system, dashboard Sprint 8 | [decisions/ADR-001-REACT-STACK.md](./decisions/ADR-001-REACT-STACK.md), [sprint/SPRINT-8-PROGRESS.md](./sprint/SPRINT-8-PROGRESS.md), [sprint/SPRINT-8-CLOSURE.md](./sprint/SPRINT-8-CLOSURE.md) |
-| **Yoga** · DevOps | `@devops` | Arsitektur, sprint plan, struktur codebase | [architecture/OVERVIEW.md](./architecture/OVERVIEW.md), [standards/CODEBASE-STRUCTURE.md](./standards/CODEBASE-STRUCTURE.md), [requirements/SPRINT-1-PLAN.md](./requirements/SPRINT-1-PLAN.md) |
+| **Yoga** · DevOps | `@devops` | Arsitektur, deploy, smoke dev/staging | [standards/PRODUCTION-DEPLOYMENT.md](./standards/PRODUCTION-DEPLOYMENT.md), [architecture/OVERVIEW.md](./architecture/OVERVIEW.md), `npm run smoke:dev` |
 
 ---
 
@@ -109,7 +109,8 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 | Judul | Path | Deskripsi | Audience | Update | Tags |
 |-------|------|-----------|----------|--------|------|
 | Keuangan & Ekonomi POS | [domain/FINANCE-ECONOMICS-POS.md](./domain/FINANCE-ECONOMICS-POS.md) | Domain keuangan retail SMB Indonesia: margin, arus kas, KPI, pajak bisnis | Rina, Dewi, Budi, Eko | 2026-06-01 | `#domain` `#finance` `#mvp` |
-| Business Logic Audit Fase 1–4 | [domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md) | Audit komprehensif Fase 1 **95%**, Fase 2 **93%**, Fase 3 defer, Web Completion 100% | Pak Zaki, Rina, Eko, Citra, Budi | 2026-06-07 | `#domain` `#audit` `#mvp` `#fase2` `#roadmap` |
+| Business Logic Audit Fase 1–4 | [domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md) | Audit komprehensif Fase 1 **98%**, Fase 2 **95%**, Fase 3 defer, Web Completion 100% | Pak Zaki, Rina, Eko, Citra, Budi | 2026-06-07 | `#domain` `#audit` `#mvp` `#fase2` `#roadmap` |
+| Business Logic E2E Verification | [domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md](./domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md) | Verifikasi 13 alur bisnis harian toko bahan bangunan — **13/13 PASS** | Pak Zaki, Rina, Eko, Citra | 2026-06-07 | `#domain` `#audit` `#e2e` `#mvp` `#fase2` |
 | Business Logic Audit 2026 | [domain/BUSINESS-LOGIC-AUDIT-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-2026-06.md) | Audit bisnis Phase 7–10 — regresi edge cases ALL PASS | Rina, Eko, Citra | 2026-06-06 | `#domain` `#audit` `#mvp` |
 | Business Logic Audit Fase 2 | [domain/BUSINESS-LOGIC-AUDIT-FASE2-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-FASE2-2026-06.md) | Audit omnichannel: online PAID deduct, offline idempotent, promo anti-stack | Rina, Eko, Citra | 2026-06-07 | `#domain` `#audit` `#fase2` `#omnichannel` |
 
@@ -172,7 +173,14 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 | Sprint 16 Web Progress — Omnichannel Hardening | [sprint/SPRINT-16-WEB-PROGRESS.md](./sprint/SPRINT-16-WEB-PROGRESS.md) | Progress Sprint 16: API 117/117, web 97/97, UAT mock-only Midtrans — **CLOSED** | Pak Zaki, Dimas, Fajar, Citra, Budi | 2026-06-06 | `#sprint` `#progress` `#epic-j` `#omnichannel` `#closed` |
 | Web Completion Plan | [sprint/WEB-COMPLETION-PLAN.md](./sprint/WEB-COMPLETION-PLAN.md) | Plan bertahap web Phase 1–4 — **COMPLETE** | Pak Zaki, Dimas, Fajar, Hendra | 2026-06-06 | `#sprint` `#web` `#completion` `#closed` |
 | Web Completion Progress Pass 4 | [sprint/WEB-COMPLETION-PROGRESS.md](./sprint/WEB-COMPLETION-PROGRESS.md) | Phase 4 paralel: promo POS, storefront orders, auth, expired, UX — **DONE** | Pak Zaki, Dimas, Fajar, Eko, Fitri | 2026-06-06 | `#sprint` `#web` `#completion` `#phase-4` |
-| Fase 1+2 Gap Close | [sprint/FASE1-2-GAP-CLOSE.md](./sprint/FASE1-2-GAP-CLOSE.md) | 8 lane paralel: import CSV, fuzzy search, loyalty earn, promo jadwal, opname scan — **DONE** | Pak Zaki, Budi, Fajar, Dimas, Citra | 2026-06-07 | `#sprint` `#fase1` `#fase2` `#gap-close` |
+| Fase 1+2 Gap Close | [sprint/FASE1-2-GAP-CLOSE.md](./sprint/FASE1-2-GAP-CLOSE.md) | Gap close + loyalty redeem + PPN UI sync — **FINAL** (417/417 tests) | Pak Zaki, Budi, Fajar, Dimas, Citra | 2026-06-07 | `#sprint` `#fase1` `#fase2` `#gap-close` `#closed` |
+
+### Manual
+
+| Judul | Path | Deskripsi | Audience | Update | Tags |
+|-------|------|-----------|----------|--------|------|
+| Pilot Go-Live Checklist | [manual/PILOT-GO-LIVE-CHECKLIST.md](./manual/PILOT-GO-LIVE-CHECKLIST.md) | Checklist infra, master data, shift kasir, UAT manual sebelum operasional harian | Pak Zaki, Yoga, Citra, Manager | 2026-06-07 | `#manual` `#pilot` `#go-live` `#uat` |
+| Kasir Quick Start | [manual/KASIR-QUICK-START.md](./manual/KASIR-QUICK-START.md) | Panduan singkat kasir: buka shift, jual, hold, bayar, tutup shift | Kasir, Manager, Pak Zaki | 2026-06-07 | `#manual` `#kasir` `#onboarding` |
 | Offline Sync — Conflict & Queue | [algorithm/OFFLINE-SYNC.md](./algorithm/OFFLINE-SYNC.md) | Kebijakan konflik LWW vs manual, urutan antrian idempotent, kontrak API/frontend | Pak Zaki, Eko, Fajar, Dimas, Citra | 2026-06-02 | `#algorithm` `#offline` `#sync` `#pwa` |
 | Thermal Print MVP Stub | [integration/THERMAL-PRINT-MVP-STUB.md](./integration/THERMAL-PRINT-MVP-STUB.md) | Ringkasan stub browser print + konsumsi `escpos` API untuk Sprint 10 | Arif, Dimas | 2026-06-02 | `#integration` `#receipt` |
 | Integrasi Thermal ESC/POS (Stub) | [integration/THERMAL-ESC-POS.md](./integration/THERMAL-ESC-POS.md) | Spec pola integrasi printer thermal + konsumsi `escpos.payload` dari API | Arif, Fajar, Dimas | 2026-06-02 | `#integration` `#receipt` `#hardware` |
