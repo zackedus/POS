@@ -4,18 +4,26 @@
 
 ## Ringkasan
 
-Penutupan gap Fase 1 & Fase 2 yang feasible tanpa scope Fase 3 enterprise. Delapan lane paralel selesai; WA blast & EDC tetap defer.
+Penutupan gap Fase 1 & Fase 2 — **FINAL STATUS parallel pass 6 Juni 2026**.
 
 | Lane | Fitur | Status | Owner |
 |------|-------|--------|-------|
 | A | Import CSV produk | **DONE** | Fajar + Dimas |
 | B | Fuzzy search (ILIKE + token) | **DONE** | Fajar + Dimas |
-| C | Loyalty points MVP (earn-only) | **DONE** | Eko + Fajar + Dimas |
+| C | Loyalty earn + **redeem MVP** | **DONE** | Eko + Fajar + Dimas |
 | D | Promo terjadwal (startsAt/endsAt) | **DONE** | Eko + Fajar |
 | E | Opname digital (scan SKU/barcode) | **DONE** | Dimas + Fajar |
 | F | Stock alert export CSV + widget | **DONE** | Fajar + Dimas |
-| G | Business logic regression audit | **DONE** | Rina + Citra |
-| H | Docs + CHANGELOG + INDEX | **DONE** | Fitri |
+| G | Business logic E2E verification | **DONE** | Rina + Citra |
+| H | Docs + CHANGELOG + pilot package | **DONE** | Fitri + Yoga |
+
+## Skor Audit Final
+
+| Fase | Skor |
+|------|------|
+| Fase 1 | **98%** (37/38 Must) |
+| Fase 2 | **95%** (27/28 Must/Should) |
+| Automated tests | **417/417 PASS** |
 
 ## API Endpoints Baru
 
@@ -38,7 +46,8 @@ Penutupan gap Fase 1 & Fase 2 yang feasible tanpa scope Fase 3 enterprise. Delap
 - Midtrans live keys (butuh Pak Zaki)
 - EDC hardware
 - WA blast real API — stub dokumentasi saja
-- Loyalty redeem
+- ~~Loyalty redeem~~ → **DONE** (MVP redeem 1 poin = Rp 1.000, maks 50%)
+- BXGY native engine — defer; workaround diskon persen di admin UI
 
 ## Verifikasi
 

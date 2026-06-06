@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { UnprocessableEntityException } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 
 test('CustomersService: findOrCreateByPhone creates new customer', async () => {
@@ -61,4 +62,60 @@ test('CustomersService: earnPointsForCompletedTransaction increments points', as
   const earned = await service.earnPointsForCompletedTransaction('tenant-1', 'cust-1', 25_000);
   assert.equal(earned, 2);
   assert.equal(increment, 2);
+});
+
+test('CustomersService: resolveLoyaltyRedeem rejects over balance', async () => {
+  const prisma = {
+    tenantSettings: {
+      findUnique: async () => ({
+        loyaltyPointsEnabled: true,
+        loyaltyRedeemEnabled: true,
+        loyaltyRedeemValueIdr: 1_000,
+        loyaltyRedeemMaxPercent: 50,
+      }),
+    },
+    customer: {
+      findFirst: async () => ({ points: 3 }),
+    },
+  };
+  const service = new CustomersService(prisma as never);
+  await assert.rejects(
+    () =>
+      service.resolveLoyaltyRedeem({
+        tenantId: 'tenant-1',
+        customerId: 'cust-1',
+        pointsRequested: 5,
+        netAfterPromoIdr: 100_000,
+      }),
+    (err: unknown) => {
+      assert.ok(err instanceof UnprocessableEntityException);
+      const body = err.getResponse() as { code?: string };
+      return body.code === 'LOYALTY_INSUFFICIENT_POINTS';
+    },
+  );
+});
+
+test('CustomersService: resolveLoyaltyRedeem returns capped discount', async () => {
+  const prisma = {
+    tenantSettings: {
+      findUnique: async () => ({
+        loyaltyPointsEnabled: true,
+        loyaltyRedeemEnabled: true,
+        loyaltyRedeemValueIdr: 1_000,
+        loyaltyRedeemMaxPercent: 50,
+      }),
+    },
+    customer: {
+      findFirst: async () => ({ points: 100 }),
+    },
+  };
+  const service = new CustomersService(prisma as never);
+  const result = await service.resolveLoyaltyRedeem({
+    tenantId: 'tenant-1',
+    customerId: 'cust-1',
+    pointsRequested: 100,
+    netAfterPromoIdr: 100_000,
+  });
+  assert.equal(result.discountIdr, 50_000);
+  assert.equal(result.pointsRedeemed, 50);
 });

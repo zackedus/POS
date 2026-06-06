@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import {
   computeLoyaltyPointsEarned,
+  computeLoyaltyRedeemDiscount,
   DEFAULT_LOYALTY_EARN_RATE_IDR,
+  DEFAULT_LOYALTY_REDEEM_MAX_PERCENT,
+  DEFAULT_LOYALTY_REDEEM_VALUE_IDR,
+  ErrorCodes,
   type LoyaltyEarnConfig,
+  type LoyaltyRedeemConfig,
 } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { normalizePhone } from '../online-orders/online-order.util';
@@ -63,6 +68,77 @@ export class CustomersService {
       enabled: row?.loyaltyPointsEnabled ?? true,
       earnRateIdr: row?.loyaltyEarnRateIdr ?? DEFAULT_LOYALTY_EARN_RATE_IDR,
     };
+  }
+
+  async getLoyaltyRedeemConfig(tenantId: string): Promise<LoyaltyRedeemConfig> {
+    const row = await this.prisma.tenantSettings.findUnique({ where: { tenantId } });
+    return {
+      enabled: (row?.loyaltyRedeemEnabled ?? true) && (row?.loyaltyPointsEnabled ?? true),
+      pointValueIdr: row?.loyaltyRedeemValueIdr ?? DEFAULT_LOYALTY_REDEEM_VALUE_IDR,
+      maxPercentOfNet: row?.loyaltyRedeemMaxPercent ?? DEFAULT_LOYALTY_REDEEM_MAX_PERCENT,
+    };
+  }
+
+  async lookupByPhone(tenantId: string, phone: string) {
+    const normalizedPhone = normalizePhone(phone);
+    const row = await this.prisma.customer.findUnique({
+      where: { tenantId_phone: { tenantId, phone: normalizedPhone } },
+      select: { id: true, name: true, phone: true, points: true },
+    });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      points: row.points,
+    };
+  }
+
+  async resolveLoyaltyRedeem(params: {
+    tenantId: string;
+    customerId: string | null;
+    pointsRequested: number;
+    netAfterPromoIdr: number;
+  }): Promise<{ pointsRedeemed: number; discountIdr: number }> {
+    const pointsRequested = params.pointsRequested ?? 0;
+    if (pointsRequested <= 0 || !params.customerId) {
+      return { pointsRedeemed: 0, discountIdr: 0 };
+    }
+
+    const config = await this.getLoyaltyRedeemConfig(params.tenantId);
+    if (!config.enabled) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.INVALID_INPUT,
+        message: 'Penukaran poin loyalitas belum aktif untuk tenant ini.',
+      });
+    }
+
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: params.customerId, tenantId: params.tenantId },
+      select: { points: true },
+    });
+    if (!customer) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Pelanggan tidak ditemukan.',
+      });
+    }
+
+    if (pointsRequested > customer.points) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.LOYALTY_INSUFFICIENT_POINTS,
+        message: `Saldo poin tidak mencukupi. Tersedia: ${customer.points} poin.`,
+      });
+    }
+
+    return computeLoyaltyRedeemDiscount({
+      pointsRequested,
+      customerBalance: customer.points,
+      netAfterPromoIdr: params.netAfterPromoIdr,
+      config,
+    });
   }
 
   async earnPointsForCompletedTransaction(

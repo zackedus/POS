@@ -17,4 +17,15 @@ export class CustomersController {
   list(@CurrentUser() user: AuthJwtPayload, @Query('search') search?: string) {
     return this.customersService.list(user, search);
   }
+
+  @Get('lookup')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  lookup(@CurrentUser() user: AuthJwtPayload, @Query('phone') phone?: string) {
+    if (!phone?.trim()) {
+      return { customer: null };
+    }
+    return this.customersService
+      .lookupByPhone(user.tenantId, phone.trim())
+      .then((customer) => ({ customer }));
+  }
 }

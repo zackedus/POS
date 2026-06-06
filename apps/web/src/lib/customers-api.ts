@@ -24,3 +24,14 @@ export async function fetchCustomers(search?: string): Promise<CustomerListItem[
   }
   return json.data.customers;
 }
+
+export async function lookupCustomerByPhone(phone: string): Promise<CustomerListItem | null> {
+  const res = await authFetch(
+    `${apiConfig.baseUrl}/${apiConfig.prefix}/customers/lookup?phone=${encodeURIComponent(phone.trim())}`,
+  );
+  const json = (await res.json()) as ApiEnvelope<{ customer: CustomerListItem | null }>;
+  if (!res.ok || !json.success) {
+    throw new Error(json.error?.message ?? 'Gagal mencari pelanggan.');
+  }
+  return json.data?.customer ?? null;
+}

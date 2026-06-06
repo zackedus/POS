@@ -47,4 +47,21 @@ export class UpdateTenantSettingsDto {
   @IsNumber({}, { message: 'Rate poin harus angka' })
   @Min(1000, { message: 'Rate poin minimal Rp 1.000' })
   loyaltyEarnRateIdr?: number;
+
+  @IsOptional()
+  @IsBoolean({ message: 'Redeem poin harus boolean' })
+  loyaltyRedeemEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Nilai poin redeem harus angka' })
+  @Min(100, { message: 'Nilai poin redeem minimal Rp 100' })
+  loyaltyRedeemValueIdr?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Maks redeem harus angka' })
+  @Min(1, { message: 'Maks redeem minimal 1%' })
+  @Max(100, { message: 'Maks redeem maksimal 100%' })
+  loyaltyRedeemMaxPercent?: number;
 }

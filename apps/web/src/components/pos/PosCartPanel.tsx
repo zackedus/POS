@@ -43,6 +43,9 @@ export interface PosCartPanelProps {
   cart: CartItem[];
   products: ProductGridItem[];
   subtotal: number;
+  promoDiscountAmount: number;
+  loyaltyRedeemDiscount?: number;
+  taxAmount?: number;
   discountAmount: number;
   total: number;
   activePromos: PromoRuleView[];
@@ -106,12 +109,20 @@ export interface PosCartPanelProps {
   onCustomerPhoneChange?: (value: string) => void;
   loyaltyPointsPreview?: number | null;
   loyaltyEarnRateIdr?: number;
+  loyaltyRedeemEnabled?: boolean;
+  loyaltyRedeemValueIdr?: number;
+  customerPointsBalance?: number | null;
+  loyaltyPointsToRedeem?: string;
+  onLoyaltyPointsToRedeemChange?: (value: string) => void;
 }
 
 export function PosCartPanel({
   cart,
   products,
   subtotal,
+  promoDiscountAmount,
+  loyaltyRedeemDiscount = 0,
+  taxAmount = 0,
   discountAmount,
   total,
   activePromos,
@@ -175,6 +186,11 @@ export function PosCartPanel({
   onCustomerPhoneChange,
   loyaltyPointsPreview = null,
   loyaltyEarnRateIdr = 10_000,
+  loyaltyRedeemEnabled = false,
+  loyaltyRedeemValueIdr = 1_000,
+  customerPointsBalance = null,
+  loyaltyPointsToRedeem = '',
+  onLoyaltyPointsToRedeemChange,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
   const stepperStyle = { minHeight: 44, minWidth: 44, padding: 0, fontSize: '1.125rem' };
@@ -407,6 +423,36 @@ export function PosCartPanel({
               {loyaltyEarnRateIdr.toLocaleString('id-ID')})
             </p>
           ) : null}
+          {loyaltyRedeemEnabled &&
+          customerPointsBalance != null &&
+          customerPointsBalance > 0 &&
+          onLoyaltyPointsToRedeemChange ? (
+            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
+              Tukar poin (saldo: {customerPointsBalance})
+              <input
+                type="number"
+                min={0}
+                max={customerPointsBalance}
+                value={loyaltyPointsToRedeem}
+                onChange={(event) => onLoyaltyPointsToRedeemChange(event.target.value)}
+                placeholder="0"
+                aria-label="Jumlah poin ditukar"
+                style={{
+                  minHeight: 44,
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  fontSize: '0.875rem',
+                }}
+              />
+              {loyaltyRedeemDiscount > 0 ? (
+                <span style={{ color: '#166534' }}>
+                  Diskon poin: −{formatCurrencyIDR(loyaltyRedeemDiscount)} (1 poin = Rp{' '}
+                  {loyaltyRedeemValueIdr.toLocaleString('id-ID')})
+                </span>
+              ) : null}
+            </label>
+          ) : null}
         </div>
       ) : null}
 
@@ -455,11 +501,11 @@ export function PosCartPanel({
               promo cocok dengan keranjang
             </span>
           ) : null}
-          {appliedPromoName && discountAmount > 0 ? (
+          {appliedPromoName && promoDiscountAmount > 0 ? (
             <span style={{ color: '#166534' }}>
-              {appliedPromoName}: −{formatCurrencyIDR(discountAmount)}
+              {appliedPromoName}: −{formatCurrencyIDR(promoDiscountAmount)}
             </span>
-          ) : selectedPromoId && selectedPromoId !== 'none' && discountAmount <= 0 ? (
+          ) : selectedPromoId && selectedPromoId !== 'none' && promoDiscountAmount <= 0 ? (
             <span style={{ color: '#b45309' }}>Promo terpilih belum memenuhi syarat keranjang.</span>
           ) : null}
         </label>
@@ -478,11 +524,26 @@ export function PosCartPanel({
         }}
         aria-live="polite"
       >
-        {discountAmount > 0 ? (
+        {discountAmount > 0 || taxAmount > 0 ? (
           <>
             <span style={{ display: 'block', fontSize: '0.8125rem', color: '#64748b', fontWeight: 400 }}>
               Subtotal {formatCurrencyIDR(subtotal)}
             </span>
+            {promoDiscountAmount > 0 ? (
+              <span style={{ display: 'block', fontSize: '0.8125rem', color: '#64748b', fontWeight: 400 }}>
+                Diskon promo −{formatCurrencyIDR(promoDiscountAmount)}
+              </span>
+            ) : null}
+            {loyaltyRedeemDiscount > 0 ? (
+              <span style={{ display: 'block', fontSize: '0.8125rem', color: '#64748b', fontWeight: 400 }}>
+                Diskon poin −{formatCurrencyIDR(loyaltyRedeemDiscount)}
+              </span>
+            ) : null}
+            {taxAmount > 0 ? (
+              <span style={{ display: 'block', fontSize: '0.8125rem', color: '#64748b', fontWeight: 400 }}>
+                PPN {formatCurrencyIDR(taxAmount)}
+              </span>
+            ) : null}
             <strong>Total: {formatCurrencyIDR(total)}</strong>
           </>
         ) : (

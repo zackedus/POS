@@ -413,7 +413,12 @@ export class TransactionsService {
     paymentSummary?: Record<string, number>,
     cashReceived?: number,
     marginWarnings?: MarginWarningItem[],
-    loyalty?: { pointsEarned?: number; customerPoints?: number },
+    loyalty?: {
+      pointsEarned?: number;
+      customerPoints?: number;
+      pointsRedeemed?: number;
+      loyaltyDiscount?: number;
+    },
   ) {
     return {
       id: transaction.id,
@@ -438,6 +443,12 @@ export class TransactionsService {
         : {}),
       ...(loyalty?.pointsEarned != null && loyalty.pointsEarned > 0
         ? { pointsEarned: loyalty.pointsEarned, customerPoints: loyalty.customerPoints }
+        : {}),
+      ...(loyalty?.pointsRedeemed != null && loyalty.pointsRedeemed > 0
+        ? {
+            pointsRedeemed: loyalty.pointsRedeemed,
+            loyaltyDiscount: loyalty.loyaltyDiscount ?? 0,
+          }
         : {}),
     };
   }
@@ -1223,7 +1234,15 @@ export class TransactionsService {
     const marginWarnings = this.computeMarginWarnings(productMap, dto.items, outletId);
     const promoLines = this.buildPromoCartLines(normalizedItems, productMap);
     const promo = await this.promoService.resolveCheckoutDiscount(user, dto.promoRuleId, promoLines);
-    const discount = promo.discountAmount;
+    const promoDiscount = promo.discountAmount;
+    const customerId = await this.customersService.resolveOptionalCustomerId(user.tenantId, dto);
+    const loyaltyRedeem = await this.customersService.resolveLoyaltyRedeem({
+      tenantId: user.tenantId,
+      customerId,
+      pointsRequested: dto.loyaltyPointsToRedeem ?? 0,
+      netAfterPromoIdr: Math.max(0, subtotal - promoDiscount),
+    });
+    const discount = promoDiscount + loyaltyRedeem.discountIdr;
     const taxConfig = await this.getTenantTaxConfig(user.tenantId);
     const { tax, total } = computePosTax({
       subtotal,
@@ -1241,8 +1260,11 @@ export class TransactionsService {
     const receiptNo = `TRX-${Date.now()}`;
     const notes = dto.notes?.trim() || null;
     const promoNote = promo.promoName ? `Promo: ${promo.promoName}` : null;
-    const mergedNotes = [notes, promoNote].filter(Boolean).join(' | ') || null;
-    const customerId = await this.customersService.resolveOptionalCustomerId(user.tenantId, dto);
+    const loyaltyNote =
+      loyaltyRedeem.pointsRedeemed > 0
+        ? `Loyalty: -${loyaltyRedeem.pointsRedeemed} poin (−${loyaltyRedeem.discountIdr} IDR)`
+        : null;
+    const mergedNotes = [notes, promoNote, loyaltyNote].filter(Boolean).join(' | ') || null;
 
     const transaction = await this.prisma.$transaction(async (tx) => {
       const created = await tx.transaction.create({
@@ -1312,6 +1334,20 @@ export class TransactionsService {
         });
       }
 
+      if (loyaltyRedeem.pointsRedeemed > 0 && customerId) {
+        const updatedCustomer = await tx.customer.update({
+          where: { id: customerId },
+          data: { points: { decrement: loyaltyRedeem.pointsRedeemed } },
+          select: { points: true },
+        });
+        if (updatedCustomer.points < 0) {
+          throw new ConflictException({
+            code: ErrorCodes.LOYALTY_INSUFFICIENT_POINTS,
+            message: 'Saldo poin tidak mencukupi saat checkout.',
+          });
+        }
+      }
+
       return created;
     });
 
@@ -1323,7 +1359,15 @@ export class TransactionsService {
       undefined,
       dto.cashReceived,
       marginWarnings,
-      loyaltyMeta,
+      {
+        ...loyaltyMeta,
+        ...(loyaltyRedeem.pointsRedeemed > 0
+          ? {
+              pointsRedeemed: loyaltyRedeem.pointsRedeemed,
+              loyaltyDiscount: loyaltyRedeem.discountIdr,
+            }
+          : {}),
+      },
     );
   }
 
@@ -1343,7 +1387,15 @@ export class TransactionsService {
     const marginWarnings = this.computeMarginWarnings(productMap, dto.items, outletId);
     const promoLines = this.buildPromoCartLines(normalizedItems, productMap);
     const promo = await this.promoService.resolveCheckoutDiscount(user, dto.promoRuleId, promoLines);
-    const discount = promo.discountAmount;
+    const promoDiscount = promo.discountAmount;
+    const customerId = await this.customersService.resolveOptionalCustomerId(user.tenantId, dto);
+    const loyaltyRedeem = await this.customersService.resolveLoyaltyRedeem({
+      tenantId: user.tenantId,
+      customerId,
+      pointsRequested: dto.loyaltyPointsToRedeem ?? 0,
+      netAfterPromoIdr: Math.max(0, subtotal - promoDiscount),
+    });
+    const discount = promoDiscount + loyaltyRedeem.discountIdr;
     const taxConfig = await this.getTenantTaxConfig(user.tenantId);
     const { tax, total } = computePosTax({
       subtotal,
@@ -1355,8 +1407,11 @@ export class TransactionsService {
     const receiptNo = `TRX-${Date.now()}`;
     const notes = dto.notes?.trim() || null;
     const promoNote = promo.promoName ? `Promo: ${promo.promoName}` : null;
-    const mergedNotes = [notes, promoNote].filter(Boolean).join(' | ') || null;
-    const customerId = await this.customersService.resolveOptionalCustomerId(user.tenantId, dto);
+    const loyaltyNote =
+      loyaltyRedeem.pointsRedeemed > 0
+        ? `Loyalty: -${loyaltyRedeem.pointsRedeemed} poin (−${loyaltyRedeem.discountIdr} IDR)`
+        : null;
+    const mergedNotes = [notes, promoNote, loyaltyNote].filter(Boolean).join(' | ') || null;
     const transaction = await this.runWithRetry(() =>
       this.prisma.$transaction(async (tx) => {
         const created = await tx.transaction.create({
@@ -1426,6 +1481,20 @@ export class TransactionsService {
           });
         }
 
+        if (loyaltyRedeem.pointsRedeemed > 0 && customerId) {
+          const updatedCustomer = await tx.customer.update({
+            where: { id: customerId },
+            data: { points: { decrement: loyaltyRedeem.pointsRedeemed } },
+            select: { points: true },
+          });
+          if (updatedCustomer.points < 0) {
+            throw new ConflictException({
+              code: ErrorCodes.LOYALTY_INSUFFICIENT_POINTS,
+              message: 'Saldo poin tidak mencukupi saat checkout.',
+            });
+          }
+        }
+
         return created;
       }),
     );
@@ -1443,7 +1512,15 @@ export class TransactionsService {
       paymentSummary,
       undefined,
       marginWarnings,
-      loyaltyMeta,
+      {
+        ...loyaltyMeta,
+        ...(loyaltyRedeem.pointsRedeemed > 0
+          ? {
+              pointsRedeemed: loyaltyRedeem.pointsRedeemed,
+              loyaltyDiscount: loyaltyRedeem.discountIdr,
+            }
+          : {}),
+      },
     );
   }
 

@@ -14,6 +14,7 @@ function createPromoServiceStub() {
 function createCustomersServiceStub() {
   return {
     resolveOptionalCustomerId: async () => null,
+    resolveLoyaltyRedeem: async () => ({ pointsRedeemed: 0, discountIdr: 0 }),
   };
 }
 

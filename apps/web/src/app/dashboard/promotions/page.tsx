@@ -138,7 +138,7 @@ export default function PromotionsPage() {
     <div style={{ maxWidth: 960, display: 'grid', gap: '1.25rem' }}>
       <PageHeader
         title="Promo & Diskon"
-        description="Aturan diskon sederhana (MVP). Promo aktif sudah tersedia di layar kasir (POS checkout)."
+        description="Aturan diskon sederhana (MVP). Promo aktif tersedia di kasir. Buy X Get Y (BXGY) coming soon — gunakan diskon persen setara (beli 10 gratis 1 ≈ 9%)."
         actions={
           <Button type="button" onClick={openCreate}>
             + Promo Baru

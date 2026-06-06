@@ -4,6 +4,21 @@ Semua perubahan penting pada Barokah Core POS dicatat di file ini.
 
 Format mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan Semantic Versioning.
 
+## [1.0.0] - 2026-06-07
+
+### Added
+- **Loyalty redeem MVP:** tukar poin jadi diskon checkout (1 poin = Rp 1.000, maks 50% net); guard saldo; `GET /customers/lookup`.
+- **POS tax breakdown:** `PosCartPanel` + `pos/page` sinkron `computePosTax` dengan API (subtotal, promo, poin, PPN, total).
+- **Pilot go-live package:** `docs/manual/PILOT-GO-LIVE-CHECKLIST.md`, `KASIR-QUICK-START.md`, `.env.production.example`.
+- **E2E verification:** `docs/domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md` — 13/13 alur PASS.
+
+### Changed
+- Audit scores: Fase 1 **98%**, Fase 2 **95%**; automated tests **417/417 PASS**.
+- Promo admin: BXGY documented as coming soon + workaround persen.
+
+### Deferred (unchanged)
+- Fase 3 enterprise, Midtrans live keys, thermal prod, EDC, WA blast API, BXGY engine.
+
 ## [1.0.0-beta-fase2-gap] - 2026-06-07
 
 ### Added

@@ -27,6 +27,9 @@ export interface TenantSettingsView {
   weeklyReportEmailEnabled: boolean;
   loyaltyPointsEnabled: boolean;
   loyaltyEarnRateIdr: number;
+  loyaltyRedeemEnabled: boolean;
+  loyaltyRedeemValueIdr: number;
+  loyaltyRedeemMaxPercent: number;
   midtrans: MidtransConfigView;
 }
 
@@ -54,6 +57,9 @@ export class SettingsService {
       weeklyReportEmailEnabled?: boolean;
       loyaltyPointsEnabled?: boolean;
       loyaltyEarnRateIdr?: number;
+      loyaltyRedeemEnabled?: boolean;
+      loyaltyRedeemValueIdr?: number;
+      loyaltyRedeemMaxPercent?: number;
     } = {};
 
     if (dto.ppnEnabled !== undefined) data.ppnEnabled = dto.ppnEnabled;
@@ -66,6 +72,15 @@ export class SettingsService {
     }
     if (dto.loyaltyEarnRateIdr !== undefined) {
       data.loyaltyEarnRateIdr = dto.loyaltyEarnRateIdr;
+    }
+    if (dto.loyaltyRedeemEnabled !== undefined) {
+      data.loyaltyRedeemEnabled = dto.loyaltyRedeemEnabled;
+    }
+    if (dto.loyaltyRedeemValueIdr !== undefined) {
+      data.loyaltyRedeemValueIdr = dto.loyaltyRedeemValueIdr;
+    }
+    if (dto.loyaltyRedeemMaxPercent !== undefined) {
+      data.loyaltyRedeemMaxPercent = dto.loyaltyRedeemMaxPercent;
     }
     if (dto.midtransIsProduction !== undefined) data.midtransIsProduction = dto.midtransIsProduction;
     if (dto.clearMidtransServerKey) {
@@ -86,6 +101,9 @@ export class SettingsService {
         weeklyReportEmailEnabled: data.weeklyReportEmailEnabled ?? false,
         loyaltyPointsEnabled: data.loyaltyPointsEnabled ?? true,
         loyaltyEarnRateIdr: data.loyaltyEarnRateIdr ?? 10_000,
+        loyaltyRedeemEnabled: data.loyaltyRedeemEnabled ?? true,
+        loyaltyRedeemValueIdr: data.loyaltyRedeemValueIdr ?? 1_000,
+        loyaltyRedeemMaxPercent: data.loyaltyRedeemMaxPercent ?? 50,
       },
       update: data,
     });
@@ -137,6 +155,9 @@ export class SettingsService {
       weeklyReportEmailEnabled?: boolean;
       loyaltyPointsEnabled?: boolean;
       loyaltyEarnRateIdr?: number;
+      loyaltyRedeemEnabled?: boolean;
+      loyaltyRedeemValueIdr?: number;
+      loyaltyRedeemMaxPercent?: number;
     } | null,
   ): TenantSettingsView {
     const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
@@ -170,6 +191,9 @@ export class SettingsService {
       weeklyReportEmailEnabled: row?.weeklyReportEmailEnabled ?? false,
       loyaltyPointsEnabled: row?.loyaltyPointsEnabled ?? true,
       loyaltyEarnRateIdr: row?.loyaltyEarnRateIdr ?? 10_000,
+      loyaltyRedeemEnabled: row?.loyaltyRedeemEnabled ?? true,
+      loyaltyRedeemValueIdr: row?.loyaltyRedeemValueIdr ?? 1_000,
+      loyaltyRedeemMaxPercent: row?.loyaltyRedeemMaxPercent ?? 50,
       midtrans: {
         mode,
         isProduction,

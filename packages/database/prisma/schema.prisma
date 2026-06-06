@@ -54,6 +54,9 @@ model TenantSettings {
   weeklyReportEmailEnabled    Boolean  @default(false) @map("weekly_report_email_enabled")
   loyaltyPointsEnabled        Boolean  @default(true) @map("loyalty_points_enabled")
   loyaltyEarnRateIdr          Int      @default(10000) @map("loyalty_earn_rate_idr")
+  loyaltyRedeemEnabled        Boolean  @default(true) @map("loyalty_redeem_enabled")
+  loyaltyRedeemValueIdr       Int      @default(1000) @map("loyalty_redeem_value_idr")
+  loyaltyRedeemMaxPercent     Int      @default(50) @map("loyalty_redeem_max_percent")
   createdAt                   DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 

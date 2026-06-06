@@ -23,6 +23,9 @@ export interface TenantSettingsView {
   weeklyReportEmailEnabled: boolean;
   loyaltyPointsEnabled: boolean;
   loyaltyEarnRateIdr: number;
+  loyaltyRedeemEnabled: boolean;
+  loyaltyRedeemValueIdr: number;
+  loyaltyRedeemMaxPercent: number;
   midtrans: MidtransConfigView;
 }
 
@@ -51,6 +54,9 @@ export async function updateTenantSettings(input: {
   weeklyReportEmailEnabled?: boolean;
   loyaltyPointsEnabled?: boolean;
   loyaltyEarnRateIdr?: number;
+  loyaltyRedeemEnabled?: boolean;
+  loyaltyRedeemValueIdr?: number;
+  loyaltyRedeemMaxPercent?: number;
   clearMidtransServerKey?: boolean;
 }): Promise<TenantSettingsView> {
   const res = await authFetch(`${SETTINGS_BASE}/tenant`, {

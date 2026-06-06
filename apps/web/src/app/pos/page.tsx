@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned } from '@barokah/shared';
+import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned, computePosTax, previewLoyaltyRedeemDiscount } from '@barokah/shared';
 import { PosCartPanel } from '@/components/pos/PosCartPanel';
 import { PosProductGrid } from '@/components/pos/PosProductGrid';
 import { PosShiftBar } from '@/components/pos/PosShiftBar';
@@ -41,6 +41,7 @@ import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
 import { fetchActivePromos, previewPromoLocally, type PromoValidationResult } from '@/lib/promo-checkout-api';
 import { fetchTenantSettings } from '@/lib/settings-api';
+import { lookupCustomerByPhone } from '@/lib/customers-api';
 import type { PromoRuleView } from '@/lib/promotions-api';
 import { mapRecallItemsToCart } from '@/lib/recall-cart';
 import { evaluateAddToCartStock, resolveStockErrorMessage } from '@/lib/stock-errors';
@@ -172,17 +173,50 @@ export default function PosPage() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [loyaltyPointsEnabled, setLoyaltyPointsEnabled] = useState(true);
   const [loyaltyEarnRateIdr, setLoyaltyEarnRateIdr] = useState(10_000);
+  const [loyaltyRedeemEnabled, setLoyaltyRedeemEnabled] = useState(false);
+  const [loyaltyRedeemValueIdr, setLoyaltyRedeemValueIdr] = useState(1_000);
+  const [loyaltyRedeemMaxPercent, setLoyaltyRedeemMaxPercent] = useState(50);
+  const [ppnEnabled, setPpnEnabled] = useState(false);
+  const [ppnRatePercent, setPpnRatePercent] = useState(11);
+  const [customerPointsBalance, setCustomerPointsBalance] = useState<number | null>(null);
+  const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState('');
 
   useEffect(() => {
     void fetchTenantSettings()
       .then((settings) => {
         setLoyaltyPointsEnabled(settings.loyaltyPointsEnabled);
         setLoyaltyEarnRateIdr(settings.loyaltyEarnRateIdr);
+        setLoyaltyRedeemEnabled(settings.loyaltyRedeemEnabled);
+        setLoyaltyRedeemValueIdr(settings.loyaltyRedeemValueIdr);
+        setLoyaltyRedeemMaxPercent(settings.loyaltyRedeemMaxPercent);
+        setPpnEnabled(settings.ppnEnabled);
+        setPpnRatePercent(settings.ppnRatePercent);
       })
       .catch(() => {
         /* keep defaults */
       });
   }, []);
+
+  useEffect(() => {
+    const phone = customerPhone.trim();
+    if (!/^08\d{8,11}$/.test(phone)) {
+      setCustomerPointsBalance(null);
+      setLoyaltyPointsToRedeem('');
+      return;
+    }
+    let cancelled = false;
+    void lookupCustomerByPhone(phone)
+      .then((customer) => {
+        if (cancelled) return;
+        setCustomerPointsBalance(customer?.points ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerPointsBalance(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [customerPhone]);
 
   function buildCustomerCheckoutPayload() {
     const name = customerName.trim();
@@ -190,10 +224,16 @@ export default function PosPage() {
     if (!name && !phone) {
       return {};
     }
+    const payload: Record<string, string | number> = {};
     if (name.length >= 2 && /^08\d{8,11}$/.test(phone)) {
-      return { customerName: name, customerPhone: phone };
+      payload.customerName = name;
+      payload.customerPhone = phone;
     }
-    return {};
+    const pointsToRedeem = parseInt(loyaltyPointsToRedeem, 10);
+    if (loyaltyRedeemEnabled && Number.isFinite(pointsToRedeem) && pointsToRedeem > 0) {
+      payload.loyaltyPointsToRedeem = pointsToRedeem;
+    }
+    return payload;
   }
 
   useEffect(() => {
@@ -380,18 +420,62 @@ export default function PosPage() {
     return previewPromoLocally(activePromos, promoCartLines, selectedPromoId);
   }, [cart, activePromos, selectedPromoId, subtotal, promoCartLines]);
   const discountAmount = promoPreview.discountAmount;
-  const total = Math.max(0, subtotal - discountAmount);
+  const promoDiscountAmount = discountAmount;
+  const loyaltyRedeemPreview = useMemo(() => {
+    const pointsRequested = parseInt(loyaltyPointsToRedeem, 10);
+    if (
+      !loyaltyRedeemEnabled ||
+      !Number.isFinite(pointsRequested) ||
+      pointsRequested <= 0 ||
+      customerPointsBalance == null
+    ) {
+      return { pointsRedeemed: 0, discountIdr: 0 };
+    }
+    return previewLoyaltyRedeemDiscount(
+      pointsRequested,
+      customerPointsBalance,
+      subtotal,
+      promoDiscountAmount,
+      {
+        enabled: loyaltyRedeemEnabled,
+        pointValueIdr: loyaltyRedeemValueIdr,
+        maxPercentOfNet: loyaltyRedeemMaxPercent,
+      },
+    );
+  }, [
+    customerPointsBalance,
+    loyaltyPointsToRedeem,
+    loyaltyRedeemEnabled,
+    loyaltyRedeemMaxPercent,
+    loyaltyRedeemValueIdr,
+    promoDiscountAmount,
+    subtotal,
+  ]);
+  const loyaltyRedeemDiscount = loyaltyRedeemPreview.discountIdr;
+  const totalDiscount = promoDiscountAmount + loyaltyRedeemDiscount;
+  const taxPreview = useMemo(
+    () =>
+      computePosTax({
+        subtotal,
+        discount: totalDiscount,
+        ppnEnabled,
+        ppnRatePercent,
+      }),
+    [ppnEnabled, ppnRatePercent, subtotal, totalDiscount],
+  );
+  const taxAmount = taxPreview.tax;
+  const total = taxPreview.total;
   const loyaltyPointsPreview = useMemo(() => {
     const name = customerName.trim();
     const phone = customerPhone.trim();
     if (!loyaltyPointsEnabled || name.length < 2 || !/^08\d{8,11}$/.test(phone)) {
       return null;
     }
-    return previewLoyaltyPointsEarned(subtotal, discountAmount, {
+    return previewLoyaltyPointsEarned(subtotal, totalDiscount, {
       enabled: loyaltyPointsEnabled,
       earnRateIdr: loyaltyEarnRateIdr,
     });
-  }, [customerName, customerPhone, discountAmount, loyaltyEarnRateIdr, loyaltyPointsEnabled, subtotal]);
+  }, [customerName, customerPhone, totalDiscount, loyaltyEarnRateIdr, loyaltyPointsEnabled, subtotal]);
   const checkoutPromoRuleId =
     selectedPromoId === 'none' || !promoPreview.applicable ? undefined : promoPreview.promoRuleId;
   const splitCash = parsePositiveIdrInput(splitCashAmount);
@@ -836,6 +920,7 @@ export default function PosPage() {
       );
       setCart([]);
       setCashReceived('');
+      setLoyaltyPointsToRedeem('');
       await loadRecentTransactions();
       void openReceipt(json.data.id);
     } catch (err) {
@@ -908,6 +993,7 @@ export default function PosPage() {
       }
       setCart([]);
       setCashReceived('');
+      setLoyaltyPointsToRedeem('');
       setSuccess('Hold berhasil disimpan. Lanjutkan dari panel Daftar Hold kapan saja.');
       await loadHeldTransactions();
     } catch (err) {
@@ -1032,6 +1118,7 @@ export default function PosPage() {
       );
       setCart([]);
       setCashReceived('');
+      setLoyaltyPointsToRedeem('');
       setSplitCashAmount('');
       setSplitTransferAmount('');
       setTransferReference('');
@@ -1142,6 +1229,7 @@ export default function PosPage() {
       setSuccess(`Checkout ${method} berhasil (${json.data.receiptNo}). Total: ${formatCurrencyIDR(json.data.total)}.`);
       setCart([]);
       setNonCashReference('');
+      setLoyaltyPointsToRedeem('');
       await loadRecentTransactions();
       void openReceipt(json.data.id);
     } catch (err) {
@@ -1256,7 +1344,10 @@ export default function PosPage() {
           cart={cart}
           products={products}
           subtotal={subtotal}
-          discountAmount={discountAmount}
+          promoDiscountAmount={promoDiscountAmount}
+          loyaltyRedeemDiscount={loyaltyRedeemDiscount}
+          taxAmount={taxAmount}
+          discountAmount={totalDiscount}
           total={total}
           activePromos={activePromos}
           promoCartLines={promoCartLines}
@@ -1319,6 +1410,11 @@ export default function PosPage() {
           onCustomerPhoneChange={setCustomerPhone}
           loyaltyPointsPreview={loyaltyPointsPreview}
           loyaltyEarnRateIdr={loyaltyEarnRateIdr}
+          loyaltyRedeemEnabled={loyaltyRedeemEnabled}
+          loyaltyRedeemValueIdr={loyaltyRedeemValueIdr}
+          customerPointsBalance={customerPointsBalance}
+          loyaltyPointsToRedeem={loyaltyPointsToRedeem}
+          onLoyaltyPointsToRedeemChange={setLoyaltyPointsToRedeem}
         />
       </div>
 
