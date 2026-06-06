@@ -16,8 +16,13 @@ export interface ShiftSummary {
 
 const SHIFTS_BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/shifts`;
 
-export async function fetchActiveShift(): Promise<ShiftSummary | null> {
-  const data = await authApiJson<ShiftSummary | null>(`${SHIFTS_BASE}/active`, undefined, 'Gagal memuat shift aktif.');
+export async function fetchActiveShift(outletId?: string): Promise<ShiftSummary | null> {
+  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+  const data = await authApiJson<ShiftSummary | null>(
+    `${SHIFTS_BASE}/active${params}`,
+    undefined,
+    'Gagal memuat shift aktif.',
+  );
   return data ?? null;
 }
 

@@ -135,6 +135,15 @@ vi.mock('@/hooks/useOfflinePos', () => ({
   }),
 }));
 
+vi.mock('@/lib/outlet-selection-state', () => ({
+  useOutletSelection: () => ({
+    outlets: [{ id: 'outlet-1', label: 'Cabang Utama (MAIN)' }],
+    selectedOutletId: 'outlet-1',
+    needsOutletPick: false,
+    setSelectedOutletId: vi.fn(),
+  }),
+}));
+
 vi.mock('@/lib/shifts-api', () => ({
   fetchActiveShift: vi.fn().mockResolvedValue({
     id: 'shift-1',

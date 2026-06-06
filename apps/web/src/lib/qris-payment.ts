@@ -36,11 +36,17 @@ export async function initiateQrisPayment(input: {
   items: Array<{ productId: string; quantity: number; sellUnitId?: string }>;
   clientRequestId?: string;
   promoRuleId?: string;
+  outletId?: string;
 }): Promise<QrisInitiateResult> {
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/qris/initiate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...(input.outletId ? { outletId: input.outletId } : {}),
+      items: input.items,
+      ...(input.clientRequestId ? { clientRequestId: input.clientRequestId } : {}),
+      ...(input.promoRuleId ? { promoRuleId: input.promoRuleId } : {}),
+    }),
   });
   const json = (await res.json()) as ApiEnvelope<QrisInitiateResult>;
   if (!res.ok || !json.success || !json.data) {

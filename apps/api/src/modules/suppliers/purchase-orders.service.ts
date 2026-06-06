@@ -1,9 +1,11 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { UserRole } from '@barokah/database';
 import { PurchaseOrderStatus, Prisma } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
@@ -169,7 +171,7 @@ export class PurchaseOrdersService {
   }
 
   async getPurchaseOrder(user: AuthJwtPayload, purchaseOrderId: string) {
-    const po = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const po = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     return this.mapPurchaseOrderDetail(po);
   }
 
@@ -213,7 +215,7 @@ export class PurchaseOrdersService {
     purchaseOrderId: string,
     dto: UpdatePurchaseOrderDto,
   ) {
-    const existing = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const existing = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     if (!PO_EDITABLE_STATUSES.includes(existing.status as 'DRAFT')) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.INVALID_INPUT,
@@ -268,7 +270,7 @@ export class PurchaseOrdersService {
   }
 
   async submitPurchaseOrder(user: AuthJwtPayload, purchaseOrderId: string) {
-    const existing = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const existing = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     if (existing.status !== PurchaseOrderStatus.DRAFT) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.INVALID_INPUT,
@@ -297,7 +299,7 @@ export class PurchaseOrdersService {
   }
 
   async cancelPurchaseOrder(user: AuthJwtPayload, purchaseOrderId: string) {
-    const existing = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const existing = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     if (!PO_CANCELLABLE_STATUSES.includes(existing.status as 'DRAFT' | 'ORDERED')) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.INVALID_INPUT,
@@ -322,7 +324,7 @@ export class PurchaseOrdersService {
     purchaseOrderId: string,
     dto: ReceivePurchaseOrderDto,
   ) {
-    const po = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const po = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     if (!PO_RECEIVABLE_STATUSES.includes(po.status as 'ORDERED' | 'PARTIALLY_RECEIVED')) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.INVALID_INPUT,
@@ -489,7 +491,7 @@ export class PurchaseOrdersService {
   }
 
   async listPurchaseOrderReturns(user: AuthJwtPayload, purchaseOrderId: string) {
-    const po = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const po = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     const returns = await this.prisma.purchaseOrderReturn.findMany({
       where: { tenantId: user.tenantId, purchaseOrderId: po.id },
       include: RETURN_INCLUDE,
@@ -509,6 +511,7 @@ export class PurchaseOrdersService {
         message: 'Retur order distributor tidak ditemukan.',
       });
     }
+    this.assertPoOutletAccess(user, row.purchaseOrder.outlet.id);
     return this.mapPurchaseOrderReturnDetail(row);
   }
 
@@ -517,7 +520,7 @@ export class PurchaseOrdersService {
     purchaseOrderId: string,
     dto: CreatePurchaseOrderReturnDto,
   ) {
-    const po = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const po = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     if (!PO_RETURNABLE_STATUSES.includes(po.status as 'PARTIALLY_RECEIVED' | 'RECEIVED')) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.INVALID_INPUT,
@@ -654,7 +657,7 @@ export class PurchaseOrdersService {
   }
 
   async cancelRemainingPurchaseOrder(user: AuthJwtPayload, purchaseOrderId: string) {
-    const existing = await this.findPurchaseOrderOrThrow(user.tenantId, purchaseOrderId);
+    const existing = await this.findPurchaseOrderOrThrow(user, purchaseOrderId);
     if (
       !PO_CANCEL_REMAINING_STATUSES.includes(existing.status as 'ORDERED' | 'PARTIALLY_RECEIVED')
     ) {
@@ -836,12 +839,21 @@ export class PurchaseOrdersService {
     return buildPurchaseOrderReturnNo(dateKey, sequence.lastValue);
   }
 
+  private assertPoOutletAccess(user: AuthJwtPayload, outletId: string) {
+    if (user.role !== UserRole.OWNER && !user.outletIds.includes(outletId)) {
+      throw new ForbiddenException({
+        code: ErrorCodes.INSUFFICIENT_PERMISSION,
+        message: 'Anda tidak memiliki akses ke outlet order distributor ini.',
+      });
+    }
+  }
+
   private async findPurchaseOrderOrThrow(
-    tenantId: string,
+    user: AuthJwtPayload,
     purchaseOrderId: string,
   ): Promise<PurchaseOrderWithDetails> {
     const po = await this.prisma.purchaseOrder.findFirst({
-      where: { id: purchaseOrderId, tenantId },
+      where: { id: purchaseOrderId, tenantId: user.tenantId },
       include: PO_INCLUDE,
     });
 
@@ -852,6 +864,7 @@ export class PurchaseOrdersService {
       });
     }
 
+    this.assertPoOutletAccess(user, po.outletId);
     return po;
   }
 

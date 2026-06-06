@@ -5,16 +5,62 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@barokah/ui';
 import { HydrationSafeMount } from '@/components/HydrationSafeMount';
-import { hasClientAuthSession } from '@/lib/auth';
+import { hasClientAuthSession, fetchMe } from '@/lib/auth';
 import { fetchActiveShift } from '@/lib/shifts-api';
 import { registerPosServiceWorker } from '@/lib/pwa-register';
 import { useChunkLoadRecovery } from '@/lib/use-chunk-load-recovery';
+import { initOutletSelection, useOutletSelection } from '@/lib/outlet-selection-state';
+import { fetchOutlets } from '@/lib/reports';
+
+function PosLayoutInner({ children }: { children: React.ReactNode }) {
+  const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
+  const { selectedOutletId } = useOutletSelection();
+
+  useEffect(() => {
+    void fetchActiveShift(selectedOutletId ?? undefined)
+      .then((shift) => setShiftOpen(Boolean(shift)))
+      .catch(() => setShiftOpen(null));
+  }, [selectedOutletId]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      {shiftOpen === false ? (
+        <div
+          role="alert"
+          style={{
+            padding: '0.75rem 1rem',
+            background: '#fffbeb',
+            borderBottom: '1px solid #fcd34d',
+            color: '#92400e',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>
+            <strong>Shift belum dibuka.</strong> Buka shift terlebih dahulu sebelum transaksi kasir.
+          </span>
+          <Link
+            href={selectedOutletId ? `/shift/open?outletId=${encodeURIComponent(selectedOutletId)}` : '/shift/open'}
+            style={{ textDecoration: 'none' }}
+          >
+            <Button type="button" variant="secondary">
+              Buka shift
+            </Button>
+          </Link>
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
+}
 
 export default function PosLayout({ children }: { children: React.ReactNode }) {
   useChunkLoadRecovery('pos');
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!hasClientAuthSession()) {
@@ -22,10 +68,24 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
       return;
     }
     void registerPosServiceWorker();
-    setReady(true);
-    void fetchActiveShift()
-      .then((shift) => setShiftOpen(Boolean(shift)))
-      .catch(() => setShiftOpen(null));
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await fetchMe();
+        if (cancelled) return;
+        const outlets = await fetchOutlets().catch(() => null);
+        if (cancelled) return;
+        initOutletSelection(outlets ?? { outletIds: me.outletIds });
+        setReady(true);
+      } catch {
+        if (!cancelled) router.replace('/login');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   return (
@@ -35,34 +95,7 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
           Memuat sesi kasir…
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-          {shiftOpen === false ? (
-            <div
-              role="alert"
-              style={{
-                padding: '0.75rem 1rem',
-                background: '#fffbeb',
-                borderBottom: '1px solid #fcd34d',
-                color: '#92400e',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.75rem',
-                flexWrap: 'wrap',
-              }}
-            >
-              <span>
-                <strong>Shift belum dibuka.</strong> Buka shift terlebih dahulu sebelum transaksi kasir.
-              </span>
-              <Link href="/shift/open" style={{ textDecoration: 'none' }}>
-                <Button type="button" variant="secondary">
-                  Buka shift
-                </Button>
-              </Link>
-            </div>
-          ) : null}
-          {children}
-        </div>
+        <PosLayoutInner>{children}</PosLayoutInner>
       )}
     </HydrationSafeMount>
   );

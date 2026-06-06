@@ -18,12 +18,34 @@ function createCustomersServiceStub() {
   };
 }
 
+function patchInventoryUpsert(client: Record<string, unknown>) {
+  const inventoryItem = client.inventoryItem as Record<string, unknown> | undefined;
+  if (inventoryItem && typeof inventoryItem.update === 'function' && !inventoryItem.upsert) {
+    const updateFn = inventoryItem.update as (args: {
+      where: unknown;
+      data?: unknown;
+    }) => Promise<unknown>;
+    inventoryItem.upsert = async (args: { where: unknown; create: unknown; update: unknown }) =>
+      updateFn({ where: args.where, data: args.update });
+  }
+}
+
 function createTransactionsService(prisma: unknown) {
+  const source = prisma as Record<string, unknown>;
+  patchInventoryUpsert(source);
+  if (typeof source.$transaction === 'function') {
+    const originalTx = source.$transaction as (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+    source.$transaction = async (fn: (tx: unknown) => Promise<unknown>) =>
+      originalTx(async (tx) => {
+        patchInventoryUpsert(tx as Record<string, unknown>);
+        return fn(tx);
+      });
+  }
   const withDefaults = {
     tenantSettings: {
       findUnique: async () => null,
     },
-    ...(prisma as object),
+    ...source,
   };
   return new TransactionsService(
     withDefaults as never,
@@ -991,6 +1013,20 @@ function checkoutPrismaMock(options: {
         const row = {
           productId: where.outletId_productId.productId,
           quantity: Number(data.quantity),
+        };
+        updates.push(row);
+        options.onUpdate?.(row.productId, row.quantity);
+      },
+      upsert: async ({
+        where,
+        update,
+      }: {
+        where: { outletId_productId: { productId: string } };
+        update: { quantity: unknown };
+      }) => {
+        const row = {
+          productId: where.outletId_productId.productId,
+          quantity: Number(update.quantity),
         };
         updates.push(row);
         options.onUpdate?.(row.productId, row.quantity);

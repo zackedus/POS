@@ -1,11 +1,13 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
 import { Button, CurrencyInput, Input } from '@barokah/ui';
 import { AlertBanner, PageHeader, SectionCard } from '@/components/dashboard/dashboard-ui';
 import { apiConfig, toUserFacingError } from '@/lib/api';
 import { authFetch, fetchMe, type AuthUser } from '@/lib/auth';
+import { useOutletSelection } from '@/lib/outlet-selection-state';
 
 interface ShiftResponse {
   id: string;
@@ -26,6 +28,10 @@ interface ApiEnvelope<T> {
 }
 
 export default function OpenShiftPage() {
+  const searchParams = useSearchParams();
+  const { outlets, selectedOutletId, needsOutletPick, setSelectedOutletId } = useOutletSelection();
+  const queryOutletId = searchParams.get('outletId');
+  const activeOutletId = selectedOutletId ?? queryOutletId;
   const [openingCash, setOpeningCash] = useState('');
   const [loading, setLoading] = useState(false);
   const [forceClosing, setForceClosing] = useState(false);
@@ -51,8 +57,15 @@ export default function OpenShiftPage() {
     void loadCurrentUser();
   }, []);
 
+  useEffect(() => {
+    if (queryOutletId) {
+      setSelectedOutletId(queryOutletId);
+    }
+  }, [queryOutletId, setSelectedOutletId]);
+
   async function fetchActiveShift() {
-    const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/shifts/active`);
+    const params = activeOutletId ? `?outletId=${encodeURIComponent(activeOutletId)}` : '';
+    const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/shifts/active${params}`);
     const json = (await res.json()) as ApiEnvelope<ShiftResponse | null>;
     if (!res.ok || !json.success) {
       throw new Error(json.error?.message ?? 'Gagal memuat shift aktif.');
@@ -75,7 +88,10 @@ export default function OpenShiftPage() {
       const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/shifts/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ openingCash: parseCurrencyInput(openingCash) }),
+        body: JSON.stringify({
+          openingCash: parseCurrencyInput(openingCash),
+          ...(activeOutletId ? { outletId: activeOutletId } : {}),
+        }),
       });
       const json = (await res.json()) as ApiEnvelope<ShiftResponse>;
       if (!res.ok || !json.success || !json.data) {
@@ -135,6 +151,33 @@ export default function OpenShiftPage() {
       />
 
       <SectionCard title="Form Pembukaan Shift">
+        {outlets.length > 1 ? (
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label style={{ display: 'grid', gap: '0.35rem', fontSize: '0.875rem' }}>
+              <span style={{ fontWeight: 600 }}>Cabang</span>
+              <select
+                value={activeOutletId ?? ''}
+                onChange={(event) => setSelectedOutletId(event.target.value)}
+                disabled={loading}
+                style={{ minHeight: 44, borderRadius: 8, padding: '0 0.5rem' }}
+              >
+                <option value="" disabled>
+                  Pilih cabang…
+                </option>
+                {outlets.map((outlet) => (
+                  <option key={outlet.id} value={outlet.id}>
+                    {outlet.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {needsOutletPick ? (
+              <p style={{ margin: '0.35rem 0 0', color: '#b45309', fontSize: '0.8125rem' }}>
+                Pilih cabang sebelum membuka shift.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.75rem' }}>
           <CurrencyInput
             label="Saldo awal kas (IDR)"
@@ -145,7 +188,7 @@ export default function OpenShiftPage() {
             disabled={loading}
             style={{ minHeight: 48 }}
           />
-          <Button type="submit" disabled={loading || !openingCash.trim()} style={{ minHeight: 48 }}>
+          <Button type="submit" disabled={loading || !openingCash.trim() || needsOutletPick} style={{ minHeight: 48 }}>
             {loading ? 'Memproses…' : 'Buka shift'}
           </Button>
         </form>

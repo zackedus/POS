@@ -38,6 +38,7 @@ import { QrisPaymentModal } from '@/components/pos/QrisPaymentModal';
 import { initiateQrisPayment, type QrisInitiateResult } from '@/lib/qris-payment';
 import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
 import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
+import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
 import { fetchActivePromos, previewPromoLocally, type PromoValidationResult } from '@/lib/promo-checkout-api';
 import { fetchTenantSettings } from '@/lib/settings-api';
@@ -46,6 +47,10 @@ import type { PromoRuleView } from '@/lib/promotions-api';
 import { mapRecallItemsToCart } from '@/lib/recall-cart';
 import { evaluateAddToCartStock, resolveStockErrorMessage } from '@/lib/stock-errors';
 import { isOutOfStock } from '@/lib/pos-stock-display';
+
+function buildOutletScope(outletId: string | null): { outletId?: string } {
+  return outletId ? { outletId } : {};
+}
 
 function mapCartItemsForCheckout(cart: CartItem[]) {
   return cart.map((item) => ({
@@ -257,9 +262,13 @@ export default function PosPage() {
     setThermalStatus(result.message);
   }
 
-  const gridOutletId = user?.outletIds?.length === 1 ? user.outletIds[0] : user?.outletIds?.[0];
+  const { outlets, selectedOutletId, needsOutletPick, setSelectedOutletId } = useOutletSelection();
+  const activeOutletId = selectedOutletId;
+  const shiftOutletMismatch = Boolean(
+    activeOutletId && activeShift?.outletId && activeShift.outletId !== activeOutletId,
+  );
   const onlineOrderCount = useOnlineOrderBadge(isOnline && Boolean(user), {
-    outletId: gridOutletId,
+    outletId: activeOutletId ?? undefined,
     onCountIncrease: (_nextCount, delta) => {
       setOnlineOrderToast(
         delta === 1 ? 'Order web baru masuk antrian' : `${delta} order web baru masuk antrian`,
@@ -284,13 +293,13 @@ export default function PosPage() {
     queryKey: [
       'products',
       'grid',
-      gridOutletId ?? 'all',
+      activeOutletId ?? 'all',
       useServerCatalogFilter ? selectedCategoryId : null,
       useServerCatalogFilter ? debouncedSearch.trim() : null,
     ],
     queryFn: () =>
       fetchProductGrid({
-        outletId: gridOutletId,
+        outletId: activeOutletId ?? undefined,
         categoryId: useServerCatalogFilter ? selectedCategoryId ?? undefined : undefined,
         q: useServerCatalogFilter && debouncedSearch.trim() ? debouncedSearch : undefined,
         withMeta: true,
@@ -489,15 +498,23 @@ export default function PosPage() {
   const splitHasValue = splitCash > 0 || splitTransfer > 0;
   const splitAmountsMismatch = cart.length > 0 && splitHasValue && splitTotal !== total;
   const checkoutBlockedByStock = stockIssues.length > 0;
+  const checkoutBlockedByOutlet = needsOutletPick || shiftOutletMismatch || !activeOutletId;
+  const checkoutOutletHint = needsOutletPick
+    ? 'Pilih cabang aktif sebelum checkout.'
+    : shiftOutletMismatch
+      ? 'Shift aktif tidak sesuai cabang terpilih. Buka shift di cabang ini.'
+      : 'Cabang aktif belum dipilih.';
+  const checkoutBlocked = checkoutBlockedByStock || checkoutBlockedByOutlet;
   const checkoutStockHint =
     stockIssues[0]?.message ?? 'Stok tidak mencukupi. Sesuaikan jumlah di keranjang sebelum checkout.';
+  const checkoutBlockHint = checkoutBlockedByOutlet ? checkoutOutletHint : checkoutStockHint;
   const splitInvalid =
-    cart.length === 0 || !splitHasValue || splitAmountsMismatch || splitRawInvalid || checkoutBlockedByStock;
+    cart.length === 0 || !splitHasValue || splitAmountsMismatch || splitRawInvalid || checkoutBlocked;
   const splitHint =
     cart.length === 0
       ? 'Tambahkan item ke keranjang sebelum split payment.'
-      : checkoutBlockedByStock
-        ? checkoutStockHint
+      : checkoutBlocked
+        ? checkoutBlockHint
       : splitRawInvalid
         ? 'Nominal split harus angka bulat >= 0 (contoh: 50.000).'
       : !splitHasValue
@@ -508,7 +525,7 @@ export default function PosPage() {
   async function loadRecentTransactions() {
     setLoadingRecent(true);
     try {
-      const rows = await fetchRecentTransactions({ limit: 8 });
+      const rows = await fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined });
       setRecentTransactions(rows);
     } catch (err) {
       if (err instanceof TransactionApiError) {
@@ -536,7 +553,8 @@ export default function PosPage() {
   async function loadHeldTransactions() {
     setLoadingHeld(true);
     try {
-      const heldRes = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held`);
+      const params = activeOutletId ? `?outletId=${encodeURIComponent(activeOutletId)}` : '';
+      const heldRes = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held${params}`);
       const heldJson = (await heldRes.json()) as ApiEnvelope<HeldTransactionSummary[]>;
       if (!heldRes.ok || !heldJson.success || !heldJson.data) {
         throw new Error(heldJson.error?.message ?? 'Gagal memuat transaksi hold.');
@@ -559,7 +577,7 @@ export default function PosPage() {
 
         if (isOnline) {
           const [shift, promos] = await Promise.all([
-            fetchActiveShift().catch(() => null),
+            fetchActiveShift(activeOutletId ?? undefined).catch(() => null),
             fetchActivePromos().catch(() => [] as PromoRuleView[]),
           ]);
           setActiveShift(shift);
@@ -585,9 +603,10 @@ export default function PosPage() {
           return;
         }
 
+        const heldParams = activeOutletId ? `?outletId=${encodeURIComponent(activeOutletId)}` : '';
         const [heldRes, recentRows] = await Promise.all([
-          authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held`),
-          fetchRecentTransactions({ limit: 8 }).catch(() => []),
+          authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held${heldParams}`),
+          fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined }).catch(() => []),
         ]);
         const heldJson = (await heldRes.json()) as ApiEnvelope<HeldTransactionSummary[]>;
         if (!heldRes.ok || !heldJson.success || !heldJson.data) {
@@ -612,7 +631,7 @@ export default function PosPage() {
     }
 
     void loadContext();
-  }, [isOnline]);
+  }, [isOnline, activeOutletId]);
 
   useEffect(() => {
     if (!isOnline) {
@@ -646,7 +665,7 @@ export default function PosPage() {
       return;
     }
     let cancelled = false;
-    void fetchCartValidation(mapCartItemsForCheckout(cart)).then((validation) => {
+    void fetchCartValidation(mapCartItemsForCheckout(cart), activeOutletId ?? undefined).then((validation) => {
       if (!cancelled) {
         setMarginWarnings(validation.marginWarnings);
         setStockIssues(validation.stockIssues);
@@ -655,7 +674,7 @@ export default function PosPage() {
     return () => {
       cancelled = true;
     };
-  }, [cart, isOnline]);
+  }, [cart, isOnline, activeOutletId]);
 
   function resolveOrderStep(product: ProductGridItem, sellUnitId?: string): number {
     if (sellUnitId && product.sellUnits) {
@@ -858,7 +877,10 @@ export default function PosPage() {
   }
 
   async function handleCheckoutCash() {
-    if (cart.length === 0) {
+    if (cart.length === 0 || checkoutBlockedByOutlet) {
+      if (checkoutBlockedByOutlet) {
+        setError(checkoutOutletHint);
+      }
       return;
     }
 
@@ -900,6 +922,7 @@ export default function PosPage() {
           items: cartItems,
           cashReceived: cashReceivedValue,
           clientRequestId: createClientRequestId(),
+          ...buildOutletScope(activeOutletId),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
           ...buildCustomerCheckoutPayload(),
         }),
@@ -942,7 +965,10 @@ export default function PosPage() {
   }
 
   async function handleHoldTransaction() {
-    if (cart.length === 0) {
+    if (cart.length === 0 || checkoutBlockedByOutlet) {
+      if (checkoutBlockedByOutlet) {
+        setError(checkoutOutletHint);
+      }
       return;
     }
 
@@ -981,6 +1007,7 @@ export default function PosPage() {
           items: holdItems,
           label: holdLabel,
           clientRequestId: createClientRequestId(),
+          ...buildOutletScope(activeOutletId),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<HeldTransactionDetail>;
@@ -1021,9 +1048,13 @@ export default function PosPage() {
     setLastFailedAction(null);
     setLastFailedActionLabel(null);
     try {
-      const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held/${heldId}`, {
+      const recallParams = activeOutletId ? `?outletId=${encodeURIComponent(activeOutletId)}` : '';
+      const res = await authFetch(
+        `${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held/${heldId}${recallParams}`,
+        {
         method: 'DELETE',
-      });
+        },
+      );
       const json = (await res.json()) as ApiEnvelope<HeldTransactionDetail>;
       if (!res.ok || !json.success || !json.data) {
         throw new ApiRequestError(
@@ -1099,6 +1130,7 @@ export default function PosPage() {
           items: cartItems,
           payments,
           clientRequestId: createClientRequestId(),
+          ...buildOutletScope(activeOutletId),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
           ...buildCustomerCheckoutPayload(),
         }),
@@ -1165,6 +1197,7 @@ export default function PosPage() {
         const session = await initiateQrisPayment({
           items: cartItems,
           clientRequestId: createClientRequestId(),
+          outletId: activeOutletId ?? undefined,
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
         });
         setQrisSession(session);
@@ -1214,6 +1247,7 @@ export default function PosPage() {
           items: cartItems,
           payments,
           clientRequestId: createClientRequestId(),
+          ...buildOutletScope(activeOutletId),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
           ...buildCustomerCheckoutPayload(),
         }),
@@ -1262,6 +1296,11 @@ export default function PosPage() {
           userName={user.fullName}
           activeShift={activeShift}
           onlineOrderCount={onlineOrderCount}
+          outlets={outlets}
+          selectedOutletId={activeOutletId}
+          needsOutletPick={needsOutletPick}
+          shiftOutletMismatch={shiftOutletMismatch}
+          onOutletChange={setSelectedOutletId}
           onLogout={handleLogout}
         />
       ) : null}
@@ -1356,8 +1395,8 @@ export default function PosPage() {
           appliedPromoName={promoPreview.promoName}
           stockIssues={stockIssues}
           marginWarnings={marginWarnings}
-          checkoutBlockedByStock={checkoutBlockedByStock}
-          checkoutStockHint={checkoutStockHint}
+          checkoutBlockedByStock={checkoutBlocked}
+          checkoutStockHint={checkoutBlockHint}
           paymentMode={paymentMode}
           onPaymentModeChange={setPaymentMode}
           cashReceived={cashReceived}

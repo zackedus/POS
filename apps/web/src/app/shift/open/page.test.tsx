@@ -12,6 +12,21 @@ vi.mock('@/lib/api', () => ({
     err instanceof Error ? err.message : fallback,
 }));
 
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({
+    get: () => null,
+  }),
+}));
+
+vi.mock('@/lib/outlet-selection-state', () => ({
+  useOutletSelection: () => ({
+    outlets: [{ id: 'outlet-1', label: 'Cabang Utama (MAIN)' }],
+    selectedOutletId: 'outlet-1',
+    needsOutletPick: false,
+    setSelectedOutletId: vi.fn(),
+  }),
+}));
+
 vi.mock('@/lib/auth', () => ({
   authFetch: (...args: unknown[]) => authFetchMock(...args),
   fetchMe: (...args: unknown[]) => fetchMeMock(...args),

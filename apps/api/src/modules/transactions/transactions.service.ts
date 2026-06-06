@@ -1306,14 +1306,19 @@ export class TransactionsService {
 
       for (const item of stockDeductions) {
         const quantityAfter = item.availableBefore - item.quantity;
-        await tx.inventoryItem.update({
+        await tx.inventoryItem.upsert({
           where: {
             outletId_productId: {
               outletId,
               productId: item.productId,
             },
           },
-          data: {
+          create: {
+            outletId,
+            productId: item.productId,
+            quantity: new Decimal(quantityAfter),
+          },
+          update: {
             quantity: new Decimal(quantityAfter),
           },
         });
@@ -1454,14 +1459,19 @@ export class TransactionsService {
 
         for (const item of stockDeductions) {
           const quantityAfter = item.availableBefore - item.quantity;
-          await tx.inventoryItem.update({
+          await tx.inventoryItem.upsert({
             where: {
               outletId_productId: {
                 outletId,
                 productId: item.productId,
               },
             },
-            data: {
+            create: {
+              outletId,
+              productId: item.productId,
+              quantity: new Decimal(quantityAfter),
+            },
+            update: {
               quantity: new Decimal(quantityAfter),
             },
           });
