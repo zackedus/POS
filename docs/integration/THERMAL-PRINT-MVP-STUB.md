@@ -32,6 +32,22 @@ Generator: `apps/api/src/modules/transactions/receipt.util.ts` → `buildEscPosS
 2. Tombol **Cetak Struk** → `printReceiptBrowser('barokah-receipt-print')` (`apps/web/src/lib/thermal-print.ts`).
 3. Banner hint: stub ESC/POS menunggu integrasi Bluetooth/USB.
 
+## ESC/POS Preview (Phase 7)
+
+- `renderEscPosPreview(escpos)` — decode base64 + token command (`[INIT]`, `[CUT]`, dll.)
+- `formatWebUsbIntegrationHint()` — deteksi `navigator.usb` untuk POC Arif
+
+## WebUSB stub (belum di-wire)
+
+Browser Chromium desktop mendukung [WebUSB API](https://developer.mozilla.org/en-US/docs/Web/API/USB). Alur POC yang direncanakan:
+
+1. Kasir klik **Hubungkan Printer USB** (UI menyusul)
+2. `navigator.usb.requestDevice({ filters: [{ classCode: 7 }] })` — printer class
+3. Kirim byte dari `escpos.payload` (decode base64) via bulk OUT endpoint
+4. Fallback: `printReceiptBrowser()` (sudah ada)
+
+**Status:** stub helper saja — tidak memerlukan hardware Pak Zaki untuk test.
+
 ## Handoff ke Integrasi Hardware (Fase berikutnya)
 
 | Task | Owner |

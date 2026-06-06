@@ -51,10 +51,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           return;
         }
 
-        const outlets = await fetchOutlets();
-        initOutletSelection(outlets ?? { outletIds: me.outletIds });
         persistUserRole(me.role);
         setUser(me);
+
+        const outlets = await fetchOutlets();
+        if (cancelled) return;
+        initOutletSelection(outlets ?? { outletIds: me.outletIds });
       } catch {
         if (!cancelled) {
           tokenStorage.clear();

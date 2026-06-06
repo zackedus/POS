@@ -91,7 +91,20 @@ Parallel lanes setelah audit — **semua lane independen**, kontrak API frozen p
 | E | Dashboard mapApiError UX | Dimas | ✅ Done |
 | F | Docs + UAT checklist | Fitri | ✅ Done |
 
-**Definition of Done — Web Completion Plan:** ✅ All phases 1–4 complete (Jun 2026)
+**Definition of Done — Web Completion Plan:** ✅ All phases 1–7 complete (Jun 2026)
+
+### Phase 7 — Production readiness (PASS 7 — DONE)
+
+| Lane | Fitur | Owner | Status |
+|------|-------|-------|--------|
+| A | Business logic audit + fixes | Rina + Eko + Fajar | ✅ Done |
+| B | Playwright CI | Yoga + Citra | ✅ Done |
+| C | Mobile secure storage | Dimas | ✅ Done |
+| D | Midtrans + thermal POC | Arif + Fajar | ✅ Done |
+| E | Analytics export + UAT | Eko + Citra + Fitri | ✅ Done |
+| F | httpOnly auth doc | Fajar + Dimas | ✅ Done |
+
+**Web MVP:** ✅ **Production-ready** untuk pilot retail bahan bangunan (Jun 2026). Lihat [WEB-PHASE-7-UAT-FINAL.md](../testing/WEB-PHASE-7-UAT-FINAL.md).
 
 ---
 

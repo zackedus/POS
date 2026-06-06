@@ -9,7 +9,7 @@ import {
   PageHeader,
   StatCard,
 } from '@/components/dashboard/dashboard-ui';
-import { fetchAnalytics, type AnalyticsReport } from '@/lib/analytics-api';
+import { downloadAnalyticsMarginCsv, fetchAnalytics, type AnalyticsReport } from '@/lib/analytics-api';
 import { mapApiError } from '@/lib/api-client';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { useAdminTheme } from '@/hooks/useAdminTheme';
@@ -61,6 +61,7 @@ export default function AnalyticsPage() {
   const [report, setReport] = useState<AnalyticsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,6 +86,30 @@ export default function AnalyticsPage() {
   }, [load]);
 
   const maxTrendRevenue = Math.max(...(report?.salesTrend.map((d) => d.revenue) ?? [0]));
+
+  async function handleExportCsv() {
+    setExporting(true);
+    setError(null);
+    try {
+      const result = await downloadAnalyticsMarginCsv({
+        outletId: selectedOutletId ?? undefined,
+        days,
+      });
+      if (!result) {
+        setError('Gagal mengekspor CSV analitik.');
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(result.blob);
+      link.download = result.filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      setError(mapApiError(err, 'Gagal mengekspor CSV analitik.'));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div style={{ maxWidth: 1100, display: 'grid', gap: '1.25rem' }}>
@@ -115,6 +140,20 @@ export default function AnalyticsPage() {
               }}
             >
               Muat ulang
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportCsv()}
+              disabled={loading || exporting || !report}
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: 8,
+                border: `1px solid ${tokens.cardBorder}`,
+                background: tokens.cardBg,
+                cursor: report ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {exporting ? 'Mengekspor…' : 'Ekspor CSV Margin'}
             </button>
           </div>
         }

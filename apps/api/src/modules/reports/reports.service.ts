@@ -3,6 +3,7 @@ import { UserRole } from '@barokah/database';
 import type { Prisma } from '@prisma/client';
 import { ErrorCodes, PaymentMethod } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
+import { buildAnalyticsMarginCsv } from '../../common/utils/analytics-export.util';
 import { buildDailySalesCsv, buildDailySalesPdf } from '../../common/utils/daily-export.util';
 import { resolveReportDayRange } from '../../common/utils/report-date.util';
 import { toIdrInteger } from '../../common/utils/money.util';
@@ -365,6 +366,16 @@ export class ReportsService {
       marginByCategory,
       topProducts,
       salesTrend,
+    };
+  }
+
+  async exportAnalyticsMargin(user: AuthJwtPayload, query: AnalyticsQueryDto) {
+    const report = await this.getAnalytics(user, query);
+    const filename = `analitik-margin-${report.periodDays}hari-${report.dateFrom}_${report.dateTo}-${report.outletId}.csv`;
+    return {
+      format: 'csv' as const,
+      filename,
+      body: `\uFEFF${buildAnalyticsMarginCsv(report)}`,
     };
   }
 

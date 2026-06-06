@@ -52,6 +52,16 @@ export class ReportsController {
     return this.reportsService.getAnalytics(user, query);
   }
 
+  @Get('analytics/export')
+  @Header('Cache-Control', 'no-store')
+  async exportAnalytics(@CurrentUser() user: AuthJwtPayload, @Query() query: AnalyticsQueryDto) {
+    const result = await this.reportsService.exportAnalyticsMargin(user, query);
+    return new StreamableFile(Buffer.from(result.body, 'utf-8'), {
+      type: 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="${result.filename}"`,
+    });
+  }
+
   @Get('daily/export')
   @Header('Cache-Control', 'no-store')
   async exportDailySales(@CurrentUser() user: AuthJwtPayload, @Query() query: DailyExportQueryDto) {

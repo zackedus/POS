@@ -60,3 +60,37 @@ test('Reports: getAnalytics aggregates margin by category', async () => {
   assert.equal(result.topProducts.length, 2);
   assert.ok(result.salesTrend.length >= 1);
 });
+
+test('Reports: exportAnalyticsMargin returns CSV with BOM', async () => {
+  const prisma = {
+    outlet: {
+      findFirst: async () => ({ id: 'outlet-1' }),
+    },
+    transactionItem: {
+      findMany: async () => [
+        {
+          productId: 'p1',
+          productName: 'Semen 40kg',
+          quantity: '1',
+          subtotal: '100000',
+          product: {
+            costPrice: '70000',
+            category: { id: 'cat-1', name: 'Semen' },
+          },
+          transaction: { completedAt: new Date('2026-06-05T10:00:00Z') },
+        },
+      ],
+    },
+  };
+
+  const service = new ReportsService(prisma as never);
+  const result = await service.exportAnalyticsMargin(createManager(), {
+    outletId: 'outlet-1',
+    days: AnalyticsPeriodDays.DAYS_7,
+  });
+
+  assert.equal(result.format, 'csv');
+  assert.match(result.filename, /analitik-margin-7hari/);
+  assert.match(result.body, /^\uFEFF/);
+  assert.match(result.body, /Semen/);
+});

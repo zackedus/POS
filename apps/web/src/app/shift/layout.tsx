@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@barokah/ui';
 import { HydrationSafeMount } from '@/components/HydrationSafeMount';
-import { fetchMe, tokenStorage, type AuthUser } from '@/lib/auth';
+import { fetchMe, hasClientAuthSession, type AuthUser } from '@/lib/auth';
 import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
 
 export default function ShiftLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +16,7 @@ export default function ShiftLayout({ children }: { children: React.ReactNode })
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!tokenStorage.getAccessToken()) {
+    if (!hasClientAuthSession()) {
       router.replace('/login');
       return;
     }

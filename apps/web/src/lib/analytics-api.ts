@@ -63,3 +63,28 @@ export async function fetchAnalytics(options?: {
   }
   return null;
 }
+
+export async function downloadAnalyticsMarginCsv(options?: {
+  outletId?: string;
+  days?: 7 | 30;
+}): Promise<{ filename: string; blob: Blob } | null> {
+  const params = new URLSearchParams();
+  if (options?.outletId) params.set('outletId', options.outletId);
+  if (options?.days) params.set('days', String(options.days));
+  const qs = params.toString();
+  const url = `${REPORTS_BASE}/analytics/export${qs ? `?${qs}` : ''}`;
+
+  try {
+    const res = await authFetch(url);
+    if (!res.ok) {
+      return null;
+    }
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const match = /filename="([^"]+)"/.exec(disposition);
+    const filename = match?.[1] ?? `analitik-margin-${options?.days ?? 7}hari.csv`;
+    const blob = await res.blob();
+    return { filename, blob };
+  } catch {
+    return null;
+  }
+}

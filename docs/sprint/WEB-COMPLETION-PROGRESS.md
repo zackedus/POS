@@ -120,12 +120,77 @@
 | `smoke` | ✅ |
 | Playwright e2e | ✅ 3/3 (local, dev stack) |
 
-### Defer Phase 7
-
-- Citra UAT sign-off Phase 4 checklist
-- Playwright in CI (needs PG + seed service)
-- Mobile secure storage + full POS offline
-- Midtrans live credentials & printer hardware POC
-- Analytics scheduled export / margin drill-down
-
 *Pass 6 closed: Budi + tim · 6 Juni 2026*
+
+---
+
+## Phase 7 — Business Audit + CI E2E + Mobile + Integrasi (PASS 7 — DONE)
+
+> **Tanggal:** 6 Juni 2026  
+> **Koordinasi:** Budi · Lanes A–F paralel setelah Pass 6
+
+| Lane | Deliverable | Status |
+|------|-------------|--------|
+| **A** | Business logic audit 9 flows + fix BL-07-01 (`validateCart` varian) | ✅ Done |
+| **B** | Playwright job CI + PostgreSQL service + seed | ✅ Done |
+| **C** | Mobile `expo-secure-store` + product grid read-only | ✅ Done |
+| **D** | Midtrans mode tests + thermal ESC/POS preview + WebUSB stub doc | ✅ Done |
+| **E** | Analytics export CSV margin + UAT final + MVP production-ready | ✅ Done |
+| **F** | httpOnly auth production path doc | ✅ Done |
+
+### Lane A — Business logic audit
+
+- Dokumen: `docs/domain/BUSINESS-LOGIC-AUDIT-2026-06.md` — 9/9 PASS
+- Fix P1: `validateCart` menolak parent `hasVariants`
+- Tests baru: variant SKU price, promo discount checkout
+
+### Lane B — Playwright CI
+
+- Job `playwright-e2e` di `.github/workflows/ci.yml`
+- PG service + migrate + seed + API/Web start + smoke 3 path
+
+### Lane C — Mobile
+
+- `expo-secure-store` session persist
+- `/pos` daftar produk API + link web kasir
+- README Phase 7 updated
+
+### Lane D — Integrasi
+
+- `renderEscPosPreview` + `formatWebUsbIntegrationHint`
+- Settings test production Midtrans mode
+- `THERMAL-PRINT-MVP-STUB.md` WebUSB section
+
+### Lane E — Analytics + UAT
+
+- `GET /reports/analytics/export` CSV margin kategori
+- UI tombol **Ekspor CSV Margin** di `/dashboard/analytics`
+- `docs/testing/WEB-PHASE-7-UAT-FINAL.md` PASS
+
+### Lane F — httpOnly
+
+- `docs/testing/HTTPONLY-AUTH-PRODUCTION.md`
+
+### Test Results (Pass 7)
+
+| Suite | Result |
+|-------|--------|
+| `@barokah/shared` | ✅ |
+| `@barokah/api` | ✅ (audit + analytics export + settings) |
+| `@barokah/web` | ✅ (thermal + analytics) |
+| `lint` / `typecheck` / `build` | ✅ |
+| Playwright e2e | ✅ 3/3 |
+
+### Web MVP status
+
+**Production-ready** untuk pilot toko bahan bangunan (web kasir + dashboard + storefront mock pay).
+
+### Defer Phase 8
+
+- Mobile offline kasir penuh + sync queue
+- Midtrans live credentials (Pak Zaki)
+- Thermal hardware driver production
+- CSP hardening + weighted average HPP
+- Scheduled analytics email export
+
+*Pass 7 closed: Budi + tim · 6 Juni 2026*

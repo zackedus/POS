@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@barokah/ui';
 import { HydrationSafeMount } from '@/components/HydrationSafeMount';
-import { tokenStorage } from '@/lib/auth';
+import { hasClientAuthSession } from '@/lib/auth';
 import { fetchActiveShift } from '@/lib/shifts-api';
 import { registerPosServiceWorker } from '@/lib/pwa-register';
 import { useChunkLoadRecovery } from '@/lib/use-chunk-load-recovery';
@@ -17,15 +17,15 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
   const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!tokenStorage.getAccessToken()) {
+    if (!hasClientAuthSession()) {
       router.replace('/login');
       return;
     }
     void registerPosServiceWorker();
+    setReady(true);
     void fetchActiveShift()
       .then((shift) => setShiftOpen(Boolean(shift)))
-      .catch(() => setShiftOpen(null))
-      .finally(() => setReady(true));
+      .catch(() => setShiftOpen(null));
   }, [router]);
 
   return (

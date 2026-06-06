@@ -58,3 +58,28 @@ test('SettingsService: sandbox when env key present', async () => {
   assert.equal(view.midtrans.keySource, 'env');
   assert.equal(view.ppnEnabled, true);
 });
+
+test('SettingsService: production mode when env key and MIDTRANS_IS_PRODUCTION true', async () => {
+  const prisma = {
+    tenantSettings: {
+      findUnique: async () => null,
+    },
+  };
+  const config = {
+    get: (key: string) => {
+      if (key === 'MIDTRANS_SERVER_KEY') return 'Mid-server-live-key';
+      if (key === 'MIDTRANS_IS_PRODUCTION') return 'true';
+      return undefined;
+    },
+  };
+  const service = new SettingsService(prisma as never, config as never);
+  const view = await service.getTenantSettings({
+    sub: 'u1',
+    email: 'a@b.c',
+    tenantId: 't1',
+    role: 'OWNER',
+    outletIds: ['o1'],
+  });
+  assert.equal(view.midtrans.mode, 'live');
+  assert.equal(view.midtrans.keySource, 'env');
+});

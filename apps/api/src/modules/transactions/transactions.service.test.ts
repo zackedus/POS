@@ -934,14 +934,23 @@ function checkoutPrismaMock(options: {
   const mock = {
     transaction: {
       findFirst: async () => null,
-      create: async () => ({
+      create: async ({
+        data,
+      }: {
+        data: {
+          subtotal: { toString(): string };
+          total: { toString(): string };
+          discount?: { toString(): string };
+        };
+      }) => ({
         id: 'txn-seng',
         receiptNo: 'TRX-SENG',
         outletId: 'outlet-1',
         shiftId: 'shift-1',
         cashierId: 'cashier-1',
-        subtotal: 100000,
-        total: 100000,
+        subtotal: Number(data.subtotal),
+        total: Number(data.total),
+        discount: data.discount != null ? Number(data.discount) : undefined,
         completedAt: new Date(),
       }),
     },
@@ -1260,4 +1269,93 @@ test('Transactions: validateCart warns on roll sell below package cost', async (
   assert.equal(result.hasNegativeMargin, true);
   assert.equal(result.marginWarnings.length, 1);
   assert.match(result.marginWarnings[0]?.message ?? '', /margin negatif/i);
+});
+
+test('Transactions: validateCart rejects parent product with variants', async () => {
+  const prisma = {
+    product: {
+      findMany: async () => [
+        {
+          id: 'prod-parent',
+          name: 'Cat Tembok',
+          price: 95000,
+          costPrice: 70000,
+          hasVariants: true,
+          unitId: 'unit-1',
+          moq: 1,
+          orderStep: 1,
+          unit: { id: 'unit-1', symbol: 'kaleng', name: 'Kaleng' },
+          unitConversions: [],
+          bundleDefinition: null,
+        },
+      ],
+    },
+    inventoryItem: {
+      findMany: async () => [{ productId: 'prod-parent', quantity: 10 }],
+    },
+  };
+
+  const service = createTransactionsService(prisma);
+  await assert.rejects(
+    () =>
+      service.validateCart(createUser(), {
+        outletId: 'outlet-1',
+        items: [{ productId: 'prod-parent', quantity: 1 }],
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof UnprocessableEntityException);
+      const response = error.getResponse() as { code?: string };
+      assert.equal(response.code, ErrorCodes.INVALID_INPUT);
+      return true;
+    },
+  );
+});
+
+test('Transactions: checkoutSplit uses variant SKU own price', async () => {
+  const variantProduct = {
+    id: 'variant-5l',
+    name: 'Cat Tembok — 5 Liter',
+    price: 125000,
+    costPrice: 90000,
+    hasVariants: false,
+    unitId: 'unit-1',
+    moq: 1,
+    orderStep: 1,
+    unit: { id: 'unit-1', symbol: 'kaleng', name: 'Kaleng' },
+    unitConversions: [],
+    bundleDefinition: null,
+  };
+  const prisma = checkoutPrismaMock({ product: variantProduct, stockQty: 5 });
+  const service = createTransactionsService(prisma);
+
+  await service.checkoutSplit(createUser(), {
+    outletId: 'outlet-1',
+    items: [{ productId: 'variant-5l', quantity: 2 }],
+    payments: [{ method: PaymentMethod.CASH, amount: 250_000 }],
+  });
+
+  assert.deepEqual(prisma.updates, [{ productId: 'variant-5l', quantity: 3 }]);
+});
+
+test('Transactions: checkoutSplit applies promo discount to total', async () => {
+  const promoService = {
+    resolveCheckoutDiscount: async () => ({
+      discountAmount: 20_000,
+      promoRuleId: 'promo-1',
+      promoName: 'Diskon 10%',
+    }),
+  };
+  const prisma = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
+  const service = new TransactionsService(prisma as never, promoService as never);
+
+  const result = await service.checkoutSplit(createUser(), {
+    outletId: 'outlet-1',
+    items: [{ productId: 'prod-1', quantity: 1 }],
+    payments: [{ method: PaymentMethod.CASH, amount: 80_000 }],
+    promoRuleId: 'promo-1',
+  });
+
+  assert.equal(result.total, 80_000);
+  assert.equal(result.subtotal, 100_000);
+  assert.equal(result.discount, 20_000);
 });

@@ -362,6 +362,13 @@ export class TransactionsService {
           message: 'Produk tidak ditemukan atau tidak aktif.',
         });
       }
+
+      if ((productMap.get(productId) as ProductRow).hasVariants) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.INVALID_INPUT,
+          message: 'Produk induk varian tidak dapat divalidasi. Pilih SKU varian.',
+        });
+      }
     }
     const marginWarnings = this.computeMarginWarnings(productMap, cartItems, outletId);
     const normalizedLines = cartItems.map((item) =>

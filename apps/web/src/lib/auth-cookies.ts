@@ -16,8 +16,13 @@ export function useHttpOnlyAuthPath(): boolean {
   );
 }
 
+function isLocalHttpHost(): boolean {
+  const host = process.env.NEXT_PUBLIC_API_URL ?? '';
+  return host === '' || /localhost|127\.0\.0\.1/i.test(host);
+}
+
 export function authCookieOptions(maxAgeSeconds: number) {
-  const secure = process.env.NODE_ENV === 'production';
+  const secure = process.env.NODE_ENV === 'production' && !isLocalHttpHost();
   return {
     httpOnly: true,
     secure,

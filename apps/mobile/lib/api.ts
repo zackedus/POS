@@ -42,4 +42,29 @@ export async function loginMobile(email: string, password: string): Promise<Mobi
   };
 }
 
+export interface MobileProductGridItem {
+  id: string;
+  name: string;
+  sku: string;
+  price: number;
+  unitSymbol?: string | null;
+}
+
+export async function fetchMobileProductGrid(
+  accessToken: string,
+  limit = 20,
+): Promise<MobileProductGridItem[]> {
+  const res = await fetch(`${API_BASE}/catalog/products/grid?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const json = (await res.json()) as ApiEnvelope<MobileProductGridItem[] | { items: MobileProductGridItem[] }>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat produk.');
+  }
+  if (Array.isArray(json.data)) {
+    return json.data;
+  }
+  return json.data.items ?? [];
+}
+
 export { API_BASE };

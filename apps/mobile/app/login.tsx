@@ -16,7 +16,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const result = await loginMobile(email, password);
-      mobileSession.setSession({
+      await mobileSession.setSession({
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
         user: result.user,

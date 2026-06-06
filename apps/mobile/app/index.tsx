@@ -32,8 +32,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={styles.secondaryButton}
           onPress={() => {
-            mobileSession.clear();
-            router.replace('/');
+            void mobileSession.clear().then(() => router.replace('/'));
           }}
         >
           <Text style={styles.secondaryButtonText}>Keluar</Text>

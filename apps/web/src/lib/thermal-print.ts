@@ -53,6 +53,38 @@ export function decodeEscPosPreview(escpos: EscPosStub): string {
   }
 }
 
+/** Human-readable ESC/POS preview for kasir debug before hardware driver (Arif POC). */
+export function renderEscPosPreview(escpos: EscPosStub): string {
+  const decoded = decodeEscPosPreview(escpos);
+  if (!decoded) {
+    return '(payload kosong atau tidak valid)';
+  }
+  const ESC = '\u001b';
+  const GS = '\u001d';
+  const normalized = decoded
+    .split(ESC + '@').join('[INIT]')
+    .split(ESC + 'a\u0001').join('[CENTER]')
+    .split(ESC + 'a\u0000').join('[LEFT]')
+    .split(GS + 'V\u0000').join('[CUT]')
+    .split(GS + 'V\u0001').join('[PARTIAL-CUT]');
+  return normalized.trim();
+}
+
+/** WebUSB thermal printer stub — browser API not wired yet; see docs/integration/THERMAL-PRINT-MVP-STUB.md */
+export function webUsbThermalStubAvailable(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  return 'usb' in navigator;
+}
+
+export function formatWebUsbIntegrationHint(): string {
+  if (webUsbThermalStubAvailable()) {
+    return 'WebUSB tersedia di browser ini — driver ESC/POS USB menyusul (Arif POC). Gunakan Cetak Struk browser sementara.';
+  }
+  return 'WebUSB tidak tersedia — gunakan Cetak Struk browser atau integrasi Bluetooth thermal (Arif POC).';
+}
+
 export function paymentMethodLabel(method: string): string {
   const labels: Record<string, string> = {
     CASH: 'Tunai',
