@@ -16,7 +16,8 @@
     "build": "tsc",
     "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"console.log('no tests yet')\""
+    "test": "node -e \"console.log('no tests yet')\"",
+    "smoke:staging": "npm --prefix ../.. run smoke:staging"
   },
   "dependencies": {
     "@prisma/client": "^6.8.0",

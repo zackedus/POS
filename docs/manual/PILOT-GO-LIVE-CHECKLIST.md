@@ -6,12 +6,34 @@ Checklist langkah demi langkah sebelum operasional harian di toko fisik.
 
 ---
 
+## Smoke staging (pre-flight)
+
+Jalankan dari **root monorepo** (`barokah-pos`), **bukan** dari `packages/database`:
+
+```powershell
+cd "g:\\baru 2026\\juni\\pos"
+npm run smoke:staging
+```
+
+**Prasyarat:** API staging/dev sudah jalan (default `http://localhost:3010/api/v1`), DB migrate + seed.
+
+| Variabel opsional | Default |
+|-------------------|---------|
+| `STAGING_API_URL` | `http://localhost:3010/api/v1` |
+| `STAGING_SMOKE_EMAIL` | `kasir@barokah.local` |
+| `STAGING_SMOKE_PASSWORD` | `Kasir123!` (dev seed) |
+| `STAGING_TENANT_SLUG` | `barokah-bangunan` |
+
+Skrip memeriksa: health, storefront outlets, login, `/auth/me`, daftar produk, shift aktif.
+
+---
+
 ## 1. Infrastruktur (Yoga)
 
 - [ ] PostgreSQL 16+ dan Redis 7+ running (Docker Compose staging/prod)
 - [ ] Salin `.env.production.example` → `.env`, isi secret kuat (JWT, DB password)
 - [ ] `npm run build` sukses di server staging
-- [ ] `npm run smoke:staging` → semua PASS
+- [ ] `npm run smoke:staging` dari root repo → semua PASS (lihat bagian Smoke staging di atas)
 - [ ] HTTPS aktif (reverse proxy nginx/Caddy)
 - [ ] Backup DB otomatis harian dikonfigurasi
 

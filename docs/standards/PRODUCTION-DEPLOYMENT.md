@@ -63,7 +63,7 @@ Flags yang disarankan di reverse proxy:
 
 1. Salin template env: `docker/.env.staging.example` → `docker/.env.staging`
 2. Build & up: `docker compose -f docker/docker-compose.staging.yml --env-file docker/.env.staging up -d --build`
-3. Health: `npm run smoke:staging` (API default port **3010**, web **3011**)
+3. Health (dari **root monorepo**): `cd <repo-root>` lalu `npm run smoke:staging` — skrip `scripts/staging-health-check.ps1` (API default port **3010**, web **3011**). Dev API port 3000: set `STAGING_API_URL=http://localhost:3000/api/v1`
 4. Midtrans sandbox + ngrok webhook — lihat `docs/integration/MIDTRANS-SANDBOX-E2E.md`
 
 | Service | Staging port |
