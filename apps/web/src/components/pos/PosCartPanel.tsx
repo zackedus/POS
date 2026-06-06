@@ -100,6 +100,10 @@ export interface PosCartPanelProps {
   onThermalPrint?: () => void;
   thermalStatus?: string | null;
   onCloseReceipt: () => void;
+  customerName?: string;
+  customerPhone?: string;
+  onCustomerNameChange?: (value: string) => void;
+  onCustomerPhoneChange?: (value: string) => void;
 }
 
 export function PosCartPanel({
@@ -163,6 +167,10 @@ export function PosCartPanel({
   onThermalPrint,
   thermalStatus,
   onCloseReceipt,
+  customerName = '',
+  customerPhone = '',
+  onCustomerNameChange,
+  onCustomerPhoneChange,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
   const stepperStyle = { minHeight: 44, minWidth: 44, padding: 0, fontSize: '1.125rem' };
@@ -357,6 +365,40 @@ export function PosCartPanel({
           })}
         </div>
       )}
+
+      {hasCartItems && onCustomerNameChange && onCustomerPhoneChange ? (
+        <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>Pelanggan (opsional)</span>
+          <input
+            type="text"
+            value={customerName}
+            onChange={(event) => onCustomerNameChange(event.target.value)}
+            placeholder="Nama pelanggan"
+            aria-label="Nama pelanggan"
+            style={{
+              minHeight: 44,
+              padding: '0.5rem 0.75rem',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              fontSize: '0.875rem',
+            }}
+          />
+          <input
+            type="tel"
+            value={customerPhone}
+            onChange={(event) => onCustomerPhoneChange(event.target.value)}
+            placeholder="08xxxxxxxxxx"
+            aria-label="No. HP pelanggan"
+            style={{
+              minHeight: 44,
+              padding: '0.5rem 0.75rem',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
+              fontSize: '0.875rem',
+            }}
+          />
+        </div>
+      ) : null}
 
       {hasCartItems && activePromos.length > 0 ? (
         <label style={{ display: 'grid', gap: '0.35rem', marginTop: '0.75rem', fontSize: '0.8125rem' }}>

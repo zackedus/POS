@@ -2,6 +2,8 @@ import { Type } from 'class-transformer';
 
 import { ArrayMinSize, IsArray, IsInt, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
+import { CheckoutCustomerFields } from './checkout-customer.dto';
+
 
 
 export class CheckoutItemDto {
@@ -32,7 +34,7 @@ export class CheckoutItemDto {
 
 
 
-export class CheckoutCashDto {
+export class CheckoutCashDto extends CheckoutCustomerFields {
 
   @IsOptional()
 

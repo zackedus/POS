@@ -4,6 +4,21 @@ Semua perubahan penting pada Barokah Core POS dicatat di file ini.
 
 Format mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan Semantic Versioning.
 
+## [1.0.0-beta-fase2] - 2026-06-07
+
+### Added
+- **Customer MVP:** model `Customer` (name, phone, points stub) — link POS walk-in + storefront checkout.
+- **Online sync:** realtime `stock:changed` on PAID + fulfillment COMPLETED; audit doc Fase 2.
+- **Promo Phase 2:** anti-stack test (`pickBestPromo` single best discount).
+- **Staging:** `docker/docker-compose.staging.yml`, `.env.staging.example`, `npm run smoke:staging`.
+- **Integration:** Midtrans sandbox E2E + ngrok guide; `QrisProvider` interface; SMTP nodemailer + fallback.
+- **QA:** `docs/testing/FASE2-REGRESSION-2026-06.md`, Playwright `e2e/fase2-online-order.spec.ts`.
+
+### Docs
+- `docs/domain/BUSINESS-LOGIC-AUDIT-FASE2-2026-06.md`
+- `docs/sprint/FASE2-PROGRESS.md`
+- `docs/integration/MIDTRANS-SANDBOX-E2E.md`
+
 ## [1.0.0-rc1] - 2026-06-06
 
 ### Added

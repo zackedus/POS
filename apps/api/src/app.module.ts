@@ -22,6 +22,7 @@ import { OutletsModule } from './modules/outlets/outlets.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { PromoModule } from './modules/promo/promo.module';
+import { CustomersModule } from './modules/customers/customers.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PromoModule } from './modules/promo/promo.module';
     OutletsModule,
     SettingsModule,
     PromoModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

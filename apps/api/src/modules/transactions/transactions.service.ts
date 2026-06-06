@@ -27,6 +27,7 @@ import { resolveOutletId } from '../../common/utils/outlet.util';
 import { resolveReportDayRange } from '../../common/utils/report-date.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { PromoService } from '../promo/promo.service';
+import { CustomersService } from '../customers/customers.service';
 import type { PromoCartLine } from '@barokah/shared';
 import { CheckoutCashDto } from './dto/checkout-cash.dto';
 import { CheckoutSplitDto } from './dto/checkout-split.dto';
@@ -120,6 +121,7 @@ export class TransactionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly promoService: PromoService,
+    private readonly customersService: CustomersService,
   ) {}
 
   private isPrismaError(error: unknown, code: string): boolean {
@@ -1236,6 +1238,7 @@ export class TransactionsService {
     const notes = dto.notes?.trim() || null;
     const promoNote = promo.promoName ? `Promo: ${promo.promoName}` : null;
     const mergedNotes = [notes, promoNote].filter(Boolean).join(' | ') || null;
+    const customerId = await this.customersService.resolveOptionalCustomerId(user.tenantId, dto);
 
     const transaction = await this.prisma.$transaction(async (tx) => {
       const created = await tx.transaction.create({
@@ -1243,6 +1246,7 @@ export class TransactionsService {
           outletId,
           cashierId: user.sub,
           shiftId: activeShift.id,
+          customerId,
           receiptNo,
           clientRequestId: dto.clientRequestId?.trim() || null,
           subtotal: idrToDecimal(subtotal),
@@ -1345,6 +1349,7 @@ export class TransactionsService {
     const notes = dto.notes?.trim() || null;
     const promoNote = promo.promoName ? `Promo: ${promo.promoName}` : null;
     const mergedNotes = [notes, promoNote].filter(Boolean).join(' | ') || null;
+    const customerId = await this.customersService.resolveOptionalCustomerId(user.tenantId, dto);
     const transaction = await this.runWithRetry(() =>
       this.prisma.$transaction(async (tx) => {
         const created = await tx.transaction.create({
@@ -1352,6 +1357,7 @@ export class TransactionsService {
             outletId,
             cashierId: user.sub,
             shiftId: activeShift.id,
+            customerId,
             receiptNo,
             clientRequestId: dto.clientRequestId?.trim() || null,
             subtotal: idrToDecimal(subtotal),

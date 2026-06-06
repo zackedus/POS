@@ -198,18 +198,18 @@
 
 | Feature | User Story | MoSCoW | Phase | Sprint | Owner | Dependencies |
 |---------|------------|--------|-------|--------|-------|--------------|
-| Katalog web pelanggan | US-J-01 | **Must** | 2 | 13 (wireframe) → 14 (build) | Dimas + Maya | [ADR-004](../decisions/ADR-004-EPIC-J-DEFAULTS-LOCKED.md) Q-J05/06/07 |
-| Detail produk (PDP) | US-J-02 | **Must** | 2 | 14 | Dimas + Maya | US-J-01, varian |
-| Keranjang belanja | US-J-03 | **Must** | 2 | 14 | Dimas | US-J-01 |
-| Checkout pickup | US-J-04 | **Must** | 2 | 14 | Dimas + Fajar | Q-J01 pickup P0 |
-| Checkout delivery | US-J-05 | Should (P1) | 2 | 15+ | Dimas + Fajar | Q-J01 delivery P1 |
-| Pembayaran online (Midtrans) | US-J-06 | **Must** | 2 | 14 | Arif + Fajar | Q-J03 · Midtrans web |
-| Order online → POS backend | US-J-07 | **Must** | 2 | 14 | Fajar + Dimas | [ONLINE-ORDERS-RFC.md](../api/ONLINE-ORDERS-RFC.md) (DRAFT) |
-| Status order pickup/delivery | US-J-08 (stub) | **Must** | 2 | 15 | Fajar + Dimas | US-J-07 |
-| Sync inventori online + toko fisik | US-J-09 (stub) | **Must** | 2 | 14–15 | Fajar + Eko | Q-J05 · OFFLINE-SYNC |
-| Harga konsisten online/offline | — | **Must** | 2 | 14 | Eko + Fajar | Q-J07 locked |
-| Offline toko fisik (PWA + queue) | — | **Must** | 2 | 11–13 Track A | Dimas + Fajar | Sprint 13 Track A |
-| Notifikasi order online ke kasir | US-J-10 (stub) | Could → **Done (Web P3)** | 2 | 16+ | Dimas + Fajar | Socket.io + polling fallback · [WEB-COMPLETION-PLAN](../sprint/WEB-COMPLETION-PLAN.md) |
+| Katalog web pelanggan | US-J-01 | **Must** | 2 | 13 (wireframe) → 14 (build) | Dimas + Maya | ✅ Done Jun 2026 |
+| Detail produk (PDP) | US-J-02 | **Must** | 2 | 14 | Dimas + Maya | ✅ Done Jun 2026 |
+| Keranjang belanja | US-J-03 | **Must** | 2 | 14 | Dimas | ✅ Done Jun 2026 |
+| Checkout pickup | US-J-04 | **Must** | 2 | 14 | Dimas + Fajar | ✅ Done Jun 2026 |
+| Checkout delivery | US-J-05 | Should (P1) | 2 | 15+ | Dimas + Fajar | ✅ Done Jun 2026 |
+| Pembayaran online (Midtrans) | US-J-06 | **Must** | 2 | 14 | Arif + Fajar | ✅ Mock + sandbox E2E doc |
+| Order online → POS backend | US-J-07 | **Must** | 2 | 14 | Fajar + Dimas | ✅ Done Jun 2026 |
+| Status order pickup/delivery | US-J-08 (stub) | **Must** | 2 | 15 | Fajar + Dimas | ✅ Kasir fulfillment queue |
+| Sync inventori online + toko fisik | US-J-09 (stub) | **Must** | 2 | 14–15 | Fajar + Eko | ✅ PAID deduct + socket Fase 2 |
+| Harga konsisten online/offline | — | **Must** | 2 | 14 | Eko + Fajar | ✅ Single price source |
+| Offline toko fisik (PWA + queue) | — | **Must** | 2 | 11–13 Track A | Dimas + Fajar | ✅ Idempotent sync queue |
+| Notifikasi order online ke kasir | US-J-10 (stub) | Could → **Done (Web P3)** | 2 | 16+ | Dimas + Fajar | ✅ Socket + badge |
 
 ---
 

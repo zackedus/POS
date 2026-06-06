@@ -19,6 +19,7 @@ function noopRealtime() {
   return {
     emitOnlineOrderPaid: () => undefined,
     emitOnlineOrderUpdated: () => undefined,
+    emitStockChanged: () => undefined,
   };
 }
 

@@ -73,3 +73,14 @@ test('promo-calculator: pickBestPromo chooses highest discount', () => {
   assert.equal(best.promoRuleId, 'b');
   assert.equal(best.discountAmount, 18_000);
 });
+
+test('promo-calculator: only one promo applied — pickBestPromo not stack', () => {
+  const rules = [
+    baseRule({ id: 'stack-a', type: 'FIXED_AMOUNT', value: 20_000 }),
+    baseRule({ id: 'stack-b', type: 'FIXED_AMOUNT', value: 15_000 }),
+  ];
+  const best = pickBestPromo(rules, lines);
+  assert.ok(best);
+  assert.equal(best.discountAmount, 20_000);
+  assert.notEqual(best.discountAmount, 35_000);
+});

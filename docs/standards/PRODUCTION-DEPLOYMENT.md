@@ -59,6 +59,20 @@ Flags yang disarankan di reverse proxy:
 4. Smoke: `npm run smoke`
 5. Sign-off: Yoga + Fajar + Fitri + Citra
 
+## Staging Deploy (Fase 2)
+
+1. Salin template env: `docker/.env.staging.example` → `docker/.env.staging`
+2. Build & up: `docker compose -f docker/docker-compose.staging.yml --env-file docker/.env.staging up -d --build`
+3. Health: `npm run smoke:staging` (API default port **3010**, web **3011**)
+4. Midtrans sandbox + ngrok webhook — lihat `docs/integration/MIDTRANS-SANDBOX-E2E.md`
+
+| Service | Staging port |
+|---------|--------------|
+| API | 3010 |
+| Web | 3011 |
+| PostgreSQL | 5434 |
+| Redis | 6380 |
+
 ## Midtrans Live (Pak Zaki)
 
 Lihat `docs/integration/MIDTRANS-LIVE-PRODUCTION.md` — kredensial live **belum** disertakan; infra siap dengan mock fallback.

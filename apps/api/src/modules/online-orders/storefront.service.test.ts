@@ -92,9 +92,25 @@ function buildOnlineOrders() {
   } as never;
 }
 
+function buildCustomers() {
+  return {
+    findOrCreateByPhone: async (_tenantId: string, name: string, phone: string) => ({
+      id: 'cust-1',
+      tenantId: 'tenant-1',
+      name,
+      phone,
+      points: 0,
+    }),
+  } as never;
+}
+
+function buildService(prisma: ReturnType<typeof buildPrisma>) {
+  return new StorefrontService(prisma as never, buildMidtrans(), buildOnlineOrders(), buildCustomers());
+}
+
 test('Storefront: createOrder DELIVERY applies flat shipping fee', async () => {
   const prisma = buildPrisma();
-  const service = new StorefrontService(prisma as never, buildMidtrans(), buildOnlineOrders());
+  const service = buildService(prisma);
 
   const result = await service.createOrder('barokah-bangunan', {
     clientRequestId: 'req-delivery-1',
@@ -126,7 +142,7 @@ test('Storefront: createOrder DELIVERY applies flat shipping fee', async () => {
 
 test('Storefront: createOrder PICKUP has zero shipping fee', async () => {
   const prisma = buildPrisma();
-  const service = new StorefrontService(prisma as never, buildMidtrans(), buildOnlineOrders());
+  const service = buildService(prisma);
 
   const result = await service.createOrder('barokah-bangunan', {
     clientRequestId: 'req-pickup-1',
@@ -144,7 +160,7 @@ test('Storefront: createOrder PICKUP has zero shipping fee', async () => {
 
 test('Storefront: createOrder rejects honeypot website field', async () => {
   const prisma = buildPrisma();
-  const service = new StorefrontService(prisma as never, buildMidtrans(), buildOnlineOrders());
+  const service = buildService(prisma);
 
   await assert.rejects(
     () =>

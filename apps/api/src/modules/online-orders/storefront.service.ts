@@ -14,6 +14,7 @@ import type { CreateOnlineOrderDto } from './dto/create-online-order.dto';
 import type { CatalogProductsQueryDto } from './dto/catalog-products-query.dto';
 import { MidtransService, type MidtransRuntimeConfig } from './midtrans.service';
 import { OnlineOrdersService } from './online-orders.service';
+import { CustomersService } from '../customers/customers.service';
 import {
   buildOrderNo,
   formatPhoneDisplay,
@@ -31,6 +32,7 @@ export class StorefrontService {
     private readonly prisma: PrismaService,
     private readonly midtrans: MidtransService,
     private readonly onlineOrdersService: OnlineOrdersService,
+    private readonly customersService: CustomersService,
   ) {}
 
   private async resolveTenant(slug: string) {
@@ -466,6 +468,11 @@ export class StorefrontService {
     const expiresAt = paymentExpiresAt();
     const dateKey = getJakartaDateKey();
     const normalizedPhone = normalizePhone(dto.customer.phone);
+    const customer = await this.customersService.findOrCreateByPhone(
+      tenant.id,
+      dto.customer.name,
+      dto.customer.phone,
+    );
 
     const order = await this.prisma.$transaction(async (tx) => {
       const sequenceDate = new Date(`${dateKey}T00:00:00.000Z`);
@@ -487,6 +494,7 @@ export class StorefrontService {
           clientRequestId: dto.clientRequestId,
           status: 'PENDING_PAYMENT',
           fulfillmentType: dto.fulfillmentType,
+          customerId: customer.id,
           customerName: dto.customer.name.trim(),
           customerPhone: normalizedPhone,
           customerNotes: dto.customer.notes?.trim() || null,

@@ -11,6 +11,12 @@ function createPromoServiceStub() {
   };
 }
 
+function createCustomersServiceStub() {
+  return {
+    resolveOptionalCustomerId: async () => null,
+  };
+}
+
 function createTransactionsService(prisma: unknown) {
   const withDefaults = {
     tenantSettings: {
@@ -18,7 +24,11 @@ function createTransactionsService(prisma: unknown) {
     },
     ...(prisma as object),
   };
-  return new TransactionsService(withDefaults as never, createPromoServiceStub() as never);
+  return new TransactionsService(
+    withDefaults as never,
+    createPromoServiceStub() as never,
+    createCustomersServiceStub() as never,
+  );
 }
 
 function createUser(role: AuthJwtPayload['role'] = 'CASHIER'): AuthJwtPayload {
@@ -1357,7 +1367,7 @@ test('Transactions: checkoutSplit applies promo discount to total', async () => 
     }),
   };
   const prisma = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
-  const service = new TransactionsService(prisma as never, promoService as never);
+  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never);
 
   const result = await service.checkoutSplit(createUser(), {
     outletId: 'outlet-1',
@@ -1380,7 +1390,7 @@ test('Phase 8 BL-08-01: checkoutSplit promo + multi-unit same cart', async () =>
     }),
   };
   const prisma = checkoutPrismaMock({ product: pakuProduct(), stockQty: 100 });
-  const service = new TransactionsService(prisma as never, promoService as never);
+  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never);
 
   const result = await service.checkoutSplit(createUser(), {
     outletId: 'outlet-1',

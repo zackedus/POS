@@ -221,6 +221,7 @@ export class OnlineOrdersService {
         tenantId: user.tenantId,
         outletId: resolvedOutletId,
       },
+      include: { items: true },
     });
     if (!order) {
       throw new NotFoundException({
@@ -255,6 +256,10 @@ export class OnlineOrdersService {
       },
     });
 
+    if (dto.status === 'COMPLETED') {
+      await this.emitFulfillmentStockSnapshot(order);
+    }
+
     this.emitOrderUpdated({
       id: updated.id,
       orderNo: updated.orderNo,
@@ -279,6 +284,46 @@ export class OnlineOrdersService {
       tenantId: order.tenantId,
       status: order.status,
     });
+  }
+
+  private async emitFulfillmentStockSnapshot(order: {
+    id: string;
+    outletId: string;
+    tenantId: string;
+    items: Array<{ productId: string }>;
+  }) {
+    const productIds = order.items.map((item) => item.productId);
+    if (productIds.length === 0) {
+      return;
+    }
+    const inventory = await this.prisma.inventoryItem.findMany({
+      where: { outletId: order.outletId, productId: { in: productIds } },
+      select: { productId: true, quantity: true },
+    });
+    for (const row of inventory) {
+      this.realtime.emitStockChanged({
+        tenantId: order.tenantId,
+        outletId: order.outletId,
+        productId: row.productId,
+        quantity: Number(row.quantity),
+        type: 'ONLINE_FULFILLMENT',
+      });
+    }
+  }
+
+  private emitPaidStockMovements(
+    order: { outletId: string; tenantId: string },
+    stockUpdates: Array<{ productId: string; quantityAfter: number }>,
+  ) {
+    for (const row of stockUpdates) {
+      this.realtime.emitStockChanged({
+        tenantId: order.tenantId,
+        outletId: order.outletId,
+        productId: row.productId,
+        quantity: row.quantityAfter,
+        type: 'SALE_ONLINE',
+      });
+    }
   }
 
   async handleMidtransWebhook(notification: MidtransNotification) {
@@ -435,8 +480,18 @@ export class OnlineOrdersService {
             createdById: actorId,
           },
         });
+
+        stockMap.set(item.productId, quantityAfter);
       }
     });
+
+    this.emitPaidStockMovements(
+      order,
+      order.items.map((item) => ({
+        productId: item.productId,
+        quantityAfter: stockMap.get(item.productId) ?? 0,
+      })),
+    );
 
     this.realtime.emitOnlineOrderPaid({
       orderId: order.id,

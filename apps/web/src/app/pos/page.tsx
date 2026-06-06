@@ -167,6 +167,20 @@ export default function PosPage() {
   const [marginWarnings, setMarginWarnings] = useState<CartMarginWarning[]>([]);
   const [stockIssues, setStockIssues] = useState<CartStockIssue[]>([]);
   const [stockAlert, setStockAlert] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+
+  function buildCustomerCheckoutPayload() {
+    const name = customerName.trim();
+    const phone = customerPhone.trim();
+    if (!name && !phone) {
+      return {};
+    }
+    if (name.length >= 2 && /^08\d{8,11}$/.test(phone)) {
+      return { customerName: name, customerPhone: phone };
+    }
+    return {};
+  }
 
   useEffect(() => {
     const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
@@ -778,6 +792,7 @@ export default function PosPage() {
           cashReceived: cashReceivedValue,
           clientRequestId: createClientRequestId(),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
+          ...buildCustomerCheckoutPayload(),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutResponse>;
@@ -974,6 +989,7 @@ export default function PosPage() {
           payments,
           clientRequestId: createClientRequestId(),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
+          ...buildCustomerCheckoutPayload(),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
@@ -1087,6 +1103,7 @@ export default function PosPage() {
           payments,
           clientRequestId: createClientRequestId(),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
+          ...buildCustomerCheckoutPayload(),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
@@ -1271,6 +1288,10 @@ export default function PosPage() {
           onThermalPrint={() => void handleThermalPrint()}
           thermalStatus={thermalStatus}
           onCloseReceipt={() => setReceiptPreview(null)}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          onCustomerNameChange={setCustomerName}
+          onCustomerPhoneChange={setCustomerPhone}
         />
       </div>
 

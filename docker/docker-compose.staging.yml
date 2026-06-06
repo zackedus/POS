@@ -1,0 +1,130 @@
+# Staging stack — mirrors production topology with sandbox integrations
+# Usage:
+#   cp docker/.env.staging.example docker/.env.staging
+#   docker compose -f docker/docker-compose.staging.yml --env-file docker/.env.staging up -d --build
+# Health: npm run smoke:staging
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: barokah-staging-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-barokah}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-barokah_staging_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-barokah_pos_staging}
+    ports:
+      - "5434:5432"
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+    networks:
+      - barokah-staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-barokah} -d ${POSTGRES_DB:-barokah_pos_staging}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: barokah-staging-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - staging_redis_data:/data
+    networks:
+      - barokah-staging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  db-migrate:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+      target: migrator
+    container_name: barokah-staging-migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-barokah}:${POSTGRES_PASSWORD:-barokah_staging_change_me}@postgres:5432/${POSTGRES_DB:-barokah_pos_staging}
+      SEED_DATABASE: ${SEED_DATABASE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - barokah-staging
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    container_name: barokah-staging-api
+    ports:
+      - "3010:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-barokah}:${POSTGRES_PASSWORD:-barokah_staging_change_me}@postgres:5432/${POSTGRES_DB:-barokah_pos_staging}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-staging-jwt-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-staging-refresh-change-me}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY:-}
+      MIDTRANS_IS_PRODUCTION: ${MIDTRANS_IS_PRODUCTION:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@staging.barokah.local}
+      SOCKET_ENABLED: ${SOCKET_ENABLED:-true}
+      NODE_ENV: production
+      API_PORT: "3000"
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - barokah-staging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3010}
+    container_name: barokah-staging-web
+    ports:
+      - "3011:3001"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3010}
+      NODE_ENV: production
+      PORT: "3001"
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - barokah-staging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/ > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 35s
+
+networks:
+  barokah-staging:
+    name: barokah-staging
+    driver: bridge
+
+volumes:
+  staging_postgres_data:
+  staging_redis_data:
