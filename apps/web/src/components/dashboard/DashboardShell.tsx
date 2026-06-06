@@ -58,7 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Pengaturan',
     items: [
       { href: '/dashboard/outlets', label: 'Cabang' },
-      { href: '/dashboard/settings', label: 'Outlet & Toko' },
+      { href: '/dashboard/settings', label: 'Pengaturan Aplikasi' },
     ],
   },
 ];
@@ -82,7 +82,7 @@ const ICONS: Record<string, string> = {
   Kategori: '▥',
   Satuan: '⎔',
   Pengguna: '◉',
-  'Outlet & Toko': '⚙',
+  'Pengaturan Aplikasi': '⚙',
   Cabang: '⌂',
 };
 
@@ -155,7 +155,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/expenses')) return 'Pengeluaran Operasional';
   if (pathname.startsWith('/dashboard/purchase-orders')) return 'Order Distributor';
   if (pathname.startsWith('/dashboard/transactions')) return 'Void & Struk';
-  if (pathname.startsWith('/dashboard/settings')) return 'Pengaturan Outlet';
+  if (pathname.startsWith('/dashboard/settings')) return 'Pengaturan Aplikasi';
   if (pathname.startsWith('/master/products')) return 'Produk';
   if (pathname.startsWith('/master/bundles')) return 'Paket Bundling';
   if (pathname.startsWith('/master/categories')) return 'Kategori';

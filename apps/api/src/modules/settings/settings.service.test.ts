@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ForbiddenException } from '@nestjs/common';
 import { maskServerKey, SettingsService } from './settings.service';
 
 function createMidtransStub(overrides: Record<string, unknown> = {}) {
@@ -110,4 +111,70 @@ test('SettingsService: testMidtransConnection returns mock message when no key',
   });
   assert.equal(result.ok, true);
   assert.equal(result.mode, 'mock');
+});
+
+test('SettingsService: manager cannot update Midtrans or weekly email settings', async () => {
+  const prisma = {
+    tenantSettings: {
+      upsert: async () => {
+        throw new Error('should not upsert');
+      },
+    },
+  };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  await assert.rejects(
+    () =>
+      service.updateTenantSettings(
+        {
+          sub: 'u1',
+          email: 'm@b.c',
+          tenantId: 't1',
+          role: 'MANAGER',
+          outletIds: ['o1'],
+        },
+        { midtransIsProduction: true },
+      ),
+    (err: unknown) => {
+      assert.ok(err instanceof ForbiddenException);
+      return true;
+    },
+  );
+});
+
+test('SettingsService: manager can update PPN and loyalty settings', async () => {
+  let upsertPayload: Record<string, unknown> = {};
+  const prisma = {
+    tenantSettings: {
+      upsert: async (args: { create: Record<string, unknown>; update: Record<string, unknown> }) => {
+        upsertPayload = args.update;
+        return {
+          ppnEnabled: true,
+          ppnRatePercent: { toString: () => '11' },
+          midtransServerKey: null,
+          midtransIsProduction: false,
+          weeklyReportEmailEnabled: false,
+          loyaltyPointsEnabled: true,
+          loyaltyEarnRateIdr: 8000,
+          loyaltyRedeemEnabled: true,
+          loyaltyRedeemValueIdr: 1000,
+          loyaltyRedeemMaxPercent: 40,
+        };
+      },
+    },
+  };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const view = await service.updateTenantSettings(
+    {
+      sub: 'u1',
+      email: 'm@b.c',
+      tenantId: 't1',
+      role: 'MANAGER',
+      outletIds: ['o1'],
+    },
+    { ppnEnabled: true, loyaltyEarnRateIdr: 8000, loyaltyRedeemMaxPercent: 40 },
+  );
+  assert.equal(view.ppnEnabled, true);
+  assert.equal(view.loyaltyEarnRateIdr, 8000);
+  assert.equal(upsertPayload?.ppnEnabled, true);
+  assert.equal(upsertPayload?.loyaltyEarnRateIdr, 8000);
 });

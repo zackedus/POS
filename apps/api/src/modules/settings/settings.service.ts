@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ErrorCodes } from '@barokah/shared';
+import { UserRole } from '@barokah/database';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { MidtransService } from '../online-orders/midtrans.service';
@@ -49,6 +51,21 @@ export class SettingsService {
   }
 
   async updateTenantSettings(user: AuthJwtPayload, dto: UpdateTenantSettingsDto): Promise<TenantSettingsView> {
+    const isOwner = user.role === UserRole.OWNER;
+    if (!isOwner) {
+      const touchesOwnerOnly =
+        dto.midtransServerKey !== undefined ||
+        dto.midtransIsProduction !== undefined ||
+        dto.clearMidtransServerKey === true ||
+        dto.weeklyReportEmailEnabled !== undefined;
+      if (touchesOwnerOnly) {
+        throw new ForbiddenException({
+          code: ErrorCodes.FORBIDDEN,
+          message: 'Hanya pemilik yang dapat mengubah pengaturan Midtrans dan laporan email.',
+        });
+      }
+    }
+
     const data: {
       ppnEnabled?: boolean;
       ppnRatePercent?: number;

@@ -157,10 +157,12 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 
 ## 3. Pengaturan Tenant (Owner)
 
-- [ ] Dashboard → **Settings**: PPN aktif/nonaktif sesuai kebutuhan PKP
-- [ ] Loyalty earn: 1 poin / Rp 10.000 (default OK)
-- [ ] Loyalty redeem: 1 poin = Rp 1.000, maks 50% total (default OK)
-- [ ] Midtrans: sandbox key untuk uji online; live key **defer** sampai ready
+> **Halaman:** [`/dashboard/settings`](http://localhost:3001/dashboard/settings) — hub pengaturan aplikasi (tab: Toko, Kasir, Loyalty, Promo, Pembayaran, Online, Outlet).
+
+- [ ] Dashboard → **Pengaturan Aplikasi** (`/dashboard/settings`): PPN aktif/nonaktif sesuai kebutuhan PKP
+- [ ] Tab **Loyalty**: earn 1 poin / Rp 10.000 (default OK)
+- [ ] Tab **Loyalty**: redeem 1 poin = Rp 1.000, maks 50% total (default OK)
+- [ ] Tab **Pembayaran** → Midtrans: sandbox key untuk uji online; live key **defer** sampai ready
 
 ## 4. Akun & RBAC
 

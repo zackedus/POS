@@ -20,7 +20,7 @@ export class SettingsController {
   }
 
   @Patch('tenant')
-  @Roles(UserRole.OWNER)
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   updateTenantSettings(@CurrentUser() user: AuthJwtPayload, @Body() dto: UpdateTenantSettingsDto) {
     return this.settingsService.updateTenantSettings(user, dto);
   }
