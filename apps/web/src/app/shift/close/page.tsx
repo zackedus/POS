@@ -128,11 +128,16 @@ export default function CloseShiftPage() {
       </p>
 
       {preview ? (
-        <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', marginBottom: '1rem' }}>
-          <StatCard label="Saldo awal" value={formatCurrencyIDR(preview.openingCash)} />
-          <StatCard label="Penjualan tunai" value={formatCurrencyIDR(preview.cashSales)} hint={`${preview.transactionCount} transaksi`} />
-          <StatCard label="Kas diharapkan" value={formatCurrencyIDR(preview.expectedCash)} accent="success" />
-        </div>
+        <>
+          <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', marginBottom: '1rem' }}>
+            <StatCard label="Saldo awal" value={formatCurrencyIDR(preview.openingCash)} />
+            <StatCard label="Penjualan tunai" value={formatCurrencyIDR(preview.cashSales)} hint={`${preview.transactionCount} transaksi`} />
+            <StatCard label="Kas diharapkan" value={formatCurrencyIDR(preview.expectedCash)} accent="success" />
+          </div>
+          {preview.heldCount && preview.heldCount > 0 ? (
+            <AlertBanner variant="warning">{preview.heldWarning ?? `${preview.heldCount} hold masih aktif.`}</AlertBanner>
+          ) : null}
+        </>
       ) : null}
 
       <SectionCard title="Rekonsiliasi kas fisik">

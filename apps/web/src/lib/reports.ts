@@ -258,6 +258,43 @@ export async function fetchStockReport(outletId?: string): Promise<StockReportSu
   return null;
 }
 
+export interface CrossOutletStockProduct {
+  productId: string;
+  sku: string;
+  displayName: string;
+  unitSymbol: string | null;
+  byOutlet: Array<{
+    outletId: string;
+    outletName: string;
+    outletCode: string;
+    quantity: number;
+  }>;
+}
+
+export interface CrossOutletStockSummary {
+  currentOutletId: string;
+  outlets: Array<{ id: string; name: string; code: string }>;
+  products: CrossOutletStockProduct[];
+}
+
+export async function fetchCrossOutletStock(outletId?: string): Promise<CrossOutletStockSummary | null> {
+  const params = new URLSearchParams();
+  if (outletId) params.set('outletId', outletId);
+  const qs = params.toString();
+  const url = `${REPORTS_BASE}/cross-outlet-stock${qs ? `?${qs}` : ''}`;
+
+  try {
+    const res = await authFetch(url);
+    const json = (await res.json()) as ApiEnvelope<CrossOutletStockSummary>;
+    if (res.ok && json.success && json.data) {
+      return json.data;
+    }
+  } catch {
+    /* fallback */
+  }
+  return null;
+}
+
 export type DailyReportExportResult =
   | { status: 'downloaded'; filename: string }
   | { status: 'unavailable'; message: string }

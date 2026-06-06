@@ -57,4 +57,40 @@ describe('offline-hold-sync', () => {
       }),
     );
   });
+
+  it('AUD-MU-03: syncs offline hold with multi-unit sellUnitId (automated)', async () => {
+    authFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: { id: 'held-mu-1' } }),
+    });
+
+    const entry = {
+      id: 'hold-mu-req',
+      payload: {
+        clientRequestId: 'hold-mu-req',
+        items: [
+          { productId: 'prod-seng', quantity: 1, sellUnitId: 'unit-roll' },
+          { productId: 'prod-paku', quantity: 2.5, sellUnitId: 'unit-kg' },
+        ],
+        label: 'Hold multi-unit offline',
+      },
+      status: 'pending' as const,
+      createdAt: '2026-06-06T10:00:00.000Z',
+      attemptCount: 0,
+    };
+
+    const result = await syncOfflineHoldEntry(entry);
+    expect(result.ok).toBe(true);
+    expect(authFetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/transactions/hold'),
+      expect.objectContaining({
+        body: expect.stringContaining('unit-roll'),
+      }),
+    );
+    const body = JSON.parse(String(authFetchMock.mock.calls[0]?.[1]?.body)) as {
+      items: Array<{ sellUnitId?: string }>;
+    };
+    expect(body.items).toHaveLength(2);
+    expect(body.items[1]?.sellUnitId).toBe('unit-kg');
+  });
 });

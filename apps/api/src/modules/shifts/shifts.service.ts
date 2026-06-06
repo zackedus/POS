@@ -78,12 +78,23 @@ export class ShiftsService {
   async getClosePreview(user: AuthJwtPayload, shiftId: string, outletId?: string) {
     const shift = await this.getShiftForClose(user, shiftId, outletId);
     const { openingCash, cashSales, expectedCash, transactionCount } = await this.computeShiftCashSummary(shift);
+    const heldCount = await this.prisma.heldTransaction.count({
+      where: {
+        outletId: shift.outletId,
+        expiresAt: { gt: new Date() },
+      },
+    });
     return {
       shiftId: shift.id,
       openingCash,
       cashSales,
       expectedCash,
       transactionCount,
+      heldCount,
+      heldWarning:
+        heldCount > 0
+          ? `${heldCount} transaksi hold masih aktif — tidak memblokir tutup shift, tetapi pastikan sudah direcall atau expire.`
+          : null,
       openedAt: shift.openedAt,
     };
   }

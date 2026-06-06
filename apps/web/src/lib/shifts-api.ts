@@ -39,6 +39,8 @@ export interface ShiftClosePreview {
   cashSales: number;
   expectedCash: number;
   transactionCount: number;
+  heldCount?: number;
+  heldWarning?: string | null;
   openedAt: string;
 }
 

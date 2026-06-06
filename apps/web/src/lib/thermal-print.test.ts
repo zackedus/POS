@@ -3,6 +3,7 @@ import {
   formatEscPosIntegrationHint,
   formatWebUsbIntegrationHint,
   paymentMethodLabel,
+  printEscPosWebUsbStub,
   renderEscPosPreview,
 } from './thermal-print';
 import type { EscPosStub } from './transactions';
@@ -40,5 +41,10 @@ describe('thermal-print helpers', () => {
 
   it('describes WebUSB stub availability', () => {
     expect(formatWebUsbIntegrationHint()).toMatch(/WebUSB|Bluetooth|Cetak Struk/i);
+  });
+
+  it('printEscPosWebUsbStub accepts preview text', async () => {
+    const result = await printEscPosWebUsbStub('Toko Barokah\nTotal 100.000');
+    expect(result.message.length).toBeGreaterThan(0);
   });
 });

@@ -10,3 +10,4 @@ export * from './product-pricing';
 export * from './auto-generate';
 export * from './stock-messages';
 export * from './promo-calculator';
+export * from './tax-calculator';

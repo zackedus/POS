@@ -9,7 +9,7 @@ import {
 import { UserRole } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
-import { ErrorCodes, PaymentMethod } from '@barokah/shared';
+import { ErrorCodes, PaymentMethod, computePosTax } from '@barokah/shared';
 import {
   buildInsufficientStockDetail,
   convertToBaseQuantity,
@@ -127,6 +127,17 @@ export class TransactionsService {
       return false;
     }
     return 'code' in error && (error as { code?: string }).code === code;
+  }
+
+  private async getTenantTaxConfig(tenantId: string): Promise<{
+    ppnEnabled: boolean;
+    ppnRatePercent: number;
+  }> {
+    const row = await this.prisma.tenantSettings.findUnique({ where: { tenantId } });
+    return {
+      ppnEnabled: row?.ppnEnabled ?? false,
+      ppnRatePercent: row ? Number(row.ppnRatePercent) : 11,
+    };
   }
 
   private async runWithRetry<T>(work: () => Promise<T>): Promise<T> {
@@ -392,6 +403,7 @@ export class TransactionsService {
       cashierId: string;
       subtotal: Decimal;
       total: Decimal;
+      tax?: Decimal;
       discount?: Decimal;
       completedAt: Date | null;
     },
@@ -408,6 +420,7 @@ export class TransactionsService {
       cashierId: transaction.cashierId,
       subtotal: toIdrInteger(transaction.subtotal),
       total: toIdrInteger(transaction.total),
+      ...(transaction.tax != null ? { tax: toIdrInteger(transaction.tax as Decimal) } : { tax: 0 }),
       ...(typeof cashReceived === 'number'
         ? { cashReceived, change: cashReceived - toIdrInteger(transaction.total) }
         : {}),
@@ -1166,7 +1179,12 @@ export class TransactionsService {
     const promoLines = this.buildPromoCartLines(normalizedItems, productMap);
     const promo = await this.promoService.resolveCheckoutDiscount(user, dto.promoRuleId, promoLines);
     const discount = promo.discountAmount;
-    const total = subtotal - discount;
+    const taxConfig = await this.getTenantTaxConfig(user.tenantId);
+    const { tax, total } = computePosTax({
+      subtotal,
+      discount,
+      ...taxConfig,
+    });
 
     if (dto.cashReceived < total) {
       throw new UnprocessableEntityException({
@@ -1190,7 +1208,7 @@ export class TransactionsService {
           clientRequestId: dto.clientRequestId?.trim() || null,
           subtotal: idrToDecimal(subtotal),
           discount: idrToDecimal(discount),
-          tax: idrToDecimal(0),
+          tax: idrToDecimal(tax),
           total: idrToDecimal(total),
           notes: mergedNotes,
           status: 'COMPLETED',
@@ -1276,7 +1294,12 @@ export class TransactionsService {
     const promoLines = this.buildPromoCartLines(normalizedItems, productMap);
     const promo = await this.promoService.resolveCheckoutDiscount(user, dto.promoRuleId, promoLines);
     const discount = promo.discountAmount;
-    const total = subtotal - discount;
+    const taxConfig = await this.getTenantTaxConfig(user.tenantId);
+    const { tax, total } = computePosTax({
+      subtotal,
+      discount,
+      ...taxConfig,
+    });
     this.assertValidSplitPayments(dto.payments, total);
 
     const receiptNo = `TRX-${Date.now()}`;
@@ -1294,7 +1317,7 @@ export class TransactionsService {
             clientRequestId: dto.clientRequestId?.trim() || null,
             subtotal: idrToDecimal(subtotal),
             discount: idrToDecimal(discount),
-            tax: idrToDecimal(0),
+            tax: idrToDecimal(tax),
             total: idrToDecimal(total),
             notes: mergedNotes,
             status: 'COMPLETED',

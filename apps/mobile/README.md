@@ -8,7 +8,14 @@
 |--------|-------|--------|
 | Home | `/` | ✅ Session restore + link kasir |
 | Login | `/login` | ✅ POST auth + `expo-secure-store` |
-| Kasir | `/pos` | ✅ Product grid API (read-only) + link web POS |
+| Kasir | `/pos` | ✅ Product grid + keranjang tunai sederhana + deep link web POS |
+
+## Phase 8 scope (Jun 2026)
+
+- **Included:** secure session, product grid API, keranjang + checkout cash (butuh shift aktif di API)
+- **Deep link:** `EXPO_PUBLIC_WEB_POS_URL` + token query untuk lanjut di web kasir
+- **Not included:** offline queue, split/QRIS, thermal, shift UI native
+- **Workaround:** tombol **Buka kasir web lengkap** di layar `/pos`
 
 ## Secure storage
 
@@ -48,13 +55,13 @@ npm run dev:mobile
 
 ## Honest scope
 
-- **Included:** auth, session persist, preview katalog 15 SKU
-- **Not included:** checkout, shift, offline queue, thermal print
+- **Included:** auth, session persist, preview katalog 20 SKU, keranjang tunai MVP
+- **Not included:** offline queue, thermal print, shift open/close native
 - **Workaround:** tap link **Buka kasir web** di layar `/pos`
 
-## Phase 8 roadmap
+## Phase 9 roadmap
 
-- POS catalog + checkout (shared logic with web)
 - Offline queue sync (ADR-003 optional track)
+- Native shift + QRIS checkout
 
 Owner: **Dimas Pratama** · `@frontend`

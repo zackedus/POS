@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { MidtransService } from '../online-orders/midtrans.service';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 
 export type MidtransMode = 'mock' | 'sandbox' | 'live';
@@ -26,6 +27,7 @@ export class SettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly midtrans: MidtransService,
   ) {}
 
   async getTenantSettings(user: AuthJwtPayload): Promise<TenantSettingsView> {
@@ -66,6 +68,41 @@ export class SettingsService {
     });
 
     return this.buildView(row);
+  }
+
+  async testMidtransConnection(user: AuthJwtPayload): Promise<{
+    ok: boolean;
+    mode: MidtransMode;
+    statusCode: number;
+    message: string;
+  }> {
+    const view = await this.getTenantSettings(user);
+    if (view.midtrans.mode === 'mock') {
+      return {
+        ok: true,
+        mode: 'mock',
+        statusCode: 200,
+        message: 'Mode mock — tidak ada ping gateway. Simpan server key sandbox untuk uji koneksi.',
+      };
+    }
+
+    const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
+    const row = await this.prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } });
+    const tenantKey = row?.midtransServerKey?.trim();
+    const serverKey = tenantKey || envKey || '';
+    const isProduction = row?.midtransIsProduction ?? this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
+
+    const ping = await this.midtrans.pingConnection({ serverKey, isProduction });
+    return {
+      ok: ping.ok,
+      mode: view.midtrans.mode,
+      statusCode: ping.statusCode,
+      message: ping.message,
+    };
+  }
+
+  getMidtransWebhookHealth(): ReturnType<MidtransService['getWebhookHealth']> {
+    return this.midtrans.getWebhookHealth();
   }
 
   private buildView(

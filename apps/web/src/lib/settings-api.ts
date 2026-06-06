@@ -59,3 +59,39 @@ export function midtransModeLabel(mode: MidtransMode): string {
   if (mode === 'sandbox') return 'Sandbox Midtrans';
   return 'Live Midtrans';
 }
+
+export async function testMidtransConnection(): Promise<{
+  ok: boolean;
+  mode: MidtransMode;
+  statusCode: number;
+  message: string;
+}> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant/midtrans/test`, { method: 'POST' });
+  const json = (await res.json()) as ApiEnvelope<{
+    ok: boolean;
+    mode: MidtransMode;
+    statusCode: number;
+    message: string;
+  }>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal menguji koneksi Midtrans.');
+  }
+  return json.data;
+}
+
+export async function fetchMidtransWebhookHealth(): Promise<{
+  endpoint: string;
+  mockMode: boolean;
+  signatureVerification: boolean;
+}> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant/midtrans/webhook-health`);
+  const json = (await res.json()) as ApiEnvelope<{
+    endpoint: string;
+    mockMode: boolean;
+    signatureVerification: boolean;
+  }>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat status webhook Midtrans.');
+  }
+  return json.data;
+}

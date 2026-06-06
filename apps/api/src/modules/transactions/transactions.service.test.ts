@@ -12,7 +12,13 @@ function createPromoServiceStub() {
 }
 
 function createTransactionsService(prisma: unknown) {
-  return new TransactionsService(prisma as never, createPromoServiceStub() as never);
+  const withDefaults = {
+    tenantSettings: {
+      findUnique: async () => null,
+    },
+    ...(prisma as object),
+  };
+  return new TransactionsService(withDefaults as never, createPromoServiceStub() as never);
 }
 
 function createUser(role: AuthJwtPayload['role'] = 'CASHIER'): AuthJwtPayload {
@@ -940,6 +946,7 @@ function checkoutPrismaMock(options: {
         data: {
           subtotal: { toString(): string };
           total: { toString(): string };
+          tax?: { toString(): string };
           discount?: { toString(): string };
         };
       }) => ({
@@ -950,6 +957,7 @@ function checkoutPrismaMock(options: {
         cashierId: 'cashier-1',
         subtotal: Number(data.subtotal),
         total: Number(data.total),
+        tax: data.tax != null ? Number(data.tax) : 0,
         discount: data.discount != null ? Number(data.discount) : undefined,
         completedAt: new Date(),
       }),
@@ -979,6 +987,9 @@ function checkoutPrismaMock(options: {
     },
     stockMovement: {
       create: async () => undefined,
+    },
+    tenantSettings: {
+      findUnique: async () => null,
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(mock),
     updates,
@@ -1358,4 +1369,139 @@ test('Transactions: checkoutSplit applies promo discount to total', async () => 
   assert.equal(result.total, 80_000);
   assert.equal(result.subtotal, 100_000);
   assert.equal(result.discount, 20_000);
+});
+
+test('Phase 8 BL-08-01: checkoutSplit promo + multi-unit same cart', async () => {
+  const promoService = {
+    resolveCheckoutDiscount: async () => ({
+      discountAmount: 5_000,
+      promoRuleId: 'promo-mu',
+      promoName: 'Promo multi-unit',
+    }),
+  };
+  const prisma = checkoutPrismaMock({ product: pakuProduct(), stockQty: 100 });
+  const service = new TransactionsService(prisma as never, promoService as never);
+
+  const result = await service.checkoutSplit(createUser(), {
+    outletId: 'outlet-1',
+    items: [
+      { productId: 'prod-paku', quantity: 2.5, sellUnitId: 'unit-kg' },
+      { productId: 'prod-paku', quantity: 1, sellUnitId: 'unit-dus' },
+    ],
+    payments: [{ method: PaymentMethod.CASH, amount: 400_000 }],
+    promoRuleId: 'promo-mu',
+  });
+
+  assert.equal(result.subtotal, 405_000);
+  assert.equal(result.discount, 5_000);
+  assert.equal(result.total, 400_000);
+  assert.deepEqual(prisma.updates, [{ productId: 'prod-paku', quantity: 77.5 }]);
+});
+
+test('Phase 8 BL-08-02: checkoutSplit applies PPN when tenant settings enabled', async () => {
+  const base = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
+  const prisma = {
+    ...base,
+    tenantSettings: {
+      findUnique: async () => ({
+        ppnEnabled: true,
+        ppnRatePercent: { toString: () => '11' },
+      }),
+    },
+  };
+  const service = createTransactionsService(prisma);
+
+  const result = await service.checkoutSplit(createUser(), {
+    outletId: 'outlet-1',
+    items: [{ productId: 'prod-1', quantity: 1 }],
+    payments: [{ method: PaymentMethod.CASH, amount: 111_000 }],
+  });
+
+  assert.equal(result.subtotal, 100_000);
+  assert.equal(result.tax, 11_000);
+  assert.equal(result.total, 111_000);
+});
+
+test('Phase 8 BL-08-03: voidTransaction restores multi-unit sale stock in base qty', async () => {
+  let restoredQty: number | null = null;
+  const prisma = {
+    transaction: {
+      findFirst: async () =>
+        completedTransactionFixture({
+          items: [
+            {
+              productName: 'Paku',
+              quantity: 1,
+              unitPrice: 360_000,
+              subtotal: 360_000,
+            },
+          ],
+        }),
+      update: async () => ({ id: 'txn-1', status: 'VOID' }),
+    },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        transactionAdjustment: {
+          create: async () => ({
+            id: 'adj-mu',
+            reason: 'Salah unit',
+            approvedById: 'manager-1',
+            createdAt: new Date(),
+          }),
+        },
+        transaction: { update: async () => undefined },
+        stockMovement: {
+          findMany: async () => [
+            { productId: 'prod-paku', quantity: -20 },
+          ],
+          create: async (args: { data: { quantity: unknown } }) => {
+            restoredQty = Number(args.data.quantity);
+          },
+        },
+        inventoryItem: {
+          findUnique: async () => ({ quantity: 40 }),
+          update: async () => undefined,
+        },
+        auditLog: { create: async () => undefined },
+      }),
+  };
+
+  const service = createTransactionsService(prisma);
+  await service.voidTransaction(createUser('MANAGER'), 'txn-1', { reason: 'Salah unit dus' });
+  assert.equal(restoredQty, 20);
+});
+
+test('Phase 8 BL-08-04: validateCart rejects parent variant (regression BL-07-01)', async () => {
+  const prisma = {
+    product: {
+      findMany: async () => [
+        {
+          id: 'parent-1',
+          name: 'Cat',
+          price: { toString: () => '50000' },
+          costPrice: { toString: () => '40000' },
+          hasVariants: true,
+          unitId: 'unit-1',
+          moq: 1,
+          orderStep: 1,
+          unit: { id: 'unit-1', symbol: 'kaleng', name: 'Kaleng' },
+          unitConversions: [],
+          bundleDefinition: null,
+        },
+      ],
+    },
+    inventoryItem: { findMany: async () => [{ productId: 'parent-1', quantity: 5 }] },
+  };
+  const service = createTransactionsService(prisma);
+  await assert.rejects(
+    () =>
+      service.validateCart(createUser(), {
+        outletId: 'outlet-1',
+        items: [{ productId: 'parent-1', quantity: 1 }],
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof UnprocessableEntityException);
+      return true;
+    },
+  );
 });

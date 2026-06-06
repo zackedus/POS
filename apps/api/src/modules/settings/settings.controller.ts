@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { UserRole } from '@barokah/database';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -23,5 +23,17 @@ export class SettingsController {
   @Roles(UserRole.OWNER)
   updateTenantSettings(@CurrentUser() user: AuthJwtPayload, @Body() dto: UpdateTenantSettingsDto) {
     return this.settingsService.updateTenantSettings(user, dto);
+  }
+
+  @Post('tenant/midtrans/test')
+  @Roles(UserRole.OWNER)
+  testMidtransConnection(@CurrentUser() user: AuthJwtPayload) {
+    return this.settingsService.testMidtransConnection(user);
+  }
+
+  @Get('tenant/midtrans/webhook-health')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  getMidtransWebhookHealth() {
+    return this.settingsService.getMidtransWebhookHealth();
   }
 }

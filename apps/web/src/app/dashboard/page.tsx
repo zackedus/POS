@@ -18,8 +18,10 @@ import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   exportDailyReport,
   fetchDashboard,
+  fetchCrossOutletStock,
   fetchStockReport,
   PAYMENT_METHOD_LABELS,
+  type CrossOutletStockSummary,
   type DashboardReport,
   type StockReportSummary,
 } from '@/lib/reports';
@@ -84,6 +86,7 @@ export default function DashboardHomePage() {
   const [exporting, setExporting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [stockReport, setStockReport] = useState<StockReportSummary | null>(null);
+  const [crossOutletStock, setCrossOutletStock] = useState<CrossOutletStockSummary | null>(null);
 
   const reportQuery =
     reportMode === 'range'
@@ -122,6 +125,13 @@ export default function DashboardHomePage() {
         }
 
         try {
+          const cross = await fetchCrossOutletStock(selectedOutletId ?? undefined);
+          setCrossOutletStock(cross);
+        } catch {
+          setCrossOutletStock(null);
+        }
+
+        try {
           const orders = await fetchFulfillmentQueue(selectedOutletId ?? undefined);
           setOnlineOrderCount(orders.length);
         } catch {
@@ -132,6 +142,7 @@ export default function DashboardHomePage() {
         setDashboard(null);
         setSource(null);
         setStockReport(null);
+        setCrossOutletStock(null);
         setOnlineOrderCount(null);
       } finally {
         setLoading(false);
@@ -443,6 +454,50 @@ export default function DashboardHomePage() {
               ) : (
                 <p style={{ margin: 0, color: '#64748b' }}>Semua SKU di atas stok minimum.</p>
               )}
+            </SectionCard>
+          ) : null}
+
+          {crossOutletStock && crossOutletStock.products.length > 0 ? (
+            <SectionCard title="Stok Cabang Lain" style={{ marginBottom: '1.5rem' }}>
+              <p style={{ margin: '0 0 0.75rem', fontSize: '0.875rem', color: '#64748b' }}>
+                Visibilitas read-only stok SKU yang juga ada di cabang lain (MVP multi-outlet).
+              </p>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                      <th style={{ padding: '0.5rem 0.75rem 0.5rem 0', color: '#64748b' }}>SKU</th>
+                      <th style={{ padding: '0.5rem 0.75rem', color: '#64748b' }}>Produk</th>
+                      {crossOutletStock.outlets.map((outlet) => (
+                        <th key={outlet.id} style={{ padding: '0.5rem 0.75rem', color: '#64748b' }}>
+                          {outlet.code}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {crossOutletStock.products.map((product) => (
+                      <tr key={product.productId} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '0.65rem 0.75rem 0.65rem 0' }}>{product.sku}</td>
+                        <td style={{ padding: '0.65rem 0.75rem' }}>{product.displayName}</td>
+                        {crossOutletStock.outlets.map((outlet) => {
+                          const row = product.byOutlet.find((o) => o.outletId === outlet.id);
+                          return (
+                            <td
+                              key={outlet.id}
+                              style={{ padding: '0.65rem 0.75rem', fontVariantNumeric: 'tabular-nums' }}
+                            >
+                              {row
+                                ? `${row.quantity.toLocaleString('id-ID')}${product.unitSymbol ? ` ${product.unitSymbol}` : ''}`
+                                : '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </SectionCard>
           ) : null}
 

@@ -241,6 +241,109 @@ export class ReportsService {
     };
   }
 
+  async getCrossOutletStock(user: AuthJwtPayload, query: { outletId?: string; productId?: string }) {
+    const currentOutletId = resolveOutletId(user, query.outletId);
+    await this.ensureOutletExists(user.tenantId, currentOutletId);
+
+    const outlets = await this.prisma.outlet.findMany({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true,
+        ...(user.role !== UserRole.OWNER
+          ? { id: { in: user.outletIds.filter((id) => id !== currentOutletId) } }
+          : { id: { not: currentOutletId } }),
+      },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+
+    if (outlets.length === 0) {
+      return {
+        currentOutletId,
+        outlets: [],
+        products: [],
+      };
+    }
+
+    const outletIds = outlets.map((o) => o.id);
+    const inventoryRows = await this.prisma.inventoryItem.findMany({
+      where: {
+        outletId: { in: outletIds },
+        ...(query.productId ? { productId: query.productId } : {}),
+        product: { tenantId: user.tenantId, isActive: true },
+      },
+      select: {
+        outletId: true,
+        quantity: true,
+        product: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            variantLabel: true,
+            parentProduct: { select: { name: true } },
+            unit: { select: { symbol: true } },
+          },
+        },
+      },
+      orderBy: [{ product: { name: 'asc' } }, { outletId: 'asc' }],
+      take: query.productId ? outletIds.length : 200,
+    });
+
+    type ProductAgg = {
+      productId: string;
+      sku: string;
+      displayName: string;
+      unitSymbol: string | null;
+      byOutlet: Array<{ outletId: string; outletName: string; outletCode: string; quantity: number }>;
+    };
+
+    const outletMap = new Map(outlets.map((o) => [o.id, o]));
+    const productMap = new Map<string, ProductAgg>();
+
+    for (const row of inventoryRows) {
+      const outlet = outletMap.get(row.outletId);
+      if (!outlet) continue;
+
+      const variantLabel = row.product.variantLabel;
+      const parentName = row.product.parentProduct?.name ?? null;
+      const displayName =
+        variantLabel && parentName
+          ? `${parentName} — ${variantLabel}`
+          : variantLabel
+            ? `${row.product.name} (${variantLabel})`
+            : row.product.name;
+
+      const agg =
+        productMap.get(row.product.id) ??
+        ({
+          productId: row.product.id,
+          sku: row.product.sku,
+          displayName,
+          unitSymbol: row.product.unit?.symbol ?? null,
+          byOutlet: [],
+        } satisfies ProductAgg);
+
+      agg.byOutlet.push({
+        outletId: outlet.id,
+        outletName: outlet.name,
+        outletCode: outlet.code,
+        quantity: Number(row.quantity),
+      });
+      productMap.set(row.product.id, agg);
+    }
+
+    const products = [...productMap.values()]
+      .filter((p) => p.byOutlet.some((o) => o.quantity > 0))
+      .slice(0, query.productId ? 1 : 20);
+
+    return {
+      currentOutletId,
+      outlets: outlets.map((o) => ({ id: o.id, name: o.name, code: o.code })),
+      products,
+    };
+  }
+
   async getAnalytics(user: AuthJwtPayload, query: AnalyticsQueryDto) {
     const outletId = resolveOutletId(user, query.outletId);
     await this.ensureOutletExists(user.tenantId, outletId);

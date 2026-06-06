@@ -13,6 +13,6 @@ import { StorefrontService } from './storefront.service';
   imports: [DatabaseModule, RealtimeModule],
   controllers: [StorefrontController, OnlineOrdersController, MidtransWebhookController],
   providers: [StorefrontService, OnlineOrdersService, MidtransService, StorefrontRateLimitGuard],
-  exports: [StorefrontService, OnlineOrdersService],
+  exports: [StorefrontService, OnlineOrdersService, MidtransService],
 })
 export class OnlineOrdersModule {}

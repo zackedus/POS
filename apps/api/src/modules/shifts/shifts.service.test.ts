@@ -143,6 +143,34 @@ test('SCR-S02: manager can force-close active shift', async () => {
   assert.equal(auditLogCreated, true);
 });
 
+test('Phase 8: close preview includes active held transaction count', async () => {
+  const baseShift = {
+    id: 'shift-1',
+    outletId: 'outlet-1',
+    cashierId: 'user-1',
+    openingCash: '100000',
+    openedAt: new Date('2026-06-02T08:00:00.000Z'),
+    closedAt: null,
+    outlet: { tenantId: 'tenant-1' },
+    transactions: [],
+  };
+
+  const prisma = {
+    shift: {
+      findUnique: async () => baseShift,
+    },
+    heldTransaction: {
+      count: async () => 2,
+    },
+  };
+
+  const service = new ShiftsService(prisma as never);
+  const preview = await service.getClosePreview(createUser(UserRole.CASHIER), 'shift-1');
+
+  assert.equal(preview.heldCount, 2);
+  assert.match(preview.heldWarning ?? '', /hold/i);
+});
+
 test('SCR-S02: cashier cannot force-close shift (RBAC hardening)', async () => {
   const prisma = {
     shift: {
@@ -224,6 +252,9 @@ test('Shifts: getClosePreview returns expected cash before close', async () => {
     shift: {
       findUnique: async () => baseShift,
     },
+    heldTransaction: {
+      count: async () => 0,
+    },
   };
 
   const service = new ShiftsService(prisma as never);
@@ -232,4 +263,5 @@ test('Shifts: getClosePreview returns expected cash before close', async () => {
   assert.equal(preview.cashSales, 150_000);
   assert.equal(preview.expectedCash, 250_000);
   assert.equal(preview.transactionCount, 1);
+  assert.equal(preview.heldCount, 0);
 });

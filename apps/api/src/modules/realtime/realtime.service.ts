@@ -9,6 +9,14 @@ export interface OnlineOrderRealtimePayload {
   status?: string;
 }
 
+export interface StockChangeRealtimePayload {
+  tenantId: string;
+  outletId: string;
+  productId: string;
+  quantity: number;
+  type: string;
+}
+
 export type RealtimeEmitter = {
   to: (room: string) => { emit: (event: string, payload: unknown) => void };
 };
@@ -38,6 +46,27 @@ export class RealtimeService {
 
   emitOnlineOrderUpdated(payload: OnlineOrderRealtimePayload): void {
     this.emit('online-order:updated', payload);
+  }
+
+  emitStockChanged(payload: StockChangeRealtimePayload): void {
+    this.emitStock('stock:changed', payload);
+  }
+
+  private emitStock(event: string, payload: StockChangeRealtimePayload): void {
+    if (!this.isEnabled()) {
+      return;
+    }
+    if (!this.emitter) {
+      this.logger.debug(`Realtime emitter not ready — skipped ${event}`);
+      return;
+    }
+    const room = this.outletRoom(payload.tenantId, payload.outletId);
+    this.emitter.to(room).emit(event, {
+      productId: payload.productId,
+      outletId: payload.outletId,
+      quantity: payload.quantity,
+      type: payload.type,
+    });
   }
 
   private emit(event: string, payload: OnlineOrderRealtimePayload): void {

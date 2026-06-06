@@ -77,6 +77,54 @@ test('Expenses: updateExpense rejects unknown expense', async () => {
   );
 });
 
+test('Expenses: createExpense does not touch inventory or stock movements', async () => {
+  let inventoryTouched = false;
+  const prisma = {
+    outlet: { findFirst: async () => ({ id: 'outlet-1' }) },
+    expense: {
+      create: async (args: { data: Record<string, unknown> }) => ({
+        id: 'exp-2',
+        tenantId: 'tenant-1',
+        outletId: 'outlet-1',
+        category: EXPENSE_CATEGORY.OPERATIONAL,
+        amount: { toString: () => String(args.data.amount) },
+        description: 'Listrik',
+        expenseDate: new Date('2026-06-06'),
+        createdById: 'manager-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        outlet: { id: 'outlet-1', code: 'MAIN', name: 'Cabang Utama' },
+        createdBy: { id: 'manager-1', fullName: 'Manager Demo' },
+      }),
+    },
+    inventoryItem: {
+      findMany: async () => {
+        inventoryTouched = true;
+        return [];
+      },
+      update: async () => {
+        inventoryTouched = true;
+      },
+    },
+    stockMovement: {
+      create: async () => {
+        inventoryTouched = true;
+      },
+    },
+  };
+
+  const service = new ExpensesService(prisma as never);
+  await service.createExpense(createUser(), {
+    outletId: 'outlet-1',
+    category: ExpenseCategoryCode.OPERATIONAL,
+    amount: 75_000,
+    description: 'Air',
+    expenseDate: '2026-06-06',
+  });
+
+  assert.equal(inventoryTouched, false);
+});
+
 test('Expenses: getTodaySummary aggregates by category', async () => {
   const prisma = {
     expense: {

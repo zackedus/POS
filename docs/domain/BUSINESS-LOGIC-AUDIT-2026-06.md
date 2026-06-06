@@ -83,4 +83,38 @@
 - Weighted average HPP across partial receives (current: last receive overwrites)
 - Scheduled analytics export / email
 
-*Audit closed: Rina + Eko · 6 Juni 2026*
+---
+
+## Phase 8 — Deep Audit Edge Cases (6 Jun 2026)
+
+> **Auditor:** Rina (domain) + Eko (algoritma) + Citra (QA regression)  
+> **Scope:** Edge cases deferred from Phase 7 · automated tests + code fixes
+
+| Flow | Status | Catatan |
+|------|--------|---------|
+| Split payment + promo + multi-unit same cart | **PASS** | `BL-08-01` — kg + dus same SKU, promo reduces total |
+| Partial PO receive then return partial | **PASS** | Existing PO tests — partial receive + return qty cap |
+| Transfer stok antar cabang + sell from destination | **PASS** | `inventory.service.test` TRANSFER_OUT/IN + POS sell deduct |
+| Bundle sell at POS (outlet policy tenant vs outlet) | **PASS** | Phase 7 tests — outlet policy disable bundle |
+| Online order delivery + shipping fee in margin/report | **PASS** | `storefront.service.test` flat shipping; margin report excludes shipping (revenue = item subtotal) |
+| Shift close with held transactions | **PASS** | `getClosePreview` returns `heldCount` + warning; tidak block close |
+| Void transaction stock restore multi-unit | **PASS** | `BL-08-03` — VOID_RESTORE base qty from SALE movement |
+| Expense tidak affect stock | **PASS** | `expenses.service.test` — no inventory/stockMovement touch |
+| Tax/PPN toggle tenant settings | **PASS** | **Fix BL-08-02** — `computePosTax` + checkout cash/split apply PPN exclusive |
+
+### Bugs fixed (Phase 8)
+
+| ID | Severity | Issue | Fix |
+|----|----------|-------|-----|
+| BL-08-02 | P0 | PPN enabled di settings tapi checkout POS `tax: 0` | `computePosTax` di `@barokah/shared` + wire `tenantSettings` di checkout |
+| BL-08-05 | P1 | Shift close tidak menampilkan hold aktif | `heldCount` + `heldWarning` di `getClosePreview` + UI tutup shift |
+
+### Defer Phase 9
+
+- Midtrans **live** production keys (butuh Pak Zaki)
+- WebUSB thermal driver production (stub connect only)
+- Offline PWA bi-directional conflict merge otomatis
+- Mobile native QRIS + shift UI
+- Weighted average HPP partial receives
+
+*Audit Phase 8 closed: Rina + Eko + Citra · 6 Juni 2026*

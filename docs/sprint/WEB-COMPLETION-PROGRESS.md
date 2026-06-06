@@ -194,3 +194,79 @@
 - Scheduled analytics email export
 
 *Pass 7 closed: Budi + tim · 6 Juni 2026*
+
+---
+
+## Phase 8 — Parallel Lanes A–G (PASS 8 — DONE)
+
+> **Tanggal:** 6 Juni 2026  
+> **Koordinasi:** Budi · Lanes A–G paralel
+
+| Lane | Deliverable | Status |
+|------|-------------|--------|
+| **A** | Business logic deep audit 9 edge flows + fix BL-08-02 PPN checkout | ✅ Done |
+| **B** | Offline PWA polish — AUD-MU-03 hold multi-unit test, sync banner | ✅ Done |
+| **C** | Mobile kasir MVP — cart + checkout cash + secure session | ✅ Done |
+| **D** | Multi-outlet stock view API + dashboard widget + socket `stock:changed` | ✅ Done |
+| **E** | Midtrans test connection UI + webhook health GET | ✅ Done |
+| **F** | Playwright phase8 regression + `PHASE-8-REGRESSION.md` | ✅ Done |
+| **G** | INDEX/CHANGELOG/UAT Phase 8 + progress COMPLETE | ✅ Done |
+
+### Lane A highlights
+
+- `docs/domain/BUSINESS-LOGIC-AUDIT-2026-06.md` Phase 8 section
+- PPN checkout fix via `computePosTax`
+- Tests: split+promo+multi-unit, void multi-unit restore, shift held count
+
+### Lane B highlights
+
+- `offline-hold-sync.test.ts` AUD-MU-03 automated
+- `OfflineBanner` + `useOfflinePos` sync indicator (existing, verified)
+- `pwa-register.ts` skip dev SW (verified)
+
+### Lane C highlights
+
+- `apps/mobile/app/pos.tsx` — keranjang + checkout cash API
+- README Phase 8 honest scope
+
+### Lane D highlights
+
+- `GET /reports/cross-outlet-stock`
+- Dashboard widget **Stok Cabang Lain**
+- `RealtimeService.emitStockChanged` foundation
+
+### Lane E highlights
+
+- `POST /settings/tenant/midtrans/test`
+- `GET /webhooks/midtrans/online/health`
+- WebUSB connect stub + `printEscPosWebUsbStub`
+
+### Lane F highlights
+
+- `e2e/phase8-regression.spec.ts`
+- `docs/testing/PHASE-8-REGRESSION.md`
+
+### Lane G highlights
+
+- `docs/testing/PHASE-8-UAT-FINAL.md`
+- CHANGELOG Phase 8 user-facing notes
+
+### Test Results (Pass 8)
+
+| Suite | Result |
+|-------|--------|
+| `@barokah/shared` | ✅ (tax-calculator) |
+| `@barokah/api` | ✅ (PPN, shift held, cross-outlet, midtrans) |
+| `@barokah/web` | ✅ (offline hold, thermal, dashboard widget) |
+| `lint` / `typecheck` / `build` | ✅ |
+| Playwright e2e | ✅ smoke + phase8 (best effort) |
+
+### Defer Phase 9
+
+- Midtrans live credentials (Pak Zaki)
+- Thermal hardware production driver
+- Full offline conflict auto-merge
+- Mobile native shift + QRIS
+- Weighted average HPP
+
+*Pass 8 closed: Budi + tim · 6 Juni 2026*

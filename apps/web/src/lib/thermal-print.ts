@@ -80,9 +80,43 @@ export function webUsbThermalStubAvailable(): boolean {
 
 export function formatWebUsbIntegrationHint(): string {
   if (webUsbThermalStubAvailable()) {
-    return 'WebUSB tersedia di browser ini — driver ESC/POS USB menyusul (Arif POC). Gunakan Cetak Struk browser sementara.';
+    return 'WebUSB tersedia di browser ini — gunakan "Hubungkan Printer" untuk stub koneksi, lalu cetak dari preview struk terakhir.';
   }
   return 'WebUSB tidak tersedia — gunakan Cetak Struk browser atau integrasi Bluetooth thermal (Arif POC).';
+}
+
+/** WebUSB connect stub — requests common ESC/POS USB vendor filter (Phase 8). */
+export async function connectWebUsbThermalStub(): Promise<{ ok: boolean; message: string }> {
+  if (!webUsbThermalStubAvailable()) {
+    return { ok: false, message: 'WebUSB tidak didukung browser ini.' };
+  }
+  try {
+    const usb = (navigator as Navigator & { usb: { requestDevice: (opts: unknown) => Promise<unknown> } }).usb;
+    await usb.requestDevice({
+      filters: [{ classCode: 0x07 }],
+    });
+    return {
+      ok: true,
+      message: 'Perangkat USB dipilih (stub) — driver ESC/POS penuh menyusul integrasi Arif.',
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Gagal menghubungkan printer USB.';
+    return { ok: false, message };
+  }
+}
+
+/** Send decoded ESC/POS preview bytes to connected WebUSB device (stub logs only). */
+export async function printEscPosWebUsbStub(previewText: string): Promise<{ ok: boolean; message: string }> {
+  if (!previewText.trim()) {
+    return { ok: false, message: 'Preview struk kosong.' };
+  }
+  if (!webUsbThermalStubAvailable()) {
+    return { ok: false, message: formatWebUsbIntegrationHint() };
+  }
+  return {
+    ok: true,
+    message: `Stub WebUSB: ${previewText.length} karakter preview siap dikirim ke driver thermal.`,
+  };
 }
 
 export function paymentMethodLabel(method: string): string {

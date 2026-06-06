@@ -37,7 +37,11 @@ Generator: `apps/api/src/modules/transactions/receipt.util.ts` → `buildEscPosS
 - `renderEscPosPreview(escpos)` — decode base64 + token command (`[INIT]`, `[CUT]`, dll.)
 - `formatWebUsbIntegrationHint()` — deteksi `navigator.usb` untuk POC Arif
 
-## WebUSB stub (belum di-wire)
+## WebUSB stub (Phase 8)
+
+- `connectWebUsbThermalStub()` — `requestDevice` class printer 0x07 (stub, no driver write)
+- `printEscPosWebUsbStub(previewText)` — validasi preview struk terakhir sebelum driver penuh
+- Fallback: **Cetak Struk** browser tetap default production
 
 Browser Chromium desktop mendukung [WebUSB API](https://developer.mozilla.org/en-US/docs/Web/API/USB). Alur POC yang direncanakan:
 

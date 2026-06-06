@@ -8,6 +8,7 @@ import type { AuthJwtPayload } from '../auth/auth.types';
 import { DailyExportQueryDto } from './dto/daily-export-query.dto';
 import { ReportsQueryDto } from './dto/reports-query.dto';
 import { StockReportQueryDto } from './dto/stock-report-query.dto';
+import { CrossOutletStockQueryDto } from './dto/cross-outlet-stock-query.dto';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { ReportsService } from './reports.service';
 
@@ -45,6 +46,11 @@ export class ReportsController {
   @Get('stock')
   getStockSummary(@CurrentUser() user: AuthJwtPayload, @Query() query: StockReportQueryDto) {
     return this.reportsService.getStockSummary(user, query);
+  }
+
+  @Get('cross-outlet-stock')
+  getCrossOutletStock(@CurrentUser() user: AuthJwtPayload, @Query() query: CrossOutletStockQueryDto) {
+    return this.reportsService.getCrossOutletStock(user, query);
   }
 
   @Get('analytics')

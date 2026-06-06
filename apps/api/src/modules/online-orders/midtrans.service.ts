@@ -123,4 +123,53 @@ export class MidtransService {
       redirectUrl: data.redirect_url ?? `${this.snapBaseUrl}/snap/v2/vtweb/${data.token}`,
     };
   }
+
+  /** Ping Midtrans API — sandbox/live based on server key + production flag. */
+  async pingConnection(input: {
+    serverKey: string;
+    isProduction: boolean;
+  }): Promise<{ ok: boolean; statusCode: number; message: string }> {
+    const key = input.serverKey.trim();
+    if (!key) {
+      return { ok: false, statusCode: 0, message: 'Server key belum dikonfigurasi — mode mock aktif.' };
+    }
+
+    const apiBase = input.isProduction ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+    try {
+      const response = await fetch(`${apiBase}/v2/ping`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${key}:`).toString('base64')}`,
+        },
+      });
+      if (response.ok) {
+        return {
+          ok: true,
+          statusCode: response.status,
+          message: input.isProduction ? 'Koneksi live Midtrans OK.' : 'Koneksi sandbox Midtrans OK.',
+        };
+      }
+      const text = await response.text();
+      return {
+        ok: false,
+        statusCode: response.status,
+        message: `Midtrans ping gagal (${response.status}): ${text.slice(0, 120)}`,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Koneksi Midtrans gagal.';
+      return { ok: false, statusCode: 0, message };
+    }
+  }
+
+  getWebhookHealth(): {
+    endpoint: string;
+    mockMode: boolean;
+    signatureVerification: boolean;
+  } {
+    return {
+      endpoint: '/api/v1/webhooks/midtrans/online',
+      mockMode: this.isMockMode(),
+      signatureVerification: !this.isMockMode() || this.config.get<string>('MIDTRANS_WEBHOOK_SKIP_VERIFY') !== 'true',
+    };
+  }
 }

@@ -15,6 +15,7 @@ import { fetchOutlets, type ReportOutlet } from '@/lib/reports';
 import {
   fetchTenantSettings,
   midtransModeLabel,
+  testMidtransConnection,
   updateTenantSettings,
   type TenantSettingsView,
 } from '@/lib/settings-api';
@@ -39,6 +40,8 @@ export default function SettingsPage() {
   const [midtransProduction, setMidtransProduction] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [testingMidtrans, setTestingMidtrans] = useState(false);
+  const [midtransTestMessage, setMidtransTestMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isOwner = user?.role === 'OWNER';
@@ -303,11 +306,35 @@ export default function SettingsPage() {
                       Kunci disimpan per tenant dan ditampilkan ter-mask. Untuk dev global, set env{' '}
                       <code>MIDTRANS_SERVER_KEY</code> di server API.
                     </p>
-                    <div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={testingMidtrans}
+                        onClick={() => {
+                          setTestingMidtrans(true);
+                          setMidtransTestMessage(null);
+                          void testMidtransConnection()
+                            .then((result) => {
+                              setMidtransTestMessage(result.message);
+                            })
+                            .catch((err: unknown) => {
+                              setMidtransTestMessage(
+                                err instanceof Error ? err.message : 'Uji koneksi Midtrans gagal.',
+                              );
+                            })
+                            .finally(() => setTestingMidtrans(false));
+                        }}
+                      >
+                        {testingMidtrans ? 'Menguji…' : 'Uji Koneksi Midtrans'}
+                      </Button>
                       <Button type="submit" disabled={savingSettings}>
                         {savingSettings ? 'Menyimpan…' : 'Simpan Pengaturan Lanjutan'}
                       </Button>
                     </div>
+                    {midtransTestMessage ? (
+                      <p style={{ margin: 0, fontSize: '0.8125rem', color: tokens.muted }}>{midtransTestMessage}</p>
+                    ) : null}
                   </form>
                 ) : (
                   <p style={{ margin: 0, fontSize: '0.875rem', color: tokens.muted }}>

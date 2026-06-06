@@ -67,4 +67,44 @@ export async function fetchMobileProductGrid(
   return json.data.items ?? [];
 }
 
+export interface MobileCheckoutResult {
+  receiptNo: string;
+  total: number;
+  change: number;
+}
+
+export async function checkoutMobileCash(
+  accessToken: string,
+  input: {
+    items: Array<{ productId: string; quantity: number }>;
+    cashReceived: number;
+  },
+): Promise<MobileCheckoutResult> {
+  const clientRequestId = `mobile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const res = await fetch(`${API_BASE}/transactions/checkout-cash`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...input,
+      clientRequestId,
+    }),
+  });
+  const json = (await res.json()) as ApiEnvelope<{
+    receiptNo: string;
+    total: number;
+    change: number;
+  }>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Checkout tunai gagal.');
+  }
+  return {
+    receiptNo: json.data.receiptNo,
+    total: json.data.total,
+    change: json.data.change,
+  };
+}
+
 export { API_BASE };

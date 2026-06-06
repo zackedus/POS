@@ -2,6 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { maskServerKey, SettingsService } from './settings.service';
 
+function createMidtransStub(overrides: Record<string, unknown> = {}) {
+  return {
+    pingConnection: async () => ({ ok: true, statusCode: 200, message: 'OK' }),
+    getWebhookHealth: () => ({
+      endpoint: '/api/v1/webhooks/midtrans/online',
+      mockMode: true,
+      signatureVerification: false,
+    }),
+    ...overrides,
+  };
+}
+
 function createConfig(envKey?: string) {
   return {
     get: (key: string) => {
@@ -23,7 +35,7 @@ test('SettingsService: mock mode when no keys', async () => {
       findUnique: async () => null,
     },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
   const view = await service.getTenantSettings({
     sub: 'u1',
     email: 'a@b.c',
@@ -46,7 +58,7 @@ test('SettingsService: sandbox when env key present', async () => {
       }),
     },
   };
-  const service = new SettingsService(prisma as never, createConfig('SB-Mid-server-test') as never);
+  const service = new SettingsService(prisma as never, createConfig('SB-Mid-server-test') as never, createMidtransStub() as never);
   const view = await service.getTenantSettings({
     sub: 'u1',
     email: 'a@b.c',
@@ -72,7 +84,7 @@ test('SettingsService: production mode when env key and MIDTRANS_IS_PRODUCTION t
       return undefined;
     },
   };
-  const service = new SettingsService(prisma as never, config as never);
+  const service = new SettingsService(prisma as never, config as never, createMidtransStub() as never);
   const view = await service.getTenantSettings({
     sub: 'u1',
     email: 'a@b.c',
@@ -82,4 +94,20 @@ test('SettingsService: production mode when env key and MIDTRANS_IS_PRODUCTION t
   });
   assert.equal(view.midtrans.mode, 'live');
   assert.equal(view.midtrans.keySource, 'env');
+});
+
+test('SettingsService: testMidtransConnection returns mock message when no key', async () => {
+  const prisma = {
+    tenantSettings: { findUnique: async () => null },
+  };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const result = await service.testMidtransConnection({
+    sub: 'u1',
+    email: 'a@b.c',
+    tenantId: 't1',
+    role: 'OWNER',
+    outletIds: ['o1'],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, 'mock');
 });
