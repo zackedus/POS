@@ -82,9 +82,7 @@ export async function fetchDailySummaryReport(options?: {
   return json.data;
 }
 
-export function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+export { getTodayDate as todayIsoDate } from '@barokah/shared';
 
 /** Trigger browser print dialog (PDF via print-to-PDF). */
 export function printFinancialReport(): void {

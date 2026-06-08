@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { formatCurrencyIDR } from '@barokah/shared';
+import { formatCurrencyIDR, getTodayDate } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -16,16 +16,6 @@ import {
 import { mapApiError } from '@/lib/api-client';
 import { fetchCustomerStatement } from '@/lib/receivables-api';
 import type { CustomerStatement } from '@barokah/shared';
-
-function defaultFromDate(): string {
-  const d = new Date();
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
-}
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function formatStatementDate(iso: string): string {
   return new Intl.DateTimeFormat('id-ID', {
@@ -40,16 +30,11 @@ function formatStatementDate(iso: string): string {
 export default function CustomerStatementPage() {
   const params = useParams<{ customerId: string }>();
   const customerId = params.customerId;
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(() => getTodayDate());
+  const [to, setTo] = useState(() => getTodayDate());
   const [statement, setStatement] = useState<CustomerStatement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setFrom(defaultFromDate());
-    setTo(todayIso());
-  }, []);
 
   const load = useCallback(async () => {
     if (!customerId || !from || !to) return;

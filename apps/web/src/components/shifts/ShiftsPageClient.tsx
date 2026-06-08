@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
+import { formatCurrencyIDR, getTodayDate, parseCurrencyInput } from '@barokah/shared';
 import { Button, CurrencyInput, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -46,16 +46,6 @@ function formatDateTime(iso: string): string {
   }).format(new Date(iso));
 }
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function weekAgoIsoDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  return d.toISOString().slice(0, 10);
-}
-
 export function ShiftsPageClient({
   tab,
   action,
@@ -77,10 +67,10 @@ export function ShiftsPageClient({
   const [preview, setPreview] = useState<ShiftClosePreview | null>(null);
   const [history, setHistory] = useState<ShiftHistoryItem[]>([]);
   const [historyMeta, setHistoryMeta] = useState({ page: 1, totalPages: 1, total: 0 });
-  const [historyDateFrom, setHistoryDateFrom] = useState(weekAgoIsoDate());
-  const [historyDateTo, setHistoryDateTo] = useState(todayIsoDate());
-  const [historyDateMode, setHistoryDateMode] = useState<'single' | 'range'>('range');
-  const [historySingleDate, setHistorySingleDate] = useState(todayIsoDate());
+  const [historyDateFrom, setHistoryDateFrom] = useState(() => getTodayDate());
+  const [historyDateTo, setHistoryDateTo] = useState(() => getTodayDate());
+  const [historyDateMode, setHistoryDateMode] = useState<'single' | 'range'>('single');
+  const [historySingleDate, setHistorySingleDate] = useState(() => getTodayDate());
 
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);

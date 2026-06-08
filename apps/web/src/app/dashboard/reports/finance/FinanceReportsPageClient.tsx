@@ -7,6 +7,7 @@ import {
   FINANCE_REPORT_TYPE_LABELS,
   RECEIVABLE_AGING_BUCKET_LABELS,
   formatCurrencyIDR,
+  getTodayDate,
   type CashFlowFinanceReport,
   type DailySummaryFinanceReport,
   type FinanceReportPeriod,
@@ -33,7 +34,6 @@ import {
   fetchProfitLossReport,
   fetchReceivablesFinanceReport,
   printFinancialReport,
-  todayIsoDate,
 } from '@/lib/finance-reports-api';
 import { mapApiError } from '@/lib/api-client';
 import { PAYMENT_METHOD_LABELS } from '@/lib/reports';
@@ -54,10 +54,10 @@ export function FinanceReportsPageClient() {
   const { selectedOutletId, needsOutletPick, outlets } = useOutletSelection();
   const [activeTab, setActiveTab] = useState<FinanceReportType>('profit-loss');
   const [periodMode, setPeriodMode] = useState<'preset' | 'custom'>('preset');
-  const [period, setPeriod] = useState<FinanceReportPeriod>('month');
-  const [anchorDate, setAnchorDate] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [period, setPeriod] = useState<FinanceReportPeriod>('day');
+  const [anchorDate, setAnchorDate] = useState(() => getTodayDate());
+  const [dateFrom, setDateFrom] = useState(() => getTodayDate());
+  const [dateTo, setDateTo] = useState(() => getTodayDate());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,22 +67,15 @@ export function FinanceReportsPageClient() {
   const [cashFlow, setCashFlow] = useState<CashFlowFinanceReport | null>(null);
   const [dailySummary, setDailySummary] = useState<DailySummaryFinanceReport | null>(null);
 
-  useEffect(() => {
-    const today = todayIsoDate();
-    setAnchorDate(today);
-    setDateFrom(today);
-    setDateTo(today);
-  }, []);
-
   const queryParams = useMemo(() => {
     const base = { outletId: selectedOutletId ?? undefined };
     if (activeTab === 'daily-summary') {
-      return { date: anchorDate || todayIsoDate(), ...base };
+      return { date: anchorDate || getTodayDate(), ...base };
     }
     if (periodMode === 'custom') {
       return { from: dateFrom, to: dateTo, ...base };
     }
-    return { period, date: anchorDate || todayIsoDate(), ...base };
+    return { period, date: anchorDate || getTodayDate(), ...base };
   }, [activeTab, anchorDate, dateFrom, dateTo, period, periodMode, selectedOutletId]);
 
   const outletName = useMemo(() => {
@@ -104,7 +97,7 @@ export function FinanceReportsPageClient() {
     try {
       if (activeTab === 'daily-summary') {
         const data = await fetchDailySummaryReport({
-          date: anchorDate || todayIsoDate(),
+          date: anchorDate || getTodayDate(),
           outletId: selectedOutletId ?? undefined,
         });
         setDailySummary(data);

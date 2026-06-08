@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, generateExpenseRef, nextExpenseSequence, parseCurrencyInput } from '@barokah/shared';
+import { formatCurrencyIDR, generateExpenseRef, getTodayDate, nextExpenseSequence, parseCurrencyInput } from '@barokah/shared';
 import { Button, CurrencyInput, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -25,10 +25,6 @@ import {
   type ExpenseRow,
 } from '@/lib/expenses-api';
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function ExpensesPanel({ embedded = false }: { embedded?: boolean }) {
   const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [rows, setRows] = useState<ExpenseRow[]>([]);
@@ -38,26 +34,18 @@ export function ExpensesPanel({ embedded = false }: { embedded?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<'' | ExpenseCategory>('');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
-  const [form, setForm] = useState({
-    category: 'OPERATIONAL' as ExpenseCategory,
-    amount: '',
-    description: '',
-    expenseDate: '',
-    referenceNo: '',
-  });
-
-  useEffect(() => {
-    const today = todayIsoDate();
-    setForm((prev) => ({
-      ...prev,
+  const [filterDateFrom, setFilterDateFrom] = useState(() => getTodayDate());
+  const [filterDateTo, setFilterDateTo] = useState(() => getTodayDate());
+  const [form, setForm] = useState(() => {
+    const today = getTodayDate();
+    return {
+      category: 'OPERATIONAL' as ExpenseCategory,
+      amount: '',
+      description: '',
       expenseDate: today,
       referenceNo: generateExpenseRef({ date: new Date(`${today}T00:00:00`) }),
-    }));
-    setFilterDateFrom(today);
-    setFilterDateTo(today);
-  }, []);
+    };
+  });
 
   useEffect(() => {
     const date = new Date(`${form.expenseDate}T00:00:00`);

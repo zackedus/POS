@@ -1,10 +1,11 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getTodayDate } from '@barokah/shared';
 import DashboardHomePage from './page';
 
 function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getTodayDate();
 }
 
 const fetchDashboardMock = vi.fn();

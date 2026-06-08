@@ -1,6 +1,7 @@
 export * from './format-currency';
 export * from './format-number';
 export * from './format-date';
+export * from './date-range';
 export * from './compare-sync-queue';
 export * from './unit-conversion';
 export * from './product-type';

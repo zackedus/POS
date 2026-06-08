@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR } from '@barokah/shared';
+import { formatCurrencyIDR, getTodayDate } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -42,10 +42,6 @@ const QUICK_LINKS = [
   { href: '/dashboard/shifts', label: 'Shift & Kas', desc: 'Buka/tutup shift & rekonsiliasi kas' },
 ] as const;
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function formatDisplayDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat('id-ID', {
@@ -69,16 +65,9 @@ function formatShiftTime(iso: string): string {
 export default function DashboardHomePage() {
   const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [reportMode, setReportMode] = useState<'single' | 'range'>('single');
-  const [date, setDate] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-
-  useEffect(() => {
-    const today = todayIsoDate();
-    setDate(today);
-    setDateFrom(today);
-    setDateTo(today);
-  }, []);
+  const [date, setDate] = useState(() => getTodayDate());
+  const [dateFrom, setDateFrom] = useState(() => getTodayDate());
+  const [dateTo, setDateTo] = useState(() => getTodayDate());
   const [dashboard, setDashboard] = useState<DashboardReport | null>(null);
   const [source, setSource] = useState<'api' | 'mock' | null>(null);
   const [onlineOrderCount, setOnlineOrderCount] = useState<number | null>(null);

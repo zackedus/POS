@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { formatCurrency } from '@barokah/shared';
+import { formatCurrency, getTodayDate } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -27,10 +27,6 @@ import {
 } from '@/lib/transactions';
 import { printReceiptBrowser } from '@/lib/thermal-print';
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function DashboardTransactionsPage() {
   const searchParams = useSearchParams();
   const linkedTransactionId = searchParams.get('id');
@@ -45,15 +41,9 @@ export default function DashboardTransactionsPage() {
   const [voidTarget, setVoidTarget] = useState<RecentTransactionSummary | null>(null);
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'COMPLETED' | 'VOID'>('ALL');
   const [filterSearch, setFilterSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => getTodayDate());
+  const [dateTo, setDateTo] = useState(() => getTodayDate());
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const today = todayIsoDate();
-    setDateFrom(today);
-    setDateTo(today);
-  }, []);
 
   const loadData = useCallback(async () => {
     if (needsOutletPick) {

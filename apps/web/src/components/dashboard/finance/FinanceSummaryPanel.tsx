@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR } from '@barokah/shared';
+import { formatCurrencyIDR, getTodayDate } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -26,10 +26,6 @@ const QUICK_LINKS: Array<{ tab?: FinanceTabId; href?: string; label: string; des
   { href: '/dashboard/reports/finance', label: 'Laporan Keuangan', desc: 'Laba rugi, AR/AP, arus kas' },
 ];
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function FinanceSummaryPanel({ onNavigate }: { onNavigate?: (tab: FinanceTabId) => void }) {
   const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
@@ -49,7 +45,7 @@ export function FinanceSummaryPanel({ onNavigate }: { onNavigate?: (tab: Finance
     try {
       const data = await fetchFinanceSummary({
         outletId: selectedOutletId ?? undefined,
-        date: todayIsoDate(),
+        date: getTodayDate(),
       });
       setSummary(data);
     } catch (err) {

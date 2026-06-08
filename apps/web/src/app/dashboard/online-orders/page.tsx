@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { formatCurrency } from '@barokah/shared';
+import { formatCurrency, getTodayDate } from '@barokah/shared';
 import { Button, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -43,8 +43,8 @@ export default function DashboardOnlineOrdersPage() {
   const [orders, setOrders] = useState<FulfillmentOrder[]>([]);
   const [meta, setMeta] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [status, setStatus] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => getTodayDate());
+  const [dateTo, setDateTo] = useState(() => getTodayDate());
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

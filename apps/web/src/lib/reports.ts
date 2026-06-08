@@ -1,4 +1,4 @@
-import { PaymentMethod } from '@barokah/shared';
+import { PaymentMethod, getTodayDate } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
 
@@ -96,10 +96,6 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PaymentMethod.DEPOSIT]: 'Deposit',
 };
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 /** Data kosong saat API belum tersedia atau gagal (fallback aman). */
 export function getMockDailyReport(date: string): DailyReport {
   return {
@@ -164,7 +160,7 @@ export async function fetchDailyReport(options?: {
   report: DailyReport;
   source: 'api' | 'mock';
 }> {
-  const reportDate = options?.date ?? todayIsoDate();
+  const reportDate = options?.date ?? getTodayDate();
   const params = new URLSearchParams();
   if (options?.dateFrom && options?.dateTo) {
     params.set('dateFrom', options.dateFrom);
@@ -200,7 +196,7 @@ export async function fetchDashboard(options?: {
   dashboard: DashboardReport;
   source: 'api' | 'mock';
 }> {
-  const reportDate = options?.date ?? todayIsoDate();
+  const reportDate = options?.date ?? getTodayDate();
   const params = new URLSearchParams();
   if (options?.dateFrom && options?.dateTo) {
     params.set('dateFrom', options.dateFrom);
@@ -336,7 +332,7 @@ export async function exportDailyReport(options: {
     params.set('dateFrom', options.dateFrom);
     params.set('dateTo', options.dateTo);
   } else {
-    params.set('date', options.date ?? todayIsoDate());
+    params.set('date', options.date ?? getTodayDate());
   }
   if (options.outletId) {
     params.set('outletId', options.outletId);
@@ -381,10 +377,10 @@ export async function exportDailyReport(options: {
       options.format === 'pdf'
         ? isRange
           ? `laporan-${options.dateFrom}_${options.dateTo}.pdf`
-          : `laporan-harian-${options.date ?? todayIsoDate()}.pdf`
+          : `laporan-harian-${options.date ?? getTodayDate()}.pdf`
         : isRange
           ? `laporan-${options.dateFrom}_${options.dateTo}.csv`
-          : `laporan-harian-${options.date ?? todayIsoDate()}.csv`;
+          : `laporan-harian-${options.date ?? getTodayDate()}.csv`;
     const filename = filenameMatch?.[1] ?? defaultName;
 
     const objectUrl = URL.createObjectURL(blob);
