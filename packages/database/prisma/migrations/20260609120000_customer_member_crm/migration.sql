@@ -1,13 +1,14 @@
 -- Customer/Member CRM: addresses, member code, loyalty ledger
+-- All PK/FK columns use TEXT to match existing schema (customers.id is TEXT, not native UUID)
 
 -- Extend customers
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "email" TEXT;
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "member_code" TEXT;
-ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "member_since" TIMESTAMPTZ;
+ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "member_since" TIMESTAMP(3);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "notes" TEXT;
 
 UPDATE "customers"
-SET "member_code" = 'MBR-' || UPPER(SUBSTRING(REPLACE("id"::text, '-', ''), 1, 8))
+SET "member_code" = 'MBR-' || UPPER(SUBSTRING(REPLACE("id", '-', ''), 1, 8))
 WHERE "member_code" IS NULL;
 
 UPDATE "customers"
@@ -23,8 +24,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "customers_tenant_id_member_code_key"
 
 -- Customer addresses
 CREATE TABLE IF NOT EXISTS "customer_addresses" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "customer_id" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "customer_id" TEXT NOT NULL,
   "label" TEXT NOT NULL,
   "address_line1" TEXT NOT NULL,
   "address_line2" TEXT,
@@ -32,8 +33,8 @@ CREATE TABLE IF NOT EXISTS "customer_addresses" (
   "province" TEXT,
   "postal_code" TEXT,
   "is_default" BOOLEAN NOT NULL DEFAULT false,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "customer_addresses_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "customer_addresses_customer_id_fkey"
     FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -46,16 +47,16 @@ CREATE INDEX IF NOT EXISTS "customer_addresses_customer_id_idx"
 CREATE TYPE "LoyaltyPointType" AS ENUM ('EARN', 'REDEEM', 'ADJUST');
 
 CREATE TABLE IF NOT EXISTS "loyalty_point_ledger" (
-  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "tenant_id" UUID NOT NULL,
-  "customer_id" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "tenant_id" TEXT NOT NULL,
+  "customer_id" TEXT NOT NULL,
   "type" "LoyaltyPointType" NOT NULL,
   "points" INTEGER NOT NULL,
   "balance_after" INTEGER NOT NULL,
-  "transaction_id" UUID,
+  "transaction_id" TEXT,
   "notes" TEXT,
-  "recorded_by_id" UUID,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "recorded_by_id" TEXT,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "loyalty_point_ledger_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "loyalty_point_ledger_tenant_id_fkey"
     FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
