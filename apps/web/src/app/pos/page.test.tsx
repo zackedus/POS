@@ -288,6 +288,7 @@ describe('PosPage', () => {
         updatedAt: '2026-06-02T08:00:00.000Z',
       },
     ]);
+    createDeliveryOrderMock.mockReset();
     createDeliveryOrderMock.mockResolvedValue({ deliveryNo: 'DLV-20260609-0001' });
   });
 
@@ -934,21 +935,26 @@ describe('PosPage', () => {
     setCatalogState([
       { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
     ]);
+    let checkoutBody: Record<string, unknown> = {};
     queueAuthFetchOverride({
       match: (url, init) => url.includes('/transactions/checkout-cash') && init?.method === 'POST',
-      respond: () => ({
-        ok: true,
-        json: async () => ({
-          success: true,
-          data: {
-            id: 'trx-dlv-fail-1',
-            receiptNo: 'TRX-DLV-FAIL',
-            total: 70000,
-            cashReceived: 100000,
-            change: 30000,
-          },
-        }),
-      }),
+      respond: (_url, init) => {
+        checkoutBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              id: 'trx-dlv-fail-1',
+              receiptNo: 'TRX-DLV-FAIL',
+              total: 70000,
+              cashReceived: 100000,
+              change: 30000,
+              deliveryError: 'Pelanggan wajib dipilih untuk pengiriman.',
+            },
+          }),
+        };
+      },
     });
 
     renderPosPage();
@@ -965,10 +971,12 @@ describe('PosPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Checkout Tunai' }));
 
     await waitFor(() => {
-      expect(createDeliveryOrderMock).toHaveBeenCalled();
+      expect(checkoutBody.deliveryRequired).toBe(true);
+      expect(checkoutBody.deliveryAddressId).toBe('addr-1');
       expect(screen.getByText(/Checkout berhasil \(TRX-DLV-FAIL\)/i)).toBeInTheDocument();
       expect(screen.getByText(/Pelanggan wajib dipilih untuk pengiriman/i)).toBeInTheDocument();
     });
+    expect(createDeliveryOrderMock).not.toHaveBeenCalled();
     expect(screen.queryByText(/Masuk antrian pengiriman/i)).not.toBeInTheDocument();
   });
 

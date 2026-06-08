@@ -1,7 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { buildDeliveryOrderPayload, toCheckoutCustomerPhone } from './pos-checkout-delivery';
+import {
+  buildCheckoutDeliveryPayload,
+  buildDeliveryOrderPayload,
+  toCheckoutCustomerPhone,
+} from './pos-checkout-delivery';
 
 describe('pos-checkout-delivery', () => {
+  it('builds checkout delivery scope when enabled with saved address', () => {
+    const payload = buildCheckoutDeliveryPayload({
+      deliveryEnabled: true,
+      deliverySelection: {
+        mode: 'saved',
+        addressId: 'addr-1',
+        snapshot: {
+          id: 'addr-1',
+          label: 'Rumah',
+          addressLine1: 'Jl. Merdeka 1',
+          addressLine2: null,
+          city: 'Jakarta',
+          province: null,
+          postalCode: null,
+          isDefault: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+      },
+      deliveryNotes: 'Lantai 2',
+    });
+
+    expect(payload).toEqual({
+      deliveryRequired: true,
+      deliveryAddressId: 'addr-1',
+      deliveryNotes: 'Lantai 2',
+    });
+  });
+
+  it('returns empty checkout delivery scope when disabled', () => {
+    expect(buildCheckoutDeliveryPayload({ deliveryEnabled: false, deliverySelection: null })).toEqual({});
+  });
+
   it('builds saved address delivery payload', () => {
     const payload = buildDeliveryOrderPayload({
       transactionId: 'trx-1',

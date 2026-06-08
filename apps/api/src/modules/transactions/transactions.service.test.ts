@@ -65,6 +65,7 @@ function createTransactionsService(prisma: unknown) {
     createCustomersServiceStub() as never,
     createFinanceCheckoutStub() as never,
     createCreditLimitServiceStub() as never,
+    createDeliveriesServiceStub() as never,
   );
 }
 
@@ -72,6 +73,12 @@ function createCreditLimitServiceStub() {
   return {
     validateAndConsumeApprovalToken: () => ({ approvedById: 'manager-1' }),
     logCreditCheckoutInTransaction: async () => {},
+  };
+}
+
+function createDeliveriesServiceStub() {
+  return {
+    createForCompletedTransaction: async () => null,
   };
 }
 
@@ -1457,7 +1464,14 @@ test('Transactions: checkoutSplit applies promo discount to total', async () => 
     }),
   };
   const prisma = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
-  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never, createFinanceCheckoutStub() as never, createCreditLimitServiceStub() as never);
+  const service = new TransactionsService(
+    prisma as never,
+    promoService as never,
+    createCustomersServiceStub() as never,
+    createFinanceCheckoutStub() as never,
+    createCreditLimitServiceStub() as never,
+    createDeliveriesServiceStub() as never,
+  );
 
   const result = await service.checkoutSplit(createUser(), {
     outletId: 'outlet-1',
@@ -1480,7 +1494,14 @@ test('Phase 8 BL-08-01: checkoutSplit promo + multi-unit same cart', async () =>
     }),
   };
   const prisma = checkoutPrismaMock({ product: pakuProduct(), stockQty: 100 });
-  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never, createFinanceCheckoutStub() as never, createCreditLimitServiceStub() as never);
+  const service = new TransactionsService(
+    prisma as never,
+    promoService as never,
+    createCustomersServiceStub() as never,
+    createFinanceCheckoutStub() as never,
+    createCreditLimitServiceStub() as never,
+    createDeliveriesServiceStub() as never,
+  );
 
   const result = await service.checkoutSplit(createUser(), {
     outletId: 'outlet-1',
@@ -1718,6 +1739,7 @@ test('Edge BL-EC-03: checkoutSplit stacks promo discount + loyalty redeem (not p
     customersService as never,
     createFinanceCheckoutStub() as never,
     createCreditLimitServiceStub() as never,
+    createDeliveriesServiceStub() as never,
   );
 
   const result = await service.checkoutSplit(createUser(), {

@@ -395,3 +395,37 @@ test('Deliveries: create resolves walk-in customer from checkout snapshot when t
   assert.equal(created.deliveryNo, 'DLV-20260609-0001');
   assert.equal(created.customer.id, 'cust-walkin-1');
 });
+
+test('Deliveries: createForCompletedTransaction is idempotent for existing delivery', async () => {
+  const prisma = {
+    deliveryOrder: {
+      findFirst: async () => ({ deliveryNo: 'DLV-20260609-0099' }),
+    },
+  };
+  const service = makeService(prisma);
+  const result = await service.createForCompletedTransaction(cashierUser(), {
+    transactionId: 'trx-1',
+    outletId: 'outlet-1',
+    customerId: 'cust-1',
+    delivery: { deliveryRequired: true, deliveryAddressId: 'addr-1' },
+  });
+  assert.deepEqual(result, { deliveryNo: 'DLV-20260609-0099' });
+});
+
+test('Deliveries: createForCompletedTransaction skips when delivery not required', async () => {
+  const prisma = {
+    deliveryOrder: {
+      findFirst: async () => {
+        throw new Error('should not query');
+      },
+    },
+  };
+  const service = makeService(prisma);
+  const result = await service.createForCompletedTransaction(cashierUser(), {
+    transactionId: 'trx-1',
+    outletId: 'outlet-1',
+    customerId: 'cust-1',
+    delivery: { deliveryRequired: false },
+  });
+  assert.equal(result, null);
+});

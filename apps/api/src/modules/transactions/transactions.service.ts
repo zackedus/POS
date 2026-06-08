@@ -30,6 +30,8 @@ import { PromoService } from '../promo/promo.service';
 import { CustomersService } from '../customers/customers.service';
 import { FinanceCheckoutService } from '../finance/finance-checkout.service';
 import { CreditLimitService } from '../finance/credit-limit.service';
+import { DeliveriesService } from '../deliveries/deliveries.service';
+import type { CheckoutDeliveryFields } from './dto/checkout-delivery.dto';
 import type { PromoCartLine } from '@barokah/shared';
 import { CheckoutCashDto } from './dto/checkout-cash.dto';
 import { CheckoutSplitDto } from './dto/checkout-split.dto';
@@ -128,6 +130,7 @@ export class TransactionsService {
     private readonly customersService: CustomersService,
     private readonly financeCheckout: FinanceCheckoutService,
     private readonly creditLimitService: CreditLimitService,
+    private readonly deliveriesService: DeliveriesService,
   ) {}
 
   private isPrismaError(error: unknown, code: string): boolean {
@@ -469,6 +472,7 @@ export class TransactionsService {
       pointsRedeemed?: number;
       loyaltyDiscount?: number;
     },
+    delivery?: { deliveryNo?: string; deliveryError?: string },
   ) {
     return {
       id: transaction.id,
@@ -500,7 +504,39 @@ export class TransactionsService {
             loyaltyDiscount: loyalty.loyaltyDiscount ?? 0,
           }
         : {}),
+      ...(delivery?.deliveryNo ? { deliveryNo: delivery.deliveryNo } : {}),
+      ...(delivery?.deliveryError ? { deliveryError: delivery.deliveryError } : {}),
     };
+  }
+
+  private async applyCheckoutDelivery(
+    user: AuthJwtPayload,
+    transactionId: string,
+    outletId: string,
+    customerId: string | null,
+    dto: Pick<
+      CheckoutDeliveryFields,
+      | 'deliveryRequired'
+      | 'deliveryAddressId'
+      | 'deliveryAddressSnapshot'
+      | 'deliveryNotes'
+      | 'customerName'
+      | 'customerPhone'
+    >,
+  ): Promise<{ deliveryNo?: string; deliveryError?: string }> {
+    const result = await this.deliveriesService.createForCompletedTransaction(user, {
+      transactionId,
+      outletId,
+      customerId,
+      delivery: dto,
+    });
+    if (!result) {
+      return {};
+    }
+    if ('deliveryNo' in result) {
+      return { deliveryNo: result.deliveryNo };
+    }
+    return { deliveryError: result.error };
   }
 
   private buildPromoCartLines(
@@ -1276,7 +1312,22 @@ export class TransactionsService {
     const outletId = resolveOutletId(user, dto.outletId);
     const existing = await this.findExistingTransactionByRequest(outletId, dto.clientRequestId);
     if (existing) {
-      return this.buildCheckoutResponse(existing, existing.items.length, undefined, dto.cashReceived);
+      const delivery = await this.applyCheckoutDelivery(
+        user,
+        existing.id,
+        outletId,
+        existing.customerId,
+        dto,
+      );
+      return this.buildCheckoutResponse(
+        existing,
+        existing.items.length,
+        undefined,
+        dto.cashReceived,
+        undefined,
+        undefined,
+        delivery,
+      );
     }
 
     const { activeShift, normalizedItems, subtotal, stockDeductions, productMap } =
@@ -1408,6 +1459,14 @@ export class TransactionsService {
       transaction.id,
     );
 
+    const delivery = await this.applyCheckoutDelivery(
+      user,
+      transaction.id,
+      outletId,
+      customerId,
+      dto,
+    );
+
     return this.buildCheckoutResponse(
       transaction,
       normalizedItems.length,
@@ -1423,6 +1482,7 @@ export class TransactionsService {
             }
           : {}),
       },
+      delivery,
     );
   }
 
@@ -1435,7 +1495,22 @@ export class TransactionsService {
         acc[payment.method] = toIdrInteger(payment.amount);
         return acc;
       }, {});
-      return this.buildCheckoutResponse(existing, existing.items.length, existingPaymentSummary);
+      const delivery = await this.applyCheckoutDelivery(
+        user,
+        existing.id,
+        outletId,
+        existing.customerId,
+        dto,
+      );
+      return this.buildCheckoutResponse(
+        existing,
+        existing.items.length,
+        existingPaymentSummary,
+        undefined,
+        undefined,
+        undefined,
+        delivery,
+      );
     }
 
     const { activeShift, normalizedItems, subtotal, stockDeductions, productMap } =
@@ -1652,6 +1727,14 @@ export class TransactionsService {
       transaction.id,
     );
 
+    const delivery = await this.applyCheckoutDelivery(
+      user,
+      transaction.id,
+      outletId,
+      customerId,
+      dto,
+    );
+
     return this.buildCheckoutResponse(
       transaction,
       normalizedItems.length,
@@ -1667,6 +1750,7 @@ export class TransactionsService {
             }
           : {}),
       },
+      delivery,
     );
   }
 

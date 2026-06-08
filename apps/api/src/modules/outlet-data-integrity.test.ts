@@ -215,6 +215,7 @@ test('Outlet isolation: checkout on outlet A does not deduct outlet B stock', as
       validateAndConsumeApprovalToken: () => ({ approvedById: 'manager-1' }),
       logCreditCheckoutInTransaction: async () => {},
     } as never,
+    { createForCompletedTransaction: async () => null } as never,
   );
   await service.checkoutCash(manager(['outlet-a', 'outlet-b']), {
     outletId: 'outlet-a',
@@ -243,7 +244,7 @@ test('Outlet isolation: checkout rejected without active shift on outlet', async
   } as never, {
     validateAndConsumeApprovalToken: () => ({ approvedById: 'manager-1' }),
     logCreditCheckoutInTransaction: async () => {},
-  } as never);
+  } as never, { createForCompletedTransaction: async () => null } as never);
 
   await assert.rejects(
     () =>

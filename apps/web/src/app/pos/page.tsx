@@ -14,7 +14,7 @@ import { CreditApprovalModal } from '@/components/pos/CreditApprovalModal';
 import { PosReceivablePaymentModal } from '@/components/pos/PosReceivablePaymentModal';
 import type { CartItem, HeldTransactionSummary, PaymentMode, ProductGridItem } from '@/components/pos/pos-types';
 import { hasMultipleSellUnits, resolveDisplaySellUnit } from '@/components/pos/pos-ui-utils';
-import { apiConfig } from '@/lib/api';
+import { apiConfig, ApiRequestError as ApiClientError } from '@/lib/api';
 import { authFetch, fetchMe, tokenStorage, type AuthUser } from '@/lib/auth';
 import {
   fetchRecentTransactions,
@@ -60,7 +60,12 @@ import { isOutOfStock } from '@/lib/pos-stock-display';
 import type { DeliverySelection } from '@/components/pos/PosDeliverySelector';
 import { isDeliverySelectionValid } from '@/components/pos/PosDeliverySelector';
 import { createDeliveryOrder } from '@/lib/deliveries-api';
-import { buildDeliveryOrderPayload, isWalkInDeliveryEligible, toCheckoutCustomerPhone } from '@/lib/pos-checkout-delivery';
+import {
+  buildCheckoutDeliveryPayload,
+  buildDeliveryOrderPayload,
+  isWalkInDeliveryEligible,
+  toCheckoutCustomerPhone,
+} from '@/lib/pos-checkout-delivery';
 
 function buildOutletScope(outletId: string | null): { outletId?: string } {
   return outletId ? { outletId } : {};
@@ -96,6 +101,8 @@ interface CheckoutResponse {
   change: number;
   hasNegativeMargin?: boolean;
   marginWarnings?: CartMarginWarning[];
+  deliveryNo?: string;
+  deliveryError?: string;
 }
 
 interface CheckoutSplitResponse {
@@ -103,6 +110,8 @@ interface CheckoutSplitResponse {
   receiptNo: string;
   total: number;
   payments: Partial<Record<'CASH' | 'TRANSFER' | 'QRIS' | 'E_WALLET' | 'CARD', number>>;
+  deliveryNo?: string;
+  deliveryError?: string;
 }
 
 interface ApiEnvelope<T> {
@@ -246,7 +255,7 @@ export default function PosPage() {
     creditLimit?: number | null;
     creditAvailable?: number | null;
   }) {
-    if (customerId !== customer.id) {
+    if (customerId != null && customerId !== customer.id) {
       resetDeliveryState();
     }
     setCustomerId(customer.id);
@@ -330,15 +339,17 @@ export default function PosPage() {
           notes: deliveryNotes,
         }),
       );
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('barokah:delivery-created', {
-            detail: { deliveryNo: order.deliveryNo, outletId: activeOutletId },
-          }),
-        );
-      }
+      notifyDeliveryCreated(order.deliveryNo);
       return order.deliveryNo;
     } catch (err) {
+      const code = err instanceof ApiClientError ? err.code : undefined;
+      if (code === 'DELIVERY_ALREADY_EXISTS') {
+        const existingNo = err.message.match(/DLV-\d{8}-\d{4}/)?.[0];
+        if (existingNo) {
+          notifyDeliveryCreated(existingNo);
+          return existingNo;
+        }
+      }
       const message =
         err instanceof Error && err.message.trim()
           ? err.message.trim()
@@ -348,11 +359,29 @@ export default function PosPage() {
     }
   }
 
-  async function appendDeliverySuccessMessage(baseMessage: string, transactionId: string): Promise<string> {
+  async function appendDeliverySuccessMessage(
+    baseMessage: string,
+    transactionId: string,
+    checkoutDelivery?: { deliveryNo?: string; deliveryError?: string },
+  ): Promise<string> {
+    if (checkoutDelivery?.deliveryNo) {
+      resetDeliveryState();
+      notifyDeliveryCreated(checkoutDelivery.deliveryNo);
+      return `${baseMessage}${formatDeliverySuccessSuffix(checkoutDelivery.deliveryNo)}`;
+    }
+
+    if (checkoutDelivery?.deliveryError) {
+      setError(
+        `Checkout berhasil, tetapi pengiriman gagal: ${checkoutDelivery.deliveryError} — coba buat manual di Dashboard → Pengiriman.`,
+      );
+      resetDeliveryState();
+      return baseMessage;
+    }
+
     const deliveryNo = await createDeliveryAfterCheckout(transactionId);
     resetDeliveryState();
     if (deliveryNo) {
-      return `${baseMessage} Masuk antrian pengiriman ${deliveryNo} — lihat di Dashboard → Pengiriman.`;
+      return `${baseMessage}${formatDeliverySuccessSuffix(deliveryNo)}`;
     }
     return baseMessage;
   }
@@ -428,6 +457,28 @@ export default function PosPage() {
       setPaymentMode(pendingFinancePaymentMode);
       setPendingFinancePaymentMode(null);
     }
+  }
+
+  function buildCheckoutDeliveryScope() {
+    return buildCheckoutDeliveryPayload({
+      deliveryEnabled,
+      deliverySelection,
+      deliveryNotes,
+    });
+  }
+
+  function notifyDeliveryCreated(deliveryNo: string) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('barokah:delivery-created', {
+          detail: { deliveryNo, outletId: activeOutletId },
+        }),
+      );
+    }
+  }
+
+  function formatDeliverySuccessSuffix(deliveryNo: string): string {
+    return ` Masuk antrian pengiriman ${deliveryNo}. Lihat di Dashboard → Pengiriman (/dashboard/deliveries).`;
   }
 
   function buildCustomerCheckoutPayload() {
@@ -1193,6 +1244,7 @@ export default function PosPage() {
           ...buildOutletScope(activeOutletId),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
           ...buildCustomerCheckoutPayload(),
+          ...buildCheckoutDeliveryScope(),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutResponse>;
@@ -1207,7 +1259,12 @@ export default function PosPage() {
       const baseSuccess = `Checkout berhasil (${json.data.receiptNo}). Kembalian: ${formatCurrencyIDR(json.data.change)}.${
         json.data.hasNegativeMargin ? ' Perhatian: ada item dengan margin negatif.' : ''
       }`;
-      setSuccess(await appendDeliverySuccessMessage(baseSuccess, json.data.id));
+      setSuccess(
+        await appendDeliverySuccessMessage(baseSuccess, json.data.id, {
+          deliveryNo: json.data.deliveryNo,
+          deliveryError: json.data.deliveryError,
+        }),
+      );
       setCart([]);
       setCashReceived('');
       setLoyaltyPointsToRedeem('');
@@ -1409,6 +1466,7 @@ export default function PosPage() {
           ...buildOutletScope(activeOutletId),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
           ...buildCustomerCheckoutPayload(),
+          ...buildCheckoutDeliveryScope(),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
@@ -1422,7 +1480,12 @@ export default function PosPage() {
       }
 
       const baseSuccess = `Checkout split berhasil (${json.data.receiptNo}). Cash: ${formatCurrencyIDR(json.data.payments.CASH ?? 0)}, Transfer: ${formatCurrencyIDR(json.data.payments.TRANSFER ?? 0)}.`;
-      setSuccess(await appendDeliverySuccessMessage(baseSuccess, json.data.id));
+      setSuccess(
+        await appendDeliverySuccessMessage(baseSuccess, json.data.id, {
+          deliveryNo: json.data.deliveryNo,
+          deliveryError: json.data.deliveryError,
+        }),
+      );
       setCart([]);
       setCashReceived('');
       setLoyaltyPointsToRedeem('');
@@ -1461,10 +1524,27 @@ export default function PosPage() {
   }
 
   const handleQrisPaid = useCallback(
-    async ({ transactionId, receiptNo, total: paidTotal }: { transactionId: string; receiptNo: string; total: number }) => {
+    async ({
+      transactionId,
+      receiptNo,
+      total: paidTotal,
+      deliveryNo,
+      deliveryError,
+    }: {
+      transactionId: string;
+      receiptNo: string;
+      total: number;
+      deliveryNo?: string;
+      deliveryError?: string;
+    }) => {
       setQrisSession(null);
       const baseSuccess = `Checkout QRIS berhasil (${receiptNo}). Total: ${formatCurrencyIDR(paidTotal)}.`;
-      setSuccess(await appendDeliverySuccessMessage(baseSuccess, transactionId));
+      setSuccess(
+        await appendDeliverySuccessMessage(baseSuccess, transactionId, {
+          deliveryNo,
+          deliveryError,
+        }),
+      );
       setCart([]);
       setNonCashReference('');
       setLoyaltyPointsToRedeem('');
@@ -1532,6 +1612,7 @@ export default function PosPage() {
           ...buildCustomerCheckoutPayload(),
           ...(managerApprovalToken ? { managerApprovalToken } : {}),
           ...(payments.some((p) => p.method === 'CREDIT') ? { creditTermsDays } : {}),
+          ...buildCheckoutDeliveryScope(),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
@@ -1543,7 +1624,12 @@ export default function PosPage() {
       }
 
       const baseSuccess = `${successLabel} berhasil (${json.data.receiptNo}). Total: ${formatCurrencyIDR(json.data.total)}.`;
-      setSuccess(await appendDeliverySuccessMessage(baseSuccess, json.data.id));
+      setSuccess(
+        await appendDeliverySuccessMessage(baseSuccess, json.data.id, {
+          deliveryNo: json.data.deliveryNo,
+          deliveryError: json.data.deliveryError,
+        }),
+      );
       setCart([]);
       setNonCashReference('');
       setLoyaltyPointsToRedeem('');

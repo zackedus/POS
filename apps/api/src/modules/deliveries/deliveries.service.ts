@@ -26,6 +26,7 @@ import { CustomersService } from '../customers/customers.service';
 import { toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { CreateDeliveryOrderDto } from './dto/delivery.dto';
+import type { CheckoutDeliveryFields } from '../transactions/dto/checkout-delivery.dto';
 import type { DeliveryListQueryDto, DeliveryQueueSummaryQueryDto } from './dto/delivery-query.dto';
 import type { UpdateDeliveryStatusDto } from './dto/delivery.dto';
 import {
@@ -164,6 +165,61 @@ export class DeliveriesService {
     }
 
     return this.toDetail(order);
+  }
+
+  async createForCompletedTransaction(
+    user: AuthJwtPayload,
+    params: {
+      transactionId: string;
+      outletId: string;
+      customerId: string | null;
+      delivery: Pick<
+        CheckoutDeliveryFields,
+        | 'deliveryRequired'
+        | 'deliveryAddressId'
+        | 'deliveryAddressSnapshot'
+        | 'deliveryNotes'
+        | 'customerName'
+        | 'customerPhone'
+      >;
+    },
+  ): Promise<{ deliveryNo: string } | { error: string } | null> {
+    if (!params.delivery.deliveryRequired) {
+      return null;
+    }
+
+    const existing = await this.prisma.deliveryOrder.findFirst({
+      where: { transactionId: params.transactionId, tenantId: user.tenantId },
+      select: { deliveryNo: true },
+    });
+    if (existing) {
+      return { deliveryNo: existing.deliveryNo };
+    }
+
+    try {
+      const created = await this.create(user, {
+        transactionId: params.transactionId,
+        outletId: params.outletId,
+        customerId: params.customerId ?? undefined,
+        customerName: params.delivery.customerName,
+        customerPhone: params.delivery.customerPhone,
+        addressId: params.delivery.deliveryAddressId,
+        addressSnapshot: params.delivery.deliveryAddressSnapshot,
+        notes: params.delivery.deliveryNotes,
+        deliveryType: 'STORE_DIRECT',
+      });
+      return { deliveryNo: created.deliveryNo };
+    } catch (error) {
+      const response =
+        error && typeof error === 'object' && 'getResponse' in error
+          ? (error as { getResponse: () => unknown }).getResponse()
+          : null;
+      const message =
+        response && typeof response === 'object' && response !== null && 'message' in response
+          ? String((response as { message: unknown }).message)
+          : 'Pengiriman gagal dibuat.';
+      return { error: message };
+    }
   }
 
   async create(user: AuthJwtPayload, dto: CreateDeliveryOrderDto) {

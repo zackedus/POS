@@ -2,7 +2,7 @@ import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 import { CREDIT_TERMS_DAYS_OPTIONS, PaymentMethod } from '@barokah/shared';
 import { CheckoutItemDto } from './checkout-cash.dto';
-import { CheckoutCustomerFields } from './checkout-customer.dto';
+import { CheckoutDeliveryFields } from './checkout-delivery.dto';
 
 class CheckoutSplitPaymentDto {
   @IsIn([PaymentMethod.CASH, PaymentMethod.TRANSFER, PaymentMethod.QRIS, PaymentMethod.E_WALLET, PaymentMethod.CARD, PaymentMethod.CREDIT, PaymentMethod.DEPOSIT], {
@@ -20,7 +20,7 @@ class CheckoutSplitPaymentDto {
   reference?: string;
 }
 
-export class CheckoutSplitDto extends CheckoutCustomerFields {
+export class CheckoutSplitDto extends CheckoutDeliveryFields {
   @IsOptional()
   @IsUUID('4', { message: 'outletId harus UUID valid.' })
   outletId?: string;
