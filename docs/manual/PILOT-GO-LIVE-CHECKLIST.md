@@ -136,6 +136,61 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 | I2 | Coba tambah produk induk varian ke cart | Ditolak — pilih varian anak |
 | I3 | Spam refresh storefront (>10 req/detik) | HTTP 429 + pesan rate limit ID |
 
+### Skenario J — UAT Multi Cabang (15–20 menit)
+
+> **Referensi audit:** [OUTLET-DATA-INTEGRITY-AUDIT-2026-06](../domain/OUTLET-DATA-INTEGRITY-AUDIT-2026-06.md) — isolasi `outletId` per modul (perbaikan commit `8a80454`: picker POS, guard PO, shift scoped, checkout upsert).
+
+#### Prasyarat
+
+| # | Prasyarat | Cara verifikasi |
+|---|-----------|-----------------|
+| P1 | Minimal **2 cabang aktif** (seed: **Cabang Utama** ★, **Cabang Utara**) | Owner → [`/dashboard/outlets`](http://localhost:3001/dashboard/outlets) — kedua cabang status aktif |
+| P2 | **Stok berbeda** per cabang pada ≥1 produk uji (mis. Semen) | Inventori → adjust qty Cabang Utama vs Cabang Utara (contoh: 100 vs 85) |
+| P3 | **User assign per cabang** — owner semua cabang; manager single-outlet; kasir single-outlet | [`/dashboard/users`](http://localhost:3001/dashboard/users) — seed: manager & kasir → Cabang Utama saja; owner → kedua cabang |
+| P4 | API + web dev jalan | `http://localhost:3000` (API), `http://localhost:3001` (web) |
+
+#### Langkah UAT (step-by-step)
+
+| # | Langkah | Expected |
+|---|---------|----------|
+| **J1** | Login owner → `/dashboard/outlets` | Daftar cabang tampil: **Cabang Utama** (★ cabang utama), **Cabang Utara**, kode & status aktif |
+| **J2** | Owner → `/pos` → picker **Cabang Utama** → catat stok grid produk uji (mis. Semen) → ganti picker ke **Cabang Utara** | Grid refresh; qty stok **berbeda** sesuai P2 (bukan salinan cabang sebelumnya) |
+| **J3** | Pilih **Cabang Utara** → `/shift/open` → buka shift saldo `500000` → checkout 1× produk uji (tunai) | Shift aktif di Cabang Utara; stok produk uji **Cabang Utara −1**; stok **Cabang Utama tidak berubah** |
+| **J4** | Tanpa tutup shift Cabang Utara → di POS ganti picker ke **Cabang Utama** | Banner peringatan: *"Shift aktif di cabang lain…"*; checkout **diblokir** sampai buka shift di cabang terpilih atau tutup shift lama |
+| **J5** | Login **manager** (`manager@barokah.local`) → buat/lihat PO **Cabang Utara** (owner buat draft dulu jika perlu) → buka detail PO tersebut | HTTP **403 Forbidden** / pesan akses ditolak — manager hanya scope **Cabang Utama** |
+| **J6** | Manager → `/dashboard/purchase-orders` → buat PO **Cabang Utama** → Submit → **Terima** partial (mis. 10 unit) → cek `/dashboard/inventory` filter Cabang Utama | Stok Cabang Utama naik +10; stok Cabang Utara **tidak** ikut naik |
+| **J7** | Manager → `/dashboard/inventory` → tab **Transfer** → transfer 3 unit produk uji **Cabang Utama → Cabang Utara** | Cabang Utama −3, Cabang Utara +3; riwayat transfer tercatat |
+| **J8** | Owner → `/dashboard` → picker/filter cabang **Cabang Utara** → bandingkan ringkasan penjualan/stok dengan **Cabang Utama** | Angka dashboard & laporan harian mengikuti cabang terpilih (bukan agregat semua cabang tanpa filter) |
+| **J9** | Login **kasir** (`kasir@barokah.local`) → `/pos` | Picker cabang hanya menampilkan **Cabang Utama** (cabang assign); tidak ada opsi Cabang Utara |
+| **J10** | Storefront `/store/barokah-bangunan` → pilih **Cabang Utara** → order 1 produk → bayar mock → kasir `/pos/online-orders` → fulfill | Order terikat `outletId` Cabang Utara; stok berkurang di **Cabang Utara** saat COMPLETED; tidak double-deduct |
+
+#### Checklist centang — Skenario J
+
+- [ ] **J1** — Daftar cabang & cabang utama (★) terverifikasi
+- [ ] **J2** — POS: stok grid berbeda per cabang
+- [ ] **J3** — Shift + checkout kurangi stok cabang aktif saja
+- [ ] **J4** — Switch cabang → peringatan shift mismatch + checkout diblokir
+- [ ] **J5** — Manager single-outlet → PO cabang lain ditolak (403)
+- [ ] **J6** — PO terima → stok naik di cabang PO saja
+- [ ] **J7** — Transfer antar cabang atomic & saldo benar
+- [ ] **J8** — Dashboard/laporan filter per cabang konsisten
+- [ ] **J9** — Kasir hanya lihat cabang yang di-assign
+- [ ] **J10** — Online order fulfill dari cabang terkait (jika Fase 2 aktif)
+
+#### Go / No-Go — Multi Cabang (Citra → Budi)
+
+| Kriteria multi-outlet | Wajib pilot |
+|-----------------------|-------------|
+| Isolasi stok checkout per `outletId` (J2–J3) | Ya |
+| Shift scoped + warning mismatch (J4) | Ya |
+| Guard PO cross-outlet (J5–J6) | Ya |
+| Transfer antar cabang (J7) | Ya (jika ≥2 cabang operasional) |
+| Laporan filter cabang (J8) | Ya |
+| RBAC kasir single-outlet (J9) | Ya |
+| Online fulfill per cabang (J10) | Tidak (hanya jika storefront aktif) |
+
+**Keputusan multi-outlet:** ☐ GO ☐ NO-GO — tanggal: ___________
+
 ---
 
 ## 1. Infrastruktur (Yoga)
@@ -207,6 +262,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Playwright smoke CI green
 - [ ] [BUSINESS-LOGIC-E2E-VERIFICATION](../domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md) reviewed
 - [ ] Skenario UAT A–I di atas dijalankan manual
+- [ ] Skenario **J — UAT Multi Cabang** dijalankan manual (jika ≥2 cabang aktif)
 
 ## 10. Go / No-Go (Budi → Pak Zaki)
 
