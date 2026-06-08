@@ -158,6 +158,14 @@ export interface PurchaseOrderDetail extends PurchaseOrderSummary {
       baseQuantityRemoved: number;
     }>;
   }>;
+  payable: {
+    id: string;
+    amount: number;
+    paidAmount: number;
+    outstanding: number;
+    status: string;
+    dueDate: string | null;
+  } | null;
   print: {
     orderNo: string;
     orderedAt: string | null;

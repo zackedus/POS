@@ -11,6 +11,7 @@ import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
 import { useDeliveryBadge } from '@/hooks/useDeliveryBadge';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { useAdminTheme } from '@/hooks/useAdminTheme';
+import { fetchFinanceSummary } from '@/lib/finance-api';
 
 const SIDEBAR_WIDTH = 260;
 
@@ -40,12 +41,18 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/shift/close', label: 'Tutup Shift' },
       { href: '/dashboard/transactions', label: 'Void & Struk' },
       { href: '/dashboard/inventory', label: 'Stok' },
-      { href: '/dashboard/expenses', label: 'Pengeluaran' },
+      { href: '/dashboard/purchase-orders', label: 'Order Distributor' },
+    ],
+  },
+  {
+    title: 'Keuangan',
+    items: [
+      { href: '/dashboard/finance', label: 'Ringkasan Keuangan', exact: true },
       { href: '/dashboard/receivables', label: 'Piutang' },
       { href: '/dashboard/receivables/aging', label: 'Aging Piutang' },
       { href: '/dashboard/payables', label: 'Utang' },
       { href: '/dashboard/deposits', label: 'Deposit' },
-      { href: '/dashboard/purchase-orders', label: 'Order Distributor' },
+      { href: '/dashboard/expenses', label: 'Pengeluaran' },
     ],
   },
   {
@@ -90,6 +97,7 @@ const ICONS: Record<string, string> = {
   'Void & Struk': '↩',
   Stok: '▤',
   Pengeluaran: '◧',
+  'Ringkasan Keuangan': '◫',
   Piutang: '◨',
   Utang: '◩',
   Deposit: '◪',
@@ -180,6 +188,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/users')) return 'Manajemen Pengguna';
   if (pathname.startsWith('/dashboard/roles')) return 'Peran & Izin';
   if (pathname.startsWith('/dashboard/expenses')) return 'Pengeluaran Operasional';
+  if (pathname.startsWith('/dashboard/finance')) return 'Ringkasan Keuangan';
   if (pathname.startsWith('/dashboard/receivables')) return 'Piutang Pelanggan';
   if (pathname.startsWith('/dashboard/payables')) return 'Utang Supplier';
   if (pathname.startsWith('/dashboard/deposits')) return 'Deposit Pelanggan';
@@ -214,6 +223,23 @@ export function DashboardShell({
   const onlineOrderCount = useOnlineOrderBadge(true, { outletId: selectedOutletId });
   const deliveryCount = useDeliveryBadge(true, selectedOutletId);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [overdueReceivableCount, setOverdueReceivableCount] = useState(0);
+  const showFinanceBadge =
+    (user.role === 'OWNER' || user.role === 'MANAGER' || user.role === 'ACCOUNTANT') &&
+    overdueReceivableCount > 0;
+
+  useEffect(() => {
+    if (user.role !== 'OWNER' && user.role !== 'MANAGER' && user.role !== 'ACCOUNTANT') {
+      return;
+    }
+    if (needsOutletPick) {
+      setOverdueReceivableCount(0);
+      return;
+    }
+    void fetchFinanceSummary({ outletId: selectedOutletId ?? undefined })
+      .then((summary) => setOverdueReceivableCount(summary.receivablesOverdue))
+      .catch(() => setOverdueReceivableCount(0));
+  }, [user.role, selectedOutletId, needsOutletPick, pathname]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -407,7 +433,26 @@ export function DashboardShell({
             </button>
             <style>{`@media (max-width: 900px) { .mobile-menu-btn { display: block !important; } }`}</style>
             <div style={{ minWidth: 0 }}>
-              <h1 style={{ margin: 0, fontSize: '1.25rem', color: tokens.text }}>{title}</h1>
+              <h1 style={{ margin: 0, fontSize: '1.25rem', color: tokens.text, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {title}
+                {showFinanceBadge ? (
+                  <Link
+                    href="/dashboard/receivables?status=OVERDUE"
+                    title={`${overdueReceivableCount} piutang jatuh tempo`}
+                    style={{
+                      background: '#dc2626',
+                      color: '#fff',
+                      borderRadius: '999px',
+                      padding: '0.1rem 0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    {overdueReceivableCount > 99 ? '99+' : overdueReceivableCount} overdue
+                  </Link>
+                ) : null}
+              </h1>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: tokens.muted }}>
                 {user.tenantName} · {roleLabel(user.role)}
               </p>

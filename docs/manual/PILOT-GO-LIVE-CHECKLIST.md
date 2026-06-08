@@ -272,8 +272,15 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Void transaksi kredit/deposit — piutang VOID, deposit di-refund
 - [ ] **Aging piutang:** `/dashboard/receivables/aging` — bucket 0–30/31–60/61–90/90+ hari, ekspor CSV
 - [ ] **Statement pelanggan:** cetak dari `/dashboard/receivables/statement/:id` — saldo awal/akhir + deposit
-- [ ] **Dashboard finance widgets:** piutang, utang, deposit, kas hari ini di `/dashboard`
-- [ ] **Overdue banner:** piutang jatuh tempo tampil di dashboard + badge merah di daftar piutang
+- [ ] **Dashboard finance widgets:** piutang, utang, net position, deposit, kas hari ini di `/dashboard`
+- [ ] **Finance Hub terpadu:** `/dashboard/finance` — kartu AR/AP/net/deposit/kas + quick links + banner overdue AR & AP
+- [ ] **Sidebar Keuangan:** grup navigasi terpisah (Piutang, Utang, Aging, Deposit, Pengeluaran)
+- [ ] **Overdue banner:** piutang jatuh tempo tampil di dashboard + badge header manager + daftar piutang
+- [ ] **Overdue utang:** banner di dashboard/finance hub + filter `?status=OVERDUE` di `/dashboard/payables`
+- [ ] **Cross-link AR:** piutang → profil pelanggan, statement, transaksi kasir
+- [ ] **Cross-link AP:** utang → PO detail, supplier; PO detail → section utang + tombol catat utang
+- [ ] **Auto utang PO:** penerimaan barang otomatis buat payable; fallback manual dari PO detail
+- [ ] **Payment mix:** komposisi pembayaran harian include Tempo (CREDIT) dan Deposit
 - [ ] **POS credit UX:** limit kredit, piutang, deposit tampil jelas; tempo diblokir jika over limit
 - [ ] **Default limit 1 jt:** pelanggan baru otomatis limit Rp 1.000.000 (dashboard create + POS find-or-create)
 - [ ] **Picker pelanggan POS:** tombol "Pilih dari Daftar" — search nama/HP/kode member
@@ -287,7 +294,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 ## 7. Inventory & PO
 
 - [ ] UAT Skenario G di atas
-- [ ] **Utang supplier:** PO diterima → buat utang dari PO di `/dashboard/payables` → catat bayar supplier
+- [ ] **Utang supplier:** PO diterima → utang auto-create + kelola di `/dashboard/payables` → catat bayar supplier
 - [ ] Transfer stok antar cabang (jika multi-outlet)
 - [ ] Opname scan SKU/barcode
 

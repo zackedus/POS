@@ -70,9 +70,14 @@ function buildPo(overrides: Record<string, unknown> = {}) {
     ],
     receipts: [],
     returns: [],
+    payable: null,
     ...overrides,
   };
 }
+
+const payablesStub = {
+  createFromPurchaseOrder: async () => ({}),
+};
 
 test('PurchaseOrders: create draft stores dus line cost', async () => {
   let createdUnitCost: number | null = null;
@@ -110,7 +115,7 @@ test('PurchaseOrders: create draft stores dus line cost', async () => {
     },
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   await service.createPurchaseOrder(createUser(), {
     supplierId: 'sup-1',
     items: [{ productId: 'prod-paku', quantity: 2, unitId: 'unit-dus', unitCost: 375000 }],
@@ -132,7 +137,7 @@ test('PurchaseOrders: submit moves DRAFT to ORDERED', async () => {
     },
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   const result = await service.submitPurchaseOrder(createUser(), 'po-1');
   assert.equal(submittedStatus, 'ORDERED');
   assert.equal(result.status, 'ORDERED');
@@ -173,7 +178,7 @@ test('PurchaseOrders: partial receive updates stock, HPP, and status', async () 
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   const result = await service.receivePurchaseOrder(createUser(), 'po-1', {
     items: [{ purchaseOrderItemId: 'po-item-1', quantityReceived: 2, unitCost: 380000 }],
   });
@@ -220,7 +225,7 @@ test('PurchaseOrders: weighted average HPP on second partial receive (BL-09-01)'
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   await service.receivePurchaseOrder(createUser(), 'po-1', {
     items: [{ purchaseOrderItemId: 'po-item-1', quantityReceived: 10, unitCost: 72000 }],
   });
@@ -260,7 +265,7 @@ test('PurchaseOrders: full receive sets RECEIVED status', async () => {
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   const result = await service.receivePurchaseOrder(createUser(), 'po-1', {
     items: [{ purchaseOrderItemId: 'po-item-1', quantityReceived: 4, unitCost: 375000 }],
   });
@@ -323,7 +328,7 @@ test('PurchaseOrders: return received qty decreases stock and tracks returned', 
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   const result = await service.createPurchaseOrderReturn(createUser(), 'po-1', {
     notes: 'Retur rusak',
     items: [{ purchaseOrderItemId: 'po-item-1', quantityReturned: 2, reason: 'DAMAGED' }],
@@ -349,7 +354,7 @@ test('PurchaseOrders: cannot return more than returnable qty', async () => {
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   await assert.rejects(
     () =>
       service.createPurchaseOrderReturn(createUser(), 'po-1', {
@@ -403,7 +408,7 @@ test('PurchaseOrders: multi-unit return converts to base stock deduction', async
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   await service.createPurchaseOrderReturn(createUser(), 'po-1', {
     items: [{ purchaseOrderItemId: 'po-item-1', quantityReturned: 0.5, reason: 'WRONG_ITEM' }],
   });
@@ -439,7 +444,7 @@ test('PurchaseOrders: cancel remaining unreceived lines', async () => {
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   const result = await service.cancelRemainingPurchaseOrder(createUser(), 'po-1');
   assert.equal(updatedOrdered, 4);
   assert.equal(result.status, 'RECEIVED');

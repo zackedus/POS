@@ -54,12 +54,15 @@ export interface ReceivableAgingReport {
 }
 
 export interface FinanceSummary {
-  receivableOutstanding: number;
-  payableOutstanding: number;
-  depositBalance: number;
+  receivablesOutstanding: number;
+  receivablesOverdue: number;
+  receivablesOverdueAmount: number;
+  payablesOutstanding: number;
+  payablesOverdue: number;
+  payablesOverdueAmount: number;
+  depositsOutstanding: number;
   cashToday: number;
-  overdueReceivableCount: number;
-  overdueReceivableAmount: number;
+  netPosition: number;
   date: string;
   outletId: string | null;
 }

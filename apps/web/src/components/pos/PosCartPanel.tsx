@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { formatCurrencyIDR, parseQuantityInput } from '@barokah/shared';
 import { Button, CurrencyInput, QuantityInput } from '@barokah/ui';
 import type { CartMarginWarning, CartStockIssue } from '@/lib/cart-margin';
@@ -638,6 +639,14 @@ export function PosCartPanel({
                   Piutang outstanding:{' '}
                   <strong>{formatCurrencyIDR(customerReceivableOutstanding ?? 0)}</strong>
                 </div>
+                {customerLinked && customerId && (customerReceivableOutstanding ?? 0) > 0 ? (
+                  <Link
+                    href={`/dashboard/customers/${customerId}?tab=piutang`}
+                    style={{ fontSize: '0.75rem', color: '#2563eb' }}
+                  >
+                    Detail piutang di dashboard →
+                  </Link>
+                ) : null}
                 {(customerReceivableOutstanding ?? 0) > 0 && onOpenReceivablePayment ? (
                   <Button
                     type="button"

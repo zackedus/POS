@@ -7,6 +7,8 @@ import { InventoryService } from './inventory/inventory.service';
 import { PurchaseOrdersService } from './suppliers/purchase-orders.service';
 import { TransactionsService } from './transactions/transactions.service';
 
+const payablesStub = { createFromPurchaseOrder: async () => ({}) };
+
 function cashier(outletIds: string[]): AuthJwtPayload {
   return {
     sub: 'cashier-1',
@@ -57,7 +59,7 @@ test('Outlet isolation: PO detail blocked for outlet outside cashier scope', asy
     },
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   await assert.rejects(
     () => service.getPurchaseOrder(cashier(['outlet-main']), 'po-north'),
     (error: unknown) => error instanceof ForbiddenException,
@@ -94,7 +96,7 @@ test('Outlet isolation: manager may access PO on unassigned tenant outlet', asyn
     },
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   const result = await service.getPurchaseOrder(manager(['outlet-main']), 'po-north');
   assert.equal(result.id, 'po-north');
 });
@@ -347,7 +349,7 @@ test('Outlet isolation: PO receive targets PO outlet inventory', async () => {
       }),
   };
 
-  const service = new PurchaseOrdersService(prisma as never);
+  const service = new PurchaseOrdersService(prisma as never, payablesStub as never);
   await service.receivePurchaseOrder(manager(['outlet-main']), 'po-main', {
     items: [{ purchaseOrderItemId: 'po-item-1', quantityReceived: 2 }],
   });

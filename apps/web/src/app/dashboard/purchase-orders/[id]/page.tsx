@@ -14,6 +14,7 @@ import {
   cardStyle,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { createPayableFromPo } from '@/lib/payables-api';
 import {
   PO_RETURN_REASON_LABELS,
   PO_STATUS_LABELS,
@@ -115,6 +116,25 @@ export default function PurchaseOrderDetailPage() {
   const canReturn = order.items.some((item) => item.returnableQuantity > 0);
   const canCancelRemaining = order.items.some((item) => item.remainingQuantity > 0) &&
     (order.status === 'ORDERED' || order.status === 'PARTIALLY_RECEIVED');
+  const canCreatePayable =
+    !order.payable &&
+    (order.status === 'RECEIVED' || order.status === 'PARTIALLY_RECEIVED');
+
+  async function handleCreatePayable() {
+    if (!order) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await createPayableFromPo(order.id);
+      setSuccess('Utang supplier berhasil dicatat dari PO ini.');
+      await loadOrder();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal membuat utang dari PO.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div style={{ maxWidth: 960, display: 'grid', gap: '1.25rem' }}>
@@ -199,6 +219,48 @@ export default function PurchaseOrderDetailPage() {
         </div>
         {order.notes ? <p style={{ margin: 0, color: '#334155' }}>{order.notes}</p> : null}
       </section>
+
+      {(order.payable || canCreatePayable) && order.status !== 'DRAFT' && order.status !== 'CANCELLED' ? (
+        <section style={{ ...cardStyle(), display: 'grid', gap: '0.75rem' }}>
+          <h3 style={{ margin: 0 }}>Utang Supplier</h3>
+          {order.payable ? (
+            <div style={{ display: 'grid', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <StatusBadge
+                  variant={order.payable.status === 'PAID' ? 'success' : 'warning'}
+                  label={order.payable.status}
+                />
+                <span>
+                  Total {formatCurrencyIDR(order.payable.amount)} · Sisa{' '}
+                  <strong>{formatCurrencyIDR(order.payable.outstanding)}</strong>
+                </span>
+                {order.payable.dueDate ? (
+                  <span style={{ color: '#64748b', fontSize: '0.875rem' }}>
+                    Jatuh tempo: {order.payable.dueDate}
+                  </span>
+                ) : null}
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.875rem' }}>
+                <Link href="/dashboard/payables" style={{ color: '#2563eb' }}>
+                  Kelola utang →
+                </Link>
+                <Link href={`/dashboard/purchase-orders?supplier=${order.supplier.id}`} style={{ color: '#2563eb' }}>
+                  Supplier: {order.supplier.name} →
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>
+                PO sudah diterima — catat utang ke supplier berdasarkan nilai penerimaan.
+              </p>
+              <Button type="button" variant="primary" disabled={saving} onClick={() => void handleCreatePayable()}>
+                {saving ? 'Memproses…' : 'Buat / Catat Utang'}
+              </Button>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section style={cardStyle()}>
         <h3 style={{ margin: '0 0 1rem' }}>Barang Order</h3>

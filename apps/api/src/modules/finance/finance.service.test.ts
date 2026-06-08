@@ -231,12 +231,47 @@ test('Finance summary: aggregates outstanding totals', async () => {
     { tenantId: 'tenant-1', sub: 'user-1', role: 'OWNER', outletIds: ['outlet-1'] } as never,
     { outletId: 'outlet-1', date: '2026-06-09' },
   );
-  assert.equal(result.receivableOutstanding, 130_000);
-  assert.equal(result.payableOutstanding, 150_000);
-  assert.equal(result.depositBalance, 75_000);
+  assert.equal(result.receivablesOutstanding, 130_000);
+  assert.equal(result.payablesOutstanding, 150_000);
+  assert.equal(result.depositsOutstanding, 75_000);
   assert.equal(result.cashToday, 340_000);
-  assert.equal(result.overdueReceivableCount, 1);
-  assert.equal(result.overdueReceivableAmount, 50_000);
+  assert.equal(result.receivablesOverdue, 1);
+  assert.equal(result.receivablesOverdueAmount, 50_000);
+  assert.equal(result.netPosition, -20_000);
+});
+
+test('Finance summary: includes payables overdue count', async () => {
+  const prisma = {
+    receivable: {
+      findMany: async () => [],
+    },
+    payable: {
+      findMany: async (args: { where: { dueDate?: unknown } }) => {
+        if (args.where.dueDate) {
+          return [
+            { amount: { toString: () => '100000' }, paidAmount: { toString: () => '0' } },
+            { amount: { toString: () => '80000' }, paidAmount: { toString: () => '30000' } },
+          ];
+        }
+        return [{ amount: { toString: () => '200000' }, paidAmount: { toString: () => '50000' } }];
+      },
+    },
+    customerDeposit: {
+      aggregate: async () => ({ _sum: { balance: null } }),
+    },
+    payment: {
+      groupBy: async () => [],
+    },
+  };
+  const service = new FinanceSummaryService(prisma as never);
+  const result = await service.getSummary(
+    { tenantId: 'tenant-1', sub: 'user-1', role: 'OWNER', outletIds: ['outlet-1'] } as never,
+    {},
+  );
+  assert.equal(result.payablesOverdue, 2);
+  assert.equal(result.payablesOverdueAmount, 150_000);
+  assert.equal(result.payablesOutstanding, 150_000);
+  assert.equal(result.netPosition, -150_000);
 });
 
 test('Finance summary: customer statement opening balance', async () => {

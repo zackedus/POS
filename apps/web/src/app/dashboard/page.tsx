@@ -259,12 +259,22 @@ export default function DashboardHomePage() {
 
       {exportMessage ? <AlertBanner variant="success">{exportMessage}</AlertBanner> : null}
 
-      {financeSummary && financeSummary.overdueReceivableCount > 0 ? (
+      {financeSummary && financeSummary.receivablesOverdue > 0 ? (
         <AlertBanner variant="error">
-          <strong>{financeSummary.overdueReceivableCount} piutang jatuh tempo</strong> — total{' '}
-          {formatCurrencyIDR(financeSummary.overdueReceivableAmount)}.{' '}
+          <strong>{financeSummary.receivablesOverdue} piutang jatuh tempo</strong> — total{' '}
+          {formatCurrencyIDR(financeSummary.receivablesOverdueAmount)}.{' '}
           <Link href="/dashboard/receivables?status=OVERDUE" style={{ color: 'inherit', fontWeight: 600 }}>
             Lihat daftar →
+          </Link>
+        </AlertBanner>
+      ) : null}
+
+      {financeSummary && financeSummary.payablesOverdue > 0 ? (
+        <AlertBanner variant="warning">
+          <strong>{financeSummary.payablesOverdue} utang supplier jatuh tempo</strong> — total{' '}
+          {formatCurrencyIDR(financeSummary.payablesOverdueAmount)}.{' '}
+          <Link href="/dashboard/payables?status=OVERDUE" style={{ color: 'inherit', fontWeight: 600 }}>
+            Lihat utang →
           </Link>
         </AlertBanner>
       ) : null}
@@ -272,21 +282,30 @@ export default function DashboardHomePage() {
       {reminderMessage ? <AlertBanner variant="success">{reminderMessage}</AlertBanner> : null}
 
       {financeSummary ? (
-        <SectionCard title="Ringkasan Keuangan" description="Piutang, utang, deposit, dan kas tunai hari ini.">
+        <SectionCard
+          title="Ringkasan Keuangan"
+          description="Piutang, utang, deposit, kas tunai, dan posisi net."
+        >
           <div style={{ ...gridStyle, marginBottom: '0.75rem' }}>
             <StatCard
               label="Total Piutang"
-              value={formatCurrencyIDR(financeSummary.receivableOutstanding)}
-              accent={financeSummary.receivableOutstanding > 0 ? 'warning' : 'success'}
+              value={formatCurrencyIDR(financeSummary.receivablesOutstanding)}
+              accent={financeSummary.receivablesOutstanding > 0 ? 'warning' : 'success'}
             />
             <StatCard
               label="Total Utang"
-              value={formatCurrencyIDR(financeSummary.payableOutstanding)}
-              accent={financeSummary.payableOutstanding > 0 ? 'warning' : 'default'}
+              value={formatCurrencyIDR(financeSummary.payablesOutstanding)}
+              accent={financeSummary.payablesOutstanding > 0 ? 'warning' : 'default'}
+            />
+            <StatCard
+              label="Posisi Net"
+              value={formatCurrencyIDR(financeSummary.netPosition)}
+              accent={financeSummary.netPosition >= 0 ? 'success' : 'error'}
+              hint="Piutang − utang"
             />
             <StatCard
               label="Saldo Deposit"
-              value={formatCurrencyIDR(financeSummary.depositBalance)}
+              value={formatCurrencyIDR(financeSummary.depositsOutstanding)}
             />
             <StatCard
               label="Kas Hari Ini"
@@ -296,6 +315,9 @@ export default function DashboardHomePage() {
             />
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem', fontSize: '0.8125rem' }}>
+            <Link href="/dashboard/finance" style={{ color: '#2563eb', fontWeight: 600 }}>
+              Hub Keuangan →
+            </Link>
             <Link href="/dashboard/receivables" style={{ color: '#2563eb' }}>
               Detail piutang →
             </Link>
@@ -312,7 +334,7 @@ export default function DashboardHomePage() {
                 Aging Piutang
               </Button>
             </Link>
-            {financeSummary.overdueReceivableCount > 0 ? (
+            {financeSummary.receivablesOverdue > 0 ? (
               <Button
                 type="button"
                 variant="secondary"

@@ -17,6 +17,7 @@ import {
 import { PrismaService } from '../../common/database/prisma.service';
 import { assertOutletAccess, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { PayablesService } from '../finance/payables.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { CreatePurchaseOrderReturnDto } from './dto/create-purchase-order-return.dto';
 import { ListPurchaseOrdersQueryDto } from './dto/list-purchase-orders-query.dto';
@@ -90,6 +91,15 @@ const PO_INCLUDE = {
       },
     },
   },
+  payable: {
+    select: {
+      id: true,
+      amount: true,
+      paidAmount: true,
+      status: true,
+      dueDate: true,
+    },
+  },
 };
 
 const RETURN_INCLUDE = {
@@ -145,7 +155,10 @@ type ProductWithUnits = {
 
 @Injectable()
 export class PurchaseOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly payablesService: PayablesService,
+  ) {}
 
   async listPurchaseOrders(user: AuthJwtPayload, query: ListPurchaseOrdersQueryDto) {
     const outletId = resolveOutletId(user, query.outletId);
@@ -485,7 +498,23 @@ export class PurchaseOrdersService {
       });
     });
 
-    return this.mapPurchaseOrderDetail(updated as PurchaseOrderWithDetails);
+    const detail = this.mapPurchaseOrderDetail(updated as PurchaseOrderWithDetails);
+
+    if (detail.status === 'RECEIVED' || detail.status === 'PARTIALLY_RECEIVED') {
+      try {
+        await this.payablesService.createFromPurchaseOrder(user, purchaseOrderId, {});
+      } catch (error) {
+        const response =
+          error instanceof UnprocessableEntityException || error instanceof ConflictException
+            ? (error.getResponse() as { code?: string })
+            : null;
+        if (response?.code !== ErrorCodes.DUPLICATE_ENTRY) {
+          throw error;
+        }
+      }
+    }
+
+    return detail;
   }
 
   async listPurchaseOrderReturns(user: AuthJwtPayload, purchaseOrderId: string) {
@@ -974,6 +1003,16 @@ export class PurchaseOrdersService {
           baseQuantityRemoved: Number(line.baseQuantityRemoved),
         })),
       })),
+      payable: po.payable
+        ? {
+            id: po.payable.id,
+            amount: Number(po.payable.amount),
+            paidAmount: Number(po.payable.paidAmount),
+            outstanding: Math.max(0, Number(po.payable.amount) - Number(po.payable.paidAmount)),
+            status: po.payable.status,
+            dueDate: po.payable.dueDate?.toISOString().slice(0, 10) ?? null,
+          }
+        : null,
       print: {
         orderNo: po.orderNo,
         orderedAt: po.orderedAt?.toISOString() ?? null,

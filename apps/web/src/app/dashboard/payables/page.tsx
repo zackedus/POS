@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
 import { Button, CurrencyInput } from '@barokah/ui';
 import {
@@ -23,12 +25,13 @@ import {
 } from '@/lib/payables-api';
 
 export default function PayablesPage() {
+  const searchParams = useSearchParams();
   const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [rows, setRows] = useState<PayableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') ?? '');
   const [payForm, setPayForm] = useState<{ payableId: string; amount: string; method: string }>({
     payableId: '',
     amount: '',
@@ -91,7 +94,17 @@ export default function PayablesPage() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gap: '1.25rem' }}>
-      <PageHeader title="Utang Supplier" description="Hutang ke distributor — buat dari PO atau manual, catat pembayaran." />
+      <PageHeader
+        title="Utang Supplier"
+        description="Hutang ke distributor — otomatis dari PO atau manual, catat pembayaran."
+        actions={
+          <Link href="/dashboard/finance">
+            <Button type="button" variant="secondary">
+              Hub Keuangan
+            </Button>
+          </Link>
+        }
+      />
       {error && <AlertBanner variant="error">{error}</AlertBanner>}
       {success && <AlertBanner variant="success">{success}</AlertBanner>}
       {needsOutletPick ? (
@@ -172,8 +185,29 @@ export default function PayablesPage() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id}>
-                    <td style={tableStyles.td}>{row.supplier?.name ?? '—'}</td>
-                    <td style={tableStyles.td}>{row.purchaseOrder?.orderNo ?? '—'}</td>
+                    <td style={tableStyles.td}>
+                      <div>{row.supplier?.name ?? '—'}</div>
+                      {row.supplierId ? (
+                        <Link
+                          href={`/dashboard/purchase-orders?supplierId=${row.supplierId}`}
+                          style={{ fontSize: '0.75rem', color: '#2563eb' }}
+                        >
+                          Lihat PO supplier →
+                        </Link>
+                      ) : null}
+                    </td>
+                    <td style={tableStyles.td}>
+                      {row.purchaseOrder?.orderNo ? (
+                        <Link
+                          href={`/dashboard/purchase-orders/${row.purchaseOrder.id}`}
+                          style={{ color: '#2563eb' }}
+                        >
+                          {row.purchaseOrder.orderNo}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td style={tableStyles.td}>{formatCurrencyIDR(row.amount)}</td>
                     <td style={tableStyles.td}>{formatCurrencyIDR(row.outstanding)}</td>
                     <td style={tableStyles.td}>

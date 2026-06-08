@@ -563,6 +563,14 @@ function ReceivablesTab({
                 Catat Pembayaran
               </Button>
             ) : null}
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.75rem', fontSize: '0.875rem' }}>
+              <Link href={`/dashboard/receivables?customerId=${customerId}`} style={{ color: '#2563eb' }}>
+                Daftar piutang →
+              </Link>
+              <Link href={`/dashboard/receivables/statement/${customerId}`} style={{ color: '#2563eb' }}>
+                Cetak statement →
+              </Link>
+            </div>
           </div>
 
           {summary.receivables.length === 0 ? (
@@ -580,7 +588,19 @@ function ReceivablesTab({
               <tbody>
                 {summary.receivables.map((row) => (
                   <tr key={row.id} style={{ borderBottom: `1px solid ${tokens.cardBorder}` }}>
-                    <td style={{ padding: '0.5rem' }}>{row.transaction?.receiptNo ?? row.id.slice(0, 8)}</td>
+                    <td style={{ padding: '0.5rem' }}>
+                      {row.transaction?.receiptNo ?? row.id.slice(0, 8)}
+                      {row.transactionId ? (
+                        <div>
+                          <Link
+                            href={`/dashboard/transactions?receiptNo=${encodeURIComponent(row.transaction?.receiptNo ?? '')}`}
+                            style={{ fontSize: '0.75rem', color: '#2563eb' }}
+                          >
+                            Lihat transaksi
+                          </Link>
+                        </div>
+                      ) : null}
+                    </td>
                     <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatCurrencyIDR(row.outstanding)}</td>
                     <td style={{ padding: '0.5rem' }}>{row.dueDate ?? '—'}</td>
                     <td style={{ padding: '0.5rem' }}>{row.status}</td>

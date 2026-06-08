@@ -92,6 +92,8 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PaymentMethod.QRIS]: 'QRIS',
   [PaymentMethod.E_WALLET]: 'E-Wallet',
   [PaymentMethod.CARD]: 'Kartu',
+  [PaymentMethod.CREDIT]: 'Tempo / Piutang',
+  [PaymentMethod.DEPOSIT]: 'Deposit',
 };
 
 function todayIsoDate(): string {

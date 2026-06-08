@@ -21,6 +21,8 @@ const PAYMENT_METHOD_ORDER: PaymentMethod[] = [
   PaymentMethod.QRIS,
   PaymentMethod.E_WALLET,
   PaymentMethod.CARD,
+  PaymentMethod.CREDIT,
+  PaymentMethod.DEPOSIT,
 ];
 
 type PaymentMixRow = {

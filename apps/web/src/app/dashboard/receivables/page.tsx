@@ -144,6 +144,11 @@ export default function ReceivablesPage() {
         description="Tagihan tempo / kredit — catat pelunasan di kasir atau dashboard."
         actions={
           <>
+            <Link href="/dashboard/finance">
+              <Button type="button" variant="secondary">
+                Hub Keuangan
+              </Button>
+            </Link>
             <Link href="/dashboard/receivables/aging">
               <Button type="button" variant="secondary">
                 Aging Piutang
@@ -322,12 +327,28 @@ export default function ReceivablesPage() {
                       <div>{row.customer?.name ?? '—'}</div>
                       <small>{row.customer?.phone}</small>
                       {row.customer?.id ? (
-                        <div style={{ marginTop: 4 }}>
+                        <div style={{ marginTop: 4, display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <Link
+                            href={`/dashboard/customers/${row.customer.id}?tab=piutang`}
+                            style={{ fontSize: '0.75rem', color: '#2563eb' }}
+                          >
+                            Profil pelanggan
+                          </Link>
                           <Link
                             href={`/dashboard/receivables/statement/${row.customer.id}`}
                             style={{ fontSize: '0.75rem', color: '#2563eb' }}
                           >
                             Cetak Statement
+                          </Link>
+                        </div>
+                      ) : null}
+                      {row.transaction?.receiptNo && row.transactionId ? (
+                        <div style={{ marginTop: 4 }}>
+                          <Link
+                            href={`/dashboard/transactions?receiptNo=${encodeURIComponent(row.transaction.receiptNo)}`}
+                            style={{ fontSize: '0.75rem', color: '#2563eb' }}
+                          >
+                            Transaksi: {row.transaction.receiptNo}
                           </Link>
                         </div>
                       ) : null}

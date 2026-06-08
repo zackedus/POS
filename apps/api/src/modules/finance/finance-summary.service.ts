@@ -28,21 +28,24 @@ export class FinanceSummaryService {
       ...(outletId ? { outletId } : {}),
     };
 
-    const [receivableRows, payableRows, depositAgg, overdueRows, cashPayments] = await Promise.all([
+    const payableWhere: Prisma.PayableWhereInput = {
+      tenantId,
+      status: { in: ['OPEN', 'PARTIAL'] },
+      ...(outletId
+        ? {
+            OR: [{ purchaseOrder: { outletId } }, { poId: null }],
+          }
+        : {}),
+    };
+
+    const [receivableRows, payableRows, depositAgg, overdueReceivableRows, overduePayableRows, cashPayments] =
+      await Promise.all([
       this.prisma.receivable.findMany({
         where: receivableWhere,
         select: { amount: true, paidAmount: true },
       }),
       this.prisma.payable.findMany({
-        where: {
-          tenantId,
-          status: { in: ['OPEN', 'PARTIAL'] },
-          ...(outletId
-            ? {
-                OR: [{ purchaseOrder: { outletId } }, { poId: null }],
-              }
-            : {}),
-        },
+        where: payableWhere,
         select: { amount: true, paidAmount: true },
       }),
       this.prisma.customerDeposit.aggregate({
@@ -52,6 +55,13 @@ export class FinanceSummaryService {
       this.prisma.receivable.findMany({
         where: {
           ...receivableWhere,
+          dueDate: { lt: today },
+        },
+        select: { amount: true, paidAmount: true },
+      }),
+      this.prisma.payable.findMany({
+        where: {
+          ...payableWhere,
           dueDate: { lt: today },
         },
         select: { amount: true, paidAmount: true },
@@ -79,20 +89,24 @@ export class FinanceSummaryService {
         0,
       );
 
-    const receivableOutstanding = sumOutstanding(receivableRows);
-    const payableOutstanding = sumOutstanding(payableRows);
-    const depositBalance = toIdrInteger(depositAgg._sum.balance);
-    const overdueReceivableAmount = sumOutstanding(overdueRows);
+    const receivablesOutstanding = sumOutstanding(receivableRows);
+    const payablesOutstanding = sumOutstanding(payableRows);
+    const depositsOutstanding = toIdrInteger(depositAgg._sum.balance);
+    const receivablesOverdueAmount = sumOutstanding(overdueReceivableRows);
+    const payablesOverdueAmount = sumOutstanding(overduePayableRows);
     const cashToday =
       cashPayments.length > 0 ? toIdrInteger(cashPayments[0]?._sum.amount) : 0;
 
     return {
-      receivableOutstanding,
-      payableOutstanding,
-      depositBalance,
+      receivablesOutstanding,
+      receivablesOverdue: overdueReceivableRows.length,
+      receivablesOverdueAmount,
+      payablesOutstanding,
+      payablesOverdue: overduePayableRows.length,
+      payablesOverdueAmount,
+      depositsOutstanding,
       cashToday,
-      overdueReceivableCount: overdueRows.length,
-      overdueReceivableAmount,
+      netPosition: receivablesOutstanding - payablesOutstanding,
       date: range.date,
       outletId,
     };
