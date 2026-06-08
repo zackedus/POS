@@ -1,7 +1,9 @@
 import { Decimal } from '@prisma/client/runtime/library';
 
 /** Convert Prisma Decimal / number to integer IDR for API responses. */
-export function toIdrInteger(value: Decimal | number | null | undefined): number {
+export function toIdrInteger(
+  value: Decimal | number | { toString(): string } | null | undefined,
+): number {
   if (value == null) {
     return 0;
   }

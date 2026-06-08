@@ -90,16 +90,36 @@ export class CustomersService {
     const normalizedPhone = normalizePhone(phone);
     const row = await this.prisma.customer.findUnique({
       where: { tenantId_phone: { tenantId, phone: normalizedPhone } },
-      select: { id: true, name: true, phone: true, points: true },
+      select: { id: true, name: true, phone: true, points: true, creditLimit: true },
     });
     if (!row) {
       return null;
     }
+    const deposit = await this.prisma.customerDeposit.findUnique({
+      where: { customerId: row.id },
+      select: { balance: true, status: true },
+    });
+    const receivableAgg = await this.prisma.receivable.aggregate({
+      where: { tenantId, customerId: row.id, status: { in: ['OPEN', 'PARTIAL'] } },
+      _sum: { amount: true, paidAmount: true },
+    });
+    const receivableOutstanding = Math.max(
+      0,
+      toIdrInteger(receivableAgg._sum.amount ?? 0) - toIdrInteger(receivableAgg._sum.paidAmount ?? 0),
+    );
     return {
       id: row.id,
       name: row.name,
       phone: row.phone,
       points: row.points,
+      creditLimit: row.creditLimit != null ? toIdrInteger(row.creditLimit) : null,
+      receivableOutstanding,
+      depositBalance:
+        deposit && deposit.status === 'ACTIVE' ? toIdrInteger(deposit.balance) : 0,
+      creditAvailable:
+        row.creditLimit != null
+          ? Math.max(0, toIdrInteger(row.creditLimit) - receivableOutstanding)
+          : null,
     };
   }
 

@@ -24,6 +24,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { PromoModule } from './modules/promo/promo.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { RolesModule } from './modules/roles/roles.module';
     PromoModule,
     CustomersModule,
     RolesModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

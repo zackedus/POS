@@ -200,6 +200,13 @@ test('Outlet isolation: checkout on outlet A does not deduct outlet B stock', as
         loyaltyRedeemMaxPercent: 50,
       }),
     } as never,
+    {
+      getCustomerOutstandingReceivableIdr: async () => 0,
+      getCustomerDepositBalanceIdr: async () => 0,
+      assertCheckoutFinancePayments: () => undefined,
+      applyCheckoutFinanceInTransaction: async () => undefined,
+      reverseFinanceForVoid: async () => undefined,
+    } as never,
   );
   await service.checkoutCash(manager(['outlet-a', 'outlet-b']), {
     outletId: 'outlet-a',
@@ -219,7 +226,13 @@ test('Outlet isolation: checkout rejected without active shift on outlet', async
     shift: { findFirst: async () => null },
     transaction: { findFirst: async () => null },
   };
-  const service = new TransactionsService(prisma as never, {} as never, {} as never);
+  const service = new TransactionsService(prisma as never, {} as never, {} as never, {
+    getCustomerOutstandingReceivableIdr: async () => 0,
+    getCustomerDepositBalanceIdr: async () => 0,
+    assertCheckoutFinancePayments: () => undefined,
+    applyCheckoutFinanceInTransaction: async () => undefined,
+    reverseFinanceForVoid: async () => undefined,
+  } as never);
 
   await assert.rejects(
     () =>

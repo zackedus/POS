@@ -418,6 +418,82 @@ Log audit append-only untuk aksi sensitif sistem.
 
 ---
 
+## Modul Piutang, Utang & Deposit (Fase 2 — Jun 2026)
+
+> Spec lengkap: [`docs/domain/CREDIT-DEPOSIT-MODULE.md`](../domain/CREDIT-DEPOSIT-MODULE.md)
+
+### customers (extended)
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| credit_limit | Decimal(15,2) nullable | Limit kredit tempo; null = unlimited, 0 = tidak boleh tempo |
+
+### receivables
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| id | UUID PK | |
+| tenant_id | UUID FK | Scope tenant |
+| customer_id | UUID FK | Pelanggan berutang |
+| outlet_id | UUID FK nullable | Opsional — laporan per cabang |
+| transaction_id | UUID FK unique nullable | Transaksi POS kredit |
+| amount | Decimal(15,2) | Nominal piutang |
+| paid_amount | Decimal(15,2) | Terbayar (derived via payments) |
+| status | ReceivableStatus | OPEN, PARTIAL, PAID, VOID |
+| due_date | Date nullable | Jatuh tempo |
+
+### receivable_payments
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| receivable_id | UUID FK | |
+| amount | Decimal(15,2) | Nominal bayar |
+| method | PaymentMethod | CASH, TRANSFER, QRIS, dll. |
+| recorded_by_id | UUID FK | User pencatat |
+
+### payables
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| supplier_id | UUID FK | Supplier |
+| po_id | UUID FK unique nullable | Satu utang per PO |
+| amount / paid_amount / status / due_date | | Mirror receivables pattern |
+
+### customer_deposits
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| customer_id | UUID unique | Satu akun per pelanggan |
+| balance | Decimal(15,2) | Saldo cache (sync dengan ledger) |
+| status | DepositAccountStatus | ACTIVE, CLOSED |
+
+### deposit_transactions
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| type | DepositTransactionType | TOP_UP, APPLY, REFUND |
+| amount | Decimal(15,2) | Nominal mutasi |
+| balance_after | Decimal(15,2) | Saldo setelah mutasi |
+| reference_type / reference_id | String nullable | e.g. transaction apply |
+
+### PaymentMethod (extended)
+
+| Value | Deskripsi |
+|-------|-----------|
+| CREDIT | Piutang / jual tempo (POS checkout) |
+| DEPOSIT | Apply saldo deposit pelanggan |
+
+### ReceivableStatus / PayableStatus
+
+| Value | Deskripsi |
+|-------|-----------|
+| OPEN | Belum ada pembayaran |
+| PARTIAL | Sebagian terbayar |
+| PAID | Lunas |
+| VOID | Dibatalkan (void transaksi / manual) |
+
+---
+
 ## Referensi
 
 - Analisis database: `docs/database/DATABASE-ANALYSIS.md`

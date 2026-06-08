@@ -59,7 +59,7 @@ export interface CartItem {
   }>;
 }
 
-export type PaymentMode = 'CASH' | 'TRANSFER' | 'QRIS' | 'SPLIT';
+export type PaymentMode = 'CASH' | 'TRANSFER' | 'QRIS' | 'SPLIT' | 'CREDIT' | 'DEPOSIT';
 
 export interface HeldTransactionSummary {
   id: string;

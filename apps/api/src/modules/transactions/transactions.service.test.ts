@@ -30,6 +30,16 @@ function patchInventoryUpsert(client: Record<string, unknown>) {
   }
 }
 
+function createFinanceCheckoutStub() {
+  return {
+    getCustomerOutstandingReceivableIdr: async () => 0,
+    getCustomerDepositBalanceIdr: async () => 0,
+    assertCheckoutFinancePayments: () => undefined,
+    applyCheckoutFinanceInTransaction: async () => undefined,
+    reverseFinanceForVoid: async () => undefined,
+  };
+}
+
 function createTransactionsService(prisma: unknown) {
   const source = prisma as Record<string, unknown>;
   patchInventoryUpsert(source);
@@ -51,6 +61,7 @@ function createTransactionsService(prisma: unknown) {
     withDefaults as never,
     createPromoServiceStub() as never,
     createCustomersServiceStub() as never,
+    createFinanceCheckoutStub() as never,
   );
 }
 
@@ -1404,7 +1415,7 @@ test('Transactions: checkoutSplit applies promo discount to total', async () => 
     }),
   };
   const prisma = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
-  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never);
+  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never, createFinanceCheckoutStub() as never);
 
   const result = await service.checkoutSplit(createUser(), {
     outletId: 'outlet-1',
@@ -1427,7 +1438,7 @@ test('Phase 8 BL-08-01: checkoutSplit promo + multi-unit same cart', async () =>
     }),
   };
   const prisma = checkoutPrismaMock({ product: pakuProduct(), stockQty: 100 });
-  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never);
+  const service = new TransactionsService(prisma as never, promoService as never, createCustomersServiceStub() as never, createFinanceCheckoutStub() as never);
 
   const result = await service.checkoutSplit(createUser(), {
     outletId: 'outlet-1',
@@ -1644,6 +1655,7 @@ test('Edge BL-EC-03: checkoutSplit stacks promo discount + loyalty redeem (not p
   };
   const base = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
   const customerStub = {
+    findFirst: async () => ({ creditLimit: null }),
     update: async () => ({ points: 100 }),
   };
   const prisma = {
@@ -1659,6 +1671,7 @@ test('Edge BL-EC-03: checkoutSplit stacks promo discount + loyalty redeem (not p
     prisma as never,
     promoService as never,
     customersService as never,
+    createFinanceCheckoutStub() as never,
   );
 
   const result = await service.checkoutSplit(createUser(), {

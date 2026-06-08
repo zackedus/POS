@@ -184,6 +184,9 @@ export default function PosPage() {
   const [ppnEnabled, setPpnEnabled] = useState(false);
   const [ppnRatePercent, setPpnRatePercent] = useState(11);
   const [customerPointsBalance, setCustomerPointsBalance] = useState<number | null>(null);
+  const [customerReceivableOutstanding, setCustomerReceivableOutstanding] = useState<number | null>(null);
+  const [customerDepositBalance, setCustomerDepositBalance] = useState<number | null>(null);
+  const [customerCreditAvailable, setCustomerCreditAvailable] = useState<number | null>(null);
   const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState('');
 
   useEffect(() => {
@@ -206,6 +209,9 @@ export default function PosPage() {
     const phone = customerPhone.trim();
     if (!/^08\d{8,11}$/.test(phone)) {
       setCustomerPointsBalance(null);
+      setCustomerReceivableOutstanding(null);
+      setCustomerDepositBalance(null);
+      setCustomerCreditAvailable(null);
       setLoyaltyPointsToRedeem('');
       return;
     }
@@ -214,9 +220,17 @@ export default function PosPage() {
       .then((customer) => {
         if (cancelled) return;
         setCustomerPointsBalance(customer?.points ?? 0);
+        setCustomerReceivableOutstanding(customer?.receivableOutstanding ?? 0);
+        setCustomerDepositBalance(customer?.depositBalance ?? 0);
+        setCustomerCreditAvailable(customer?.creditAvailable ?? null);
       })
       .catch(() => {
-        if (!cancelled) setCustomerPointsBalance(null);
+        if (!cancelled) {
+          setCustomerPointsBalance(null);
+          setCustomerReceivableOutstanding(null);
+          setCustomerDepositBalance(null);
+          setCustomerCreditAvailable(null);
+        }
       });
     return () => {
       cancelled = true;
@@ -1195,7 +1209,7 @@ export default function PosPage() {
     [activeOutletId],
   );
 
-  async function handleCheckoutNonCash(method: 'TRANSFER' | 'QRIS') {
+  async function handleCheckoutNonCash(method: 'TRANSFER' | 'QRIS' | 'CREDIT' | 'DEPOSIT') {
     if (cart.length === 0 || total <= 0) {
       return;
     }
@@ -1475,6 +1489,9 @@ export default function PosPage() {
           loyaltyRedeemEnabled={loyaltyRedeemEnabled}
           loyaltyRedeemValueIdr={loyaltyRedeemValueIdr}
           customerPointsBalance={customerPointsBalance}
+          customerReceivableOutstanding={customerReceivableOutstanding}
+          customerDepositBalance={customerDepositBalance}
+          customerCreditAvailable={customerCreditAvailable}
           loyaltyPointsToRedeem={loyaltyPointsToRedeem}
           onLoyaltyPointsToRedeemChange={setLoyaltyPointsToRedeem}
         />

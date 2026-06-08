@@ -249,12 +249,17 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 ## 6. Payment
 
 - [ ] Tunai, transfer manual, split cash+transfer: PASS
+- [ ] **Piutang (tempo):** checkout CREDIT dengan pelanggan + limit kredit — piutang tercatat di `/dashboard/receivables`
+- [ ] **Deposit:** top-up di `/dashboard/deposits` → checkout DEPOSIT di kasir — saldo berkurang, ledger APPLY
+- [ ] Pelunasan piutang partial → full di dashboard — status OPEN → PARTIAL → PAID
+- [ ] Void transaksi kredit/deposit — piutang VOID, deposit di-refund
 - [ ] QRIS mock/sandbox: PASS di staging (perbaikan commit `750d4f5`: mock checkout tidak stuck polling — regresi TC005/QRIS UAT)
 - [ ] QRIS live + EDC + E-wallet: **defer** (butuh key Pak Zaki + hardware Arif)
 
 ## 7. Inventory & PO
 
 - [ ] UAT Skenario G di atas
+- [ ] **Utang supplier:** PO diterima → buat utang dari PO di `/dashboard/payables` → catat bayar supplier
 - [ ] Transfer stok antar cabang (jika multi-outlet)
 - [ ] Opname scan SKU/barcode
 

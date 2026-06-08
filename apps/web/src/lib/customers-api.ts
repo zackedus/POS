@@ -7,6 +7,10 @@ export interface CustomerListItem {
   phone: string;
   points: number;
   updatedAt: string;
+  creditLimit?: number | null;
+  receivableOutstanding?: number;
+  depositBalance?: number;
+  creditAvailable?: number | null;
 }
 
 export interface CustomerDetail extends CustomerListItem {

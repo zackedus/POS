@@ -39,6 +39,9 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/transactions', label: 'Void & Struk' },
       { href: '/dashboard/inventory', label: 'Stok' },
       { href: '/dashboard/expenses', label: 'Pengeluaran' },
+      { href: '/dashboard/receivables', label: 'Piutang' },
+      { href: '/dashboard/payables', label: 'Utang' },
+      { href: '/dashboard/deposits', label: 'Deposit' },
       { href: '/dashboard/purchase-orders', label: 'Order Distributor' },
     ],
   },
@@ -83,6 +86,9 @@ const ICONS: Record<string, string> = {
   'Void & Struk': '↩',
   Stok: '▤',
   Pengeluaran: '◧',
+  Piutang: '◨',
+  Utang: '◩',
+  Deposit: '◪',
   'Order Distributor': '⇄',
   Produk: '▦',
   'Paket Bundling': '▣',
@@ -170,6 +176,9 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/users')) return 'Manajemen Pengguna';
   if (pathname.startsWith('/dashboard/roles')) return 'Peran & Izin';
   if (pathname.startsWith('/dashboard/expenses')) return 'Pengeluaran Operasional';
+  if (pathname.startsWith('/dashboard/receivables')) return 'Piutang Pelanggan';
+  if (pathname.startsWith('/dashboard/payables')) return 'Utang Supplier';
+  if (pathname.startsWith('/dashboard/deposits')) return 'Deposit Pelanggan';
   if (pathname.startsWith('/dashboard/purchase-orders')) return 'Order Distributor';
   if (pathname.startsWith('/dashboard/transactions')) return 'Void & Struk';
   if (pathname.startsWith('/dashboard/settings')) return 'Pengaturan Aplikasi';

@@ -41,6 +41,9 @@ model Tenant {
   purchaseOrderReturns         PurchaseOrderReturn[]
   tenantSettings               TenantSettings?
   customers                    Customer[]
+  receivables                  Receivable[]
+  payables                     Payable[]
+  customerDeposits             CustomerDeposit[]
 
   @@map("tenants")
 }
@@ -92,6 +95,7 @@ model Outlet {
   onlineOrders      OnlineOrder[]
   expenses          Expense[]
   purchaseOrders    PurchaseOrder[]
+  receivables       Receivable[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -128,6 +132,9 @@ model User {
   purchaseOrdersSubmitted  PurchaseOrder[]         @relation("PurchaseOrderSubmittedBy")
   purchaseOrderReceipts    PurchaseOrderReceipt[]
   purchaseOrderReturns     PurchaseOrderReturn[]
+  receivablePaymentsRecorded ReceivablePayment[] @relation("ReceivablePaymentRecordedBy")
+  payablePaymentsRecorded    PayablePayment[]    @relation("PayablePaymentRecordedBy")
+  depositTransactionsRecorded DepositTransaction[] @relation("DepositTransactionRecordedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -208,6 +215,7 @@ model Supplier {
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   products       Product[]
   purchaseOrders PurchaseOrder[]
+  payables       Payable[]
 
   @@index([tenantId, name])
   @@map("suppliers")
@@ -444,6 +452,7 @@ model PurchaseOrder {
   items       PurchaseOrderItem[]
   receipts    PurchaseOrderReceipt[]
   returns     PurchaseOrderReturn[]
+  payable     Payable?
 
   @@unique([tenantId, orderNo])
   @@index([tenantId, outletId, status])
@@ -616,17 +625,20 @@ enum PromoApplyTo {
 // ─── Customers & Loyalty (Fase 2 MVP) ────────────────────
 
 model Customer {
-  id        String   @id @default(uuid())
-  tenantId  String   @map("tenant_id")
-  name      String
-  phone     String
-  points    Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  phone       String
+  points      Int      @default(0)
+  creditLimit Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   transactions Transaction[]
   onlineOrders OnlineOrder[]
+  receivables  Receivable[]
+  deposit      CustomerDeposit?
 
   @@unique([tenantId, phone])
   @@index([tenantId, name])
@@ -661,6 +673,7 @@ model Transaction {
   items       TransactionItem[]
   payments    Payment[]
   adjustments TransactionAdjustment[]
+  receivable  Receivable?
 
   @@unique([outletId, receiptNo])
   @@index([outletId, createdAt])
@@ -742,6 +755,8 @@ enum PaymentMethod {
   QRIS
   E_WALLET
   CARD
+  CREDIT
+  DEPOSIT
 }
 
 // ─── Held Transactions (Hold Bill) ───────────────────────
@@ -1026,4 +1041,153 @@ enum ExpenseCategory {
   LOADING_UNLOADING
   SHIPPING
   OTHER
+}
+
+// ─── Credit, Receivables, Payables & Deposits (Fase 2) ──
+// AR/AP scoped at tenant level; receivable may carry optional outletId for reporting.
+// Immutable ledger — adjustments via payment/ledger records, not amount edits.
+
+enum ReceivableStatus {
+  OPEN
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum PayableStatus {
+  OPEN
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum DepositAccountStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum DepositTransactionType {
+  TOP_UP
+  APPLY
+  REFUND
+}
+
+model Receivable {
+  id            String           @id @default(uuid())
+  tenantId      String           @map("tenant_id")
+  customerId    String           @map("customer_id")
+  outletId      String?          @map("outlet_id")
+  transactionId String?          @unique @map("transaction_id")
+  amount        Decimal          @db.Decimal(15, 2)
+  paidAmount    Decimal          @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  status        ReceivableStatus @default(OPEN)
+  dueDate       DateTime?        @map("due_date") @db.Date
+  notes         String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer    Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  outlet      Outlet?             @relation(fields: [outletId], references: [id], onDelete: SetNull)
+  transaction Transaction?        @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  payments    ReceivablePayment[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@index([tenantId, dueDate])
+  @@index([outletId])
+  @@map("receivables")
+}
+
+model ReceivablePayment {
+  id           String        @id @default(uuid())
+  receivableId String        @map("receivable_id")
+  amount       Decimal       @db.Decimal(15, 2)
+  method       PaymentMethod
+  reference    String?
+  recordedById String        @map("recorded_by_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  receivable Receivable @relation(fields: [receivableId], references: [id], onDelete: Restrict)
+  recordedBy User       @relation("ReceivablePaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([receivableId, createdAt])
+  @@map("receivable_payments")
+}
+
+model Payable {
+  id         String        @id @default(uuid())
+  tenantId   String        @map("tenant_id")
+  supplierId String        @map("supplier_id")
+  poId       String?       @unique @map("po_id")
+  amount     Decimal       @db.Decimal(15, 2)
+  paidAmount Decimal       @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  status     PayableStatus @default(OPEN)
+  dueDate    DateTime?     @map("due_date") @db.Date
+  notes      String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  supplier      Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder?   @relation(fields: [poId], references: [id], onDelete: SetNull)
+  payments      PayablePayment[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, supplierId])
+  @@index([tenantId, dueDate])
+  @@map("payables")
+}
+
+model PayablePayment {
+  id           String        @id @default(uuid())
+  payableId    String        @map("payable_id")
+  amount       Decimal       @db.Decimal(15, 2)
+  method       PaymentMethod
+  reference    String?
+  recordedById String        @map("recorded_by_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  payable    Payable @relation(fields: [payableId], references: [id], onDelete: Restrict)
+  recordedBy User    @relation("PayablePaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([payableId, createdAt])
+  @@map("payable_payments")
+}
+
+model CustomerDeposit {
+  id         String               @id @default(uuid())
+  tenantId   String               @map("tenant_id")
+  customerId String               @unique @map("customer_id")
+  balance    Decimal              @default(0) @db.Decimal(15, 2)
+  status     DepositAccountStatus @default(ACTIVE)
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  ledger   DepositTransaction[]
+
+  @@index([tenantId, status])
+  @@map("customer_deposits")
+}
+
+model DepositTransaction {
+  id            String                 @id @default(uuid())
+  depositId     String                 @map("deposit_id")
+  type          DepositTransactionType
+  amount        Decimal                @db.Decimal(15, 2)
+  balanceAfter  Decimal                @map("balance_after") @db.Decimal(15, 2)
+  referenceType String?                @map("reference_type")
+  referenceId   String?                @map("reference_id")
+  notes         String?
+  recordedById  String                 @map("recorded_by_id")
+  createdAt     DateTime               @default(now()) @map("created_at")
+
+  deposit    CustomerDeposit @relation(fields: [depositId], references: [id], onDelete: Restrict)
+  recordedBy User            @relation("DepositTransactionRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([depositId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("deposit_transactions")
 }

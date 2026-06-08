@@ -27,6 +27,7 @@ import { resolveReportDayRange } from '../../common/utils/report-date.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { PromoService } from '../promo/promo.service';
 import { CustomersService } from '../customers/customers.service';
+import { FinanceCheckoutService } from '../finance/finance-checkout.service';
 import type { PromoCartLine } from '@barokah/shared';
 import { CheckoutCashDto } from './dto/checkout-cash.dto';
 import { CheckoutSplitDto } from './dto/checkout-split.dto';
@@ -111,6 +112,8 @@ const SPLIT_ALLOWED_METHODS = new Set<PaymentMethod>([
   PaymentMethod.QRIS,
   PaymentMethod.E_WALLET,
   PaymentMethod.CARD,
+  PaymentMethod.CREDIT,
+  PaymentMethod.DEPOSIT,
 ]);
 const TX_RETRY_ATTEMPTS = 2;
 const GATEWAY_ERROR_PREFIX = 'GW_';
@@ -121,6 +124,7 @@ export class TransactionsService {
     private readonly prisma: PrismaService,
     private readonly promoService: PromoService,
     private readonly customersService: CustomersService,
+    private readonly financeCheckout: FinanceCheckoutService,
   ) {}
 
   private isPrismaError(error: unknown, code: string): boolean {
@@ -1406,6 +1410,34 @@ export class TransactionsService {
       discount,
       ...taxConfig,
     });
+
+    let customerCreditLimitIdr: number | null = null;
+    let customerOutstandingIdr = 0;
+    let depositBalanceIdr = 0;
+    if (customerId) {
+      const customerRow = await this.prisma.customer.findFirst({
+        where: { id: customerId, tenantId: user.tenantId },
+        select: { creditLimit: true },
+      });
+      customerCreditLimitIdr =
+        customerRow?.creditLimit != null ? toIdrInteger(customerRow.creditLimit) : null;
+      customerOutstandingIdr = await this.financeCheckout.getCustomerOutstandingReceivableIdr(
+        user.tenantId,
+        customerId,
+      );
+      depositBalanceIdr = await this.financeCheckout.getCustomerDepositBalanceIdr(
+        user.tenantId,
+        customerId,
+      );
+    }
+    this.financeCheckout.assertCheckoutFinancePayments({
+      payments: dto.payments,
+      customerId,
+      tenantId: user.tenantId,
+      customerCreditLimitIdr,
+      customerOutstandingIdr,
+      depositBalanceIdr,
+    });
     this.assertValidSplitPayments(dto.payments, total);
 
     const receiptNo = `TRX-${Date.now()}`;
@@ -1502,6 +1534,17 @@ export class TransactionsService {
               message: 'Saldo poin tidak mencukupi saat checkout.',
             });
           }
+        }
+
+        if (customerId) {
+          await this.financeCheckout.applyCheckoutFinanceInTransaction(tx, {
+            tenantId: user.tenantId,
+            customerId,
+            outletId,
+            transactionId: created.id,
+            recordedById: user.sub,
+            payments: dto.payments,
+          });
         }
 
         return created;
@@ -1851,6 +1894,12 @@ export class TransactionsService {
         adjustmentId: adjustment.id,
         createdById: user.sub,
         notes: `Void transaksi ${transaction.receiptNo}`,
+      });
+
+      await this.financeCheckout.reverseFinanceForVoid(tx, {
+        tenantId: user.tenantId,
+        transactionId: transaction.id,
+        recordedById: user.sub,
       });
 
       await tx.auditLog.create({

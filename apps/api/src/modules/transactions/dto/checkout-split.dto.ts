@@ -5,8 +5,8 @@ import { CheckoutItemDto } from './checkout-cash.dto';
 import { CheckoutCustomerFields } from './checkout-customer.dto';
 
 class CheckoutSplitPaymentDto {
-  @IsIn([PaymentMethod.CASH, PaymentMethod.TRANSFER, PaymentMethod.QRIS, PaymentMethod.E_WALLET, PaymentMethod.CARD], {
-    message: 'method hanya boleh CASH, TRANSFER, QRIS, E_WALLET, atau CARD.',
+  @IsIn([PaymentMethod.CASH, PaymentMethod.TRANSFER, PaymentMethod.QRIS, PaymentMethod.E_WALLET, PaymentMethod.CARD, PaymentMethod.CREDIT, PaymentMethod.DEPOSIT], {
+    message: 'method hanya boleh CASH, TRANSFER, QRIS, E_WALLET, CARD, CREDIT, atau DEPOSIT.',
   })
   method!: PaymentMethod;
 

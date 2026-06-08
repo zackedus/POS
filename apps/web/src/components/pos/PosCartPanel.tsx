@@ -37,6 +37,8 @@ const paymentLabels: Record<PaymentMode, string> = {
   TRANSFER: 'Transfer',
   QRIS: 'QRIS',
   SPLIT: 'Split',
+  CREDIT: 'Tempo',
+  DEPOSIT: 'Deposit',
 };
 
 export interface PosCartPanelProps {
@@ -83,7 +85,7 @@ export interface PosCartPanelProps {
   success: string | null;
   onCheckoutCash: () => void;
   onHoldTransaction: () => void;
-  onCheckoutNonCash: (mode: 'TRANSFER' | 'QRIS') => void;
+  onCheckoutNonCash: (mode: 'TRANSFER' | 'QRIS' | 'CREDIT' | 'DEPOSIT') => void;
   onCheckoutSplit: () => void;
   onRetrySplit: () => void;
   hasLastSplitAttempt: boolean;
@@ -113,6 +115,9 @@ export interface PosCartPanelProps {
   loyaltyRedeemEnabled?: boolean;
   loyaltyRedeemValueIdr?: number;
   customerPointsBalance?: number | null;
+  customerReceivableOutstanding?: number | null;
+  customerDepositBalance?: number | null;
+  customerCreditAvailable?: number | null;
   loyaltyPointsToRedeem?: string;
   onLoyaltyPointsToRedeemChange?: (value: string) => void;
 }
@@ -191,6 +196,9 @@ export function PosCartPanel({
   loyaltyRedeemEnabled = false,
   loyaltyRedeemValueIdr = 1_000,
   customerPointsBalance = null,
+  customerReceivableOutstanding = null,
+  customerDepositBalance = null,
+  customerCreditAvailable = null,
   loyaltyPointsToRedeem = '',
   onLoyaltyPointsToRedeemChange,
 }: PosCartPanelProps) {
@@ -455,6 +463,30 @@ export function PosCartPanel({
               ) : null}
             </label>
           ) : null}
+          {customerPhone.trim().length >= 8 &&
+          (customerReceivableOutstanding != null || customerDepositBalance != null) ? (
+            <div
+              style={{
+                marginTop: '0.35rem',
+                padding: '0.5rem 0.65rem',
+                borderRadius: 8,
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                fontSize: '0.8125rem',
+                color: '#334155',
+              }}
+            >
+              {customerReceivableOutstanding != null && customerReceivableOutstanding > 0 ? (
+                <div>Piutang: {formatCurrencyIDR(customerReceivableOutstanding)}</div>
+              ) : null}
+              {customerDepositBalance != null && customerDepositBalance > 0 ? (
+                <div>Deposit: {formatCurrencyIDR(customerDepositBalance)}</div>
+              ) : null}
+              {customerCreditAvailable != null ? (
+                <div>Kredit tersedia: {formatCurrencyIDR(customerCreditAvailable)}</div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -559,7 +591,7 @@ export function PosCartPanel({
             aria-label="Metode pembayaran"
             style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}
           >
-            {(['CASH', 'TRANSFER', 'QRIS', 'SPLIT'] as PaymentMode[]).map((mode) => {
+            {(['CASH', 'TRANSFER', 'QRIS', 'CREDIT', 'DEPOSIT', 'SPLIT'] as PaymentMode[]).map((mode) => {
               const active = paymentMode === mode;
               return (
                 <button
@@ -647,6 +679,53 @@ export function PosCartPanel({
                   : qrisPending && paymentMode === 'QRIS'
                     ? 'Menunggu QRIS…'
                     : `Checkout ${paymentMode === 'QRIS' ? 'QRIS' : 'Transfer'}`}
+              </Button>
+            </>
+          ) : null}
+
+          {paymentMode === 'CREDIT' || paymentMode === 'DEPOSIT' ? (
+            <>
+              {customerName.trim().length < 2 || customerPhone.trim().length < 8 ? (
+                <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
+                  Isi nama &amp; HP pelanggan untuk {paymentMode === 'CREDIT' ? 'tempo/piutang' : 'pakai deposit'}.
+                </p>
+              ) : null}
+              {paymentMode === 'CREDIT' &&
+              customerCreditAvailable != null &&
+              total > customerCreditAvailable ? (
+                <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
+                  Melebihi limit kredit tersedia ({formatCurrencyIDR(customerCreditAvailable)}).
+                </p>
+              ) : null}
+              {paymentMode === 'DEPOSIT' &&
+              customerDepositBalance != null &&
+              total > customerDepositBalance ? (
+                <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
+                  Saldo deposit tidak mencukupi ({formatCurrencyIDR(customerDepositBalance)}).
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                disabled={
+                  processingSplit ||
+                  checkoutBlockedByStock ||
+                  (!activeShift && isOnline) ||
+                  customerName.trim().length < 2 ||
+                  customerPhone.trim().length < 8 ||
+                  (paymentMode === 'CREDIT' &&
+                    customerCreditAvailable != null &&
+                    total > customerCreditAvailable) ||
+                  (paymentMode === 'DEPOSIT' &&
+                    (customerDepositBalance ?? 0) < total)
+                }
+                onClick={() => onCheckoutNonCash(paymentMode)}
+                style={{ minHeight: 48, width: '100%' }}
+              >
+                {processingSplit
+                  ? 'Memproses…'
+                  : paymentMode === 'CREDIT'
+                    ? 'Checkout Tempo (Piutang)'
+                    : 'Checkout Pakai Deposit'}
               </Button>
             </>
           ) : null}

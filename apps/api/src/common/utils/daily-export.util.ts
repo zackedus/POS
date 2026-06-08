@@ -6,6 +6,8 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   [PaymentMethod.QRIS]: 'QRIS',
   [PaymentMethod.E_WALLET]: 'E-Wallet',
   [PaymentMethod.CARD]: 'Kartu',
+  [PaymentMethod.CREDIT]: 'Piutang/Tempo',
+  [PaymentMethod.DEPOSIT]: 'Deposit',
 };
 
 type DailySalesExportPayload = {
