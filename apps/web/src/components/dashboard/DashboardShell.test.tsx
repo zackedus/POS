@@ -73,9 +73,10 @@ describe('DashboardShell', () => {
     expect(screen.getByRole('complementary', { name: 'Navigasi dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Menu utama' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Produk' })).toHaveAttribute('href', '/master/products');
-    expect(screen.getByRole('link', { name: 'Pengaturan Aplikasi' })).toHaveAttribute('href', '/dashboard/settings');
-    expect(screen.getByText('Operasional')).toBeInTheDocument();
-    expect(screen.getByText('Master Data')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Pengaturan' })).toHaveAttribute('href', '/dashboard/settings');
+    expect(screen.getByText('Beranda')).toBeInTheDocument();
+    expect(screen.getByText('Katalog')).toBeInTheDocument();
+    expect(screen.getByText('Organisasi')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Produk', level: 1 })).toBeInTheDocument();
     expect(screen.getByLabelText('Pilih outlet')).toBeInTheDocument();
     expect(screen.getByText('Konten halaman')).toBeInTheDocument();

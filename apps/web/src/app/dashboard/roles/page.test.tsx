@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import RolesPage from './page';
+import { RolesPanel } from '@/components/dashboard/users/RolesPanel';
 
 const fetchMeMock = vi.fn();
 const fetchRolesMock = vi.fn();
@@ -18,7 +18,7 @@ vi.mock('@/lib/roles-api', async (importOriginal) => {
   };
 });
 
-describe('RolesPage', () => {
+describe('RolesPanel', () => {
   beforeEach(() => {
     fetchMeMock.mockResolvedValue({
       id: 'owner-1',
@@ -48,14 +48,9 @@ describe('RolesPage', () => {
   });
 
   it('renders role list and permission matrix for owner', async () => {
-    render(<RolesPage />);
-    expect(await screen.findByText('Peran & Izin')).toBeInTheDocument();
-    expect(screen.getByText('Daftar Role Sistem')).toBeInTheDocument();
+    render(<RolesPanel />);
+    expect(await screen.findByText('Daftar Role Sistem')).toBeInTheDocument();
     expect(screen.getByText('Matriks Izin (Permission Matrix)')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Tetapkan ke Pengguna' })).toHaveAttribute(
-      'href',
-      '/dashboard/users',
-    );
     expect(screen.getByText('Coming soon — Fase 3')).toBeInTheDocument();
   });
 });

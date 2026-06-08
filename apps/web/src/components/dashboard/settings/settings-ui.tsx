@@ -10,7 +10,8 @@ export type SettingsTabId =
   | 'promo'
   | 'pembayaran'
   | 'online'
-  | 'outlet';
+  | 'outlet'
+  | 'integrasi';
 
 export const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: 'toko', label: 'Toko & Tenant' },
@@ -20,6 +21,7 @@ export const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: 'pembayaran', label: 'Pembayaran' },
   { id: 'online', label: 'Online / Storefront' },
   { id: 'outlet', label: 'Outlet' },
+  { id: 'integrasi', label: 'Integrasi & API' },
 ];
 
 export function SettingsTabs({

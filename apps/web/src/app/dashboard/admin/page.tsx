@@ -21,7 +21,7 @@ const SECTIONS: AdminSection[] = [
     roles: 'owner-manager',
   },
   {
-    href: '/dashboard/roles',
+    href: '/dashboard/users?tab=roles',
     title: 'Peran & Izin',
     description: 'Matriks izin role sistem (Pemilik, Manajer, Kasir, Gudang, Akuntan). Role kustom Fase 3.',
     icon: '⛊',
@@ -56,7 +56,7 @@ const SECTIONS: AdminSection[] = [
     roles: 'owner-manager',
   },
   {
-    href: '/dashboard/integrations',
+    href: '/dashboard/settings?tab=integrasi',
     title: 'Integrasi & API',
     description: 'Midtrans sandbox, webhook URL, QRIS mock, dokumentasi error codes.',
     icon: '⇄',

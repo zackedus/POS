@@ -2,7 +2,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import SettingsPage from './page';
+import { SettingsPageClient } from './SettingsPageClient';
 
 vi.mock('@/lib/auth', () => ({
   fetchMe: vi.fn().mockResolvedValue({
@@ -61,13 +61,17 @@ vi.mock('@/lib/outlet-selection-state', () => ({
   }),
 }));
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
+
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <SettingsPage />
+      <SettingsPageClient />
     </QueryClientProvider>,
   );
 }
@@ -83,6 +87,7 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('tab', { name: 'Toko & Tenant' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Loyalty' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Pembayaran' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Integrasi & API' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Toko & Tenant' })).toBeInTheDocument();
   });
 });

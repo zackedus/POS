@@ -228,7 +228,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 
 ## 3. Pengaturan Tenant (Owner)
 
-> **Halaman:** [`/dashboard/settings`](http://localhost:3001/dashboard/settings) — hub pengaturan aplikasi (tab: Toko, Kasir, Loyalty, Promo, Pembayaran, Online, Outlet).  
+> **Halaman:** [`/dashboard/settings`](http://localhost:3001/dashboard/settings) — hub pengaturan aplikasi (tab: Toko, Kasir, Loyalty, Promo, Pembayaran, Online, Outlet, **Integrasi**).  
 > **Profil toko:** [`/dashboard/store`](http://localhost:3001/dashboard/store) — nama, telepon kontak, URL logo (stub).
 
 - [ ] Dashboard → **Pengaturan Aplikasi** (`/dashboard/settings`): PPN aktif/nonaktif sesuai kebutuhan PKP
@@ -245,10 +245,10 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Kasir: minimal 2 akun shift bergantian
 - [ ] Uji login/logout + outlet scope (kasir = cabang assign; manager/owner = semua cabang tenant)
 - [ ] **Pusat Admin** (`/dashboard/admin`) — Owner/Manager only; Kasir redirect `/pos`
-- [ ] **Pengguna & RBAC** (`/dashboard/users`) — Owner buat semua role; Manager buat kasir saja
+- [ ] **Pengguna & Peran** (`/dashboard/users`, tab Peran & Izin) — Owner buat semua role; Manager buat kasir saja; matriks RBAC di tab roles
 - [ ] **Member & Pelanggan** (`/dashboard/customers`) — list poin/piutang/deposit; detail tab profil/alamat/poin/piutang/deposit/kartu member
 - [ ] **Kartu member** — preview digital + cetak dari tab Kartu Member; scan QR di POS kasir
-- [ ] **Integrasi & API** (`/dashboard/integrations`) — webhook Midtrans URL, tes koneksi sandbox
+- [ ] **Integrasi & API** (`/dashboard/settings?tab=integrasi`) — webhook Midtrans URL, tes koneksi sandbox
 - [ ] **Member storefront** (`/store/barokah-bangunan/register`) — publik; bukan self-register admin staff
 
 ## 5. Shift & Kasir Harian
@@ -263,8 +263,8 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 > **Referensi integrasi AR/AP:** [FINANCE-AR-AP-INTEGRATION](../domain/FINANCE-AR-AP-INTEGRATION.md) — Finance Hub `/dashboard/finance`, cross-link piutang↔pelanggan & utang↔PO, sidebar Keuangan.
 
 - [ ] Tunai, transfer manual, split cash+transfer: PASS
-- [ ] **Piutang (tempo):** checkout CREDIT dengan pelanggan + limit kredit — piutang tercatat di `/dashboard/receivables`
-- [ ] **Deposit:** top-up di `/dashboard/deposits` → checkout DEPOSIT di kasir — saldo berkurang, ledger APPLY
+- [ ] **Piutang (tempo):** checkout CREDIT dengan pelanggan + limit kredit — piutang tercatat di `/dashboard/finance?tab=piutang`
+- [ ] **Deposit:** top-up di `/dashboard/finance?tab=deposit` → checkout DEPOSIT di kasir — saldo berkurang, ledger APPLY
 - [ ] Pelunasan piutang partial → full di dashboard — status OPEN → PARTIAL → PAID
 - [ ] **Pembayaran piutang multi-metode:** tunai / transfer (no ref TF + bank) / deposit / QRIS
 - [ ] **Bukti pembayaran:** URL bukti tersimpan; cetak HTML dari riwayat pembayaran
@@ -272,13 +272,13 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **Export CSV** riwayat pembayaran piutang dari dashboard
 - [ ] **POS terima pembayaran piutang:** modal kasir dengan link shift aktif
 - [ ] Void transaksi kredit/deposit — piutang VOID, deposit di-refund
-- [ ] **Aging piutang:** `/dashboard/receivables/aging` — bucket 0–30/31–60/61–90/90+ hari, ekspor CSV
+- [ ] **Aging piutang:** `/dashboard/finance?tab=aging` — bucket 0–30/31–60/61–90/90+ hari, ekspor CSV
 - [ ] **Statement pelanggan:** cetak dari `/dashboard/receivables/statement/:id` — saldo awal/akhir + deposit
 - [ ] **Dashboard finance widgets:** piutang, utang, net position, deposit, kas hari ini di `/dashboard`
-- [ ] **Finance Hub terpadu:** `/dashboard/finance` — kartu AR/AP/net/deposit/kas + quick links + banner overdue AR & AP
-- [ ] **Sidebar Keuangan:** grup navigasi terpisah (Piutang, Utang, Aging, Deposit, Pengeluaran)
+- [ ] **Finance Hub terpadu:** `/dashboard/finance` — tab Ringkasan | Piutang | Utang | Aging | Deposit | Pengeluaran + banner overdue AR & AP
+- [ ] **Sidebar Keuangan:** satu entry **Keuangan** (hub tab); URL lama redirect otomatis
 - [ ] **Overdue banner:** piutang jatuh tempo tampil di dashboard + badge header manager + daftar piutang
-- [ ] **Overdue utang:** banner di dashboard/finance hub + filter `?status=OVERDUE` di `/dashboard/payables`
+- [ ] **Overdue utang:** banner di finance hub + filter `?status=OVERDUE` di `/dashboard/finance?tab=utang`
 - [ ] **Cross-link AR:** piutang → profil pelanggan, statement, transaksi kasir
 - [ ] **Cross-link AP:** utang → PO detail, supplier; PO detail → section utang + tombol catat utang
 - [ ] **Auto utang PO:** penerimaan barang otomatis buat payable; fallback manual dari PO detail
@@ -296,7 +296,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 ## 7. Inventory & PO
 
 - [ ] UAT Skenario G di atas
-- [ ] **Utang supplier:** PO diterima → utang auto-create + kelola di `/dashboard/payables` → catat bayar supplier
+- [ ] **Utang supplier:** PO diterima → utang auto-create + kelola di `/dashboard/finance?tab=utang` → catat bayar supplier
 - [ ] Transfer stok antar cabang (jika multi-outlet)
 - [ ] Opname scan SKU/barcode
 

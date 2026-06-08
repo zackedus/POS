@@ -29,58 +29,56 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: 'Operasional',
+    title: 'Beranda',
     items: [
       { href: '/dashboard', label: 'Ringkasan', exact: true },
       { href: '/dashboard/analytics', label: 'Analitik' },
+    ],
+  },
+  {
+    title: 'Operasional',
+    items: [
       { href: '/pos', label: 'Kasir' },
-      { href: '/pos/online-orders', label: 'Order Online', badgeKey: 'onlineOrders' },
-      { href: '/dashboard/online-orders', label: 'Kelola Pesanan Web' },
-      { href: '/dashboard/deliveries', label: 'Pengiriman', badgeKey: 'deliveries' },
       { href: '/shift/open', label: 'Buka Shift' },
       { href: '/shift/close', label: 'Tutup Shift' },
       { href: '/dashboard/transactions', label: 'Void & Struk' },
+      { href: '/dashboard/deliveries', label: 'Pengiriman', badgeKey: 'deliveries' },
+      { href: '/dashboard/online-orders', label: 'Pesanan Web' },
+      { href: '/pos/online-orders', label: 'Order Online (Kasir)', badgeKey: 'onlineOrders' },
+    ],
+  },
+  {
+    title: 'Inventori & Pembelian',
+    items: [
       { href: '/dashboard/inventory', label: 'Stok' },
       { href: '/dashboard/purchase-orders', label: 'Order Distributor' },
     ],
   },
   {
     title: 'Keuangan',
-    items: [
-      { href: '/dashboard/finance', label: 'Ringkasan Keuangan', exact: true },
-      { href: '/dashboard/receivables', label: 'Piutang' },
-      { href: '/dashboard/receivables/aging', label: 'Aging Piutang' },
-      { href: '/dashboard/payables', label: 'Utang' },
-      { href: '/dashboard/deposits', label: 'Deposit' },
-      { href: '/dashboard/expenses', label: 'Pengeluaran' },
-    ],
+    items: [{ href: '/dashboard/finance', label: 'Keuangan', exact: true }],
   },
   {
-    title: 'Master Data',
+    title: 'Katalog',
     items: [
       { href: '/master/products', label: 'Produk' },
       { href: '/master/bundles', label: 'Paket Bundling' },
-      { href: '/dashboard/promotions', label: 'Promo & Diskon' },
       { href: '/master/categories', label: 'Kategori' },
+      { href: '/dashboard/promotions', label: 'Promo & Diskon' },
       { href: '/dashboard/units', label: 'Satuan' },
     ],
   },
   {
-    title: 'Admin Center',
-    items: [
-      { href: '/dashboard/admin', label: 'Pusat Admin', exact: true },
-      { href: '/dashboard/users', label: 'Pengguna & RBAC' },
-      { href: '/dashboard/roles', label: 'Peran & Izin' },
-      { href: '/dashboard/customers', label: 'Member & Pelanggan' },
-      { href: '/dashboard/integrations', label: 'Integrasi & API' },
-    ],
+    title: 'Pelanggan',
+    items: [{ href: '/dashboard/customers', label: 'Member & Pelanggan' }],
   },
   {
-    title: 'Pengaturan',
+    title: 'Organisasi',
     items: [
+      { href: '/dashboard/settings', label: 'Pengaturan' },
+      { href: '/dashboard/users', label: 'Pengguna & Peran' },
       { href: '/dashboard/outlets', label: 'Cabang' },
       { href: '/dashboard/store', label: 'Profil Toko' },
-      { href: '/dashboard/settings', label: 'Pengaturan Aplikasi' },
     ],
   },
 ];
@@ -89,31 +87,24 @@ const ICONS: Record<string, string> = {
   Ringkasan: '◫',
   Analitik: '◧',
   Kasir: '▣',
-  'Order Online': '◎',
-  'Kelola Pesanan Web': '◈',
+  'Order Online (Kasir)': '◎',
+  'Pesanan Web': '◈',
   Pengiriman: '➚',
   'Buka Shift': '◷',
   'Tutup Shift': '◴',
   'Void & Struk': '↩',
   Stok: '▤',
-  Pengeluaran: '◧',
-  'Ringkasan Keuangan': '◫',
-  Piutang: '◨',
-  Utang: '◩',
-  Deposit: '◪',
+  Keuangan: '◫',
   'Order Distributor': '⇄',
   Produk: '▦',
   'Paket Bundling': '▣',
   'Promo & Diskon': '％',
   Kategori: '▥',
   Satuan: '⎔',
-  'Pusat Admin': '◈',
-  'Pengguna & RBAC': '◉',
-  'Peran & Izin': '⛊',
   'Member & Pelanggan': '★',
-  'Integrasi & API': '⇄',
+  Pengaturan: '⚙',
+  'Pengguna & Peran': '◉',
   'Profil Toko': '⌂',
-  'Pengaturan Aplikasi': '⚙',
   Cabang: '⌂',
 };
 
@@ -185,21 +176,24 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/inventory') || pathname.startsWith('/dashboard/stock')) return 'Manajemen Stok';
   if (pathname.startsWith('/dashboard/outlets')) return 'Manajemen Cabang';
   if (pathname.startsWith('/dashboard/store')) return 'Profil Toko';
-  if (pathname.startsWith('/dashboard/users')) return 'Manajemen Pengguna';
-  if (pathname.startsWith('/dashboard/roles')) return 'Peran & Izin';
-  if (pathname.startsWith('/dashboard/expenses')) return 'Pengeluaran Operasional';
-  if (pathname.startsWith('/dashboard/finance')) return 'Ringkasan Keuangan';
-  if (pathname.startsWith('/dashboard/receivables')) return 'Piutang Pelanggan';
-  if (pathname.startsWith('/dashboard/payables')) return 'Utang Supplier';
-  if (pathname.startsWith('/dashboard/deposits')) return 'Deposit Pelanggan';
+  if (pathname.startsWith('/dashboard/users') || pathname.startsWith('/dashboard/roles')) return 'Pengguna & Peran';
+  if (
+    pathname.startsWith('/dashboard/finance') ||
+    pathname.startsWith('/dashboard/receivables') ||
+    pathname.startsWith('/dashboard/payables') ||
+    pathname.startsWith('/dashboard/deposits') ||
+    pathname.startsWith('/dashboard/expenses')
+  ) {
+    return 'Keuangan';
+  }
   if (pathname.startsWith('/dashboard/purchase-orders')) return 'Order Distributor';
   if (pathname.startsWith('/dashboard/transactions')) return 'Void & Struk';
-  if (pathname.startsWith('/dashboard/settings')) return 'Pengaturan Aplikasi';
+  if (pathname.startsWith('/dashboard/settings')) return 'Pengaturan';
   if (pathname.startsWith('/master/products')) return 'Produk';
   if (pathname.startsWith('/master/bundles')) return 'Paket Bundling';
   if (pathname.startsWith('/master/categories')) return 'Kategori';
   if (pathname.startsWith('/dashboard/units') || pathname.startsWith('/master/units')) return 'Satuan';
-  if (pathname.startsWith('/dashboard/online-orders')) return 'Kelola Pesanan Web';
+  if (pathname.startsWith('/dashboard/online-orders')) return 'Pesanan Web';
   if (pathname.startsWith('/dashboard/deliveries')) return 'Antrian Pengiriman';
   if (pathname.startsWith('/pos/online-orders')) return 'Order Online';
   if (pathname.startsWith('/shift/open')) return 'Buka Shift';
@@ -251,6 +245,21 @@ export function DashboardShell({
   }
 
   function isActive(href: string, exact?: boolean) {
+    if (href === '/dashboard/finance') {
+      return (
+        pathname === href ||
+        pathname.startsWith('/dashboard/receivables') ||
+        pathname.startsWith('/dashboard/payables') ||
+        pathname.startsWith('/dashboard/deposits') ||
+        pathname.startsWith('/dashboard/expenses')
+      );
+    }
+    if (href === '/dashboard/users') {
+      return pathname === href || pathname.startsWith('/dashboard/roles');
+    }
+    if (href === '/dashboard/settings') {
+      return pathname === href || pathname.startsWith('/dashboard/integrations');
+    }
     if (exact) return pathname === href;
     return pathname === href || pathname.startsWith(`${href}/`);
   }
@@ -437,7 +446,7 @@ export function DashboardShell({
                 {title}
                 {showFinanceBadge ? (
                   <Link
-                    href="/dashboard/receivables?status=OVERDUE"
+                    href="/dashboard/finance?tab=piutang&status=OVERDUE"
                     title={`${overdueReceivableCount} piutang jatuh tempo`}
                     style={{
                       background: '#dc2626',

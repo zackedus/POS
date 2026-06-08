@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import UsersPage from './page';
+import { UsersPageClient } from './UsersPageClient';
 
 const fetchMeMock = vi.fn();
 const fetchUsersMock = vi.fn();
@@ -23,7 +23,11 @@ vi.mock('@/lib/reports', () => ({
   fetchOutlets: (...args: unknown[]) => fetchOutletsMock(...args),
 }));
 
-describe('UsersPage', () => {
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
+
+describe('UsersPageClient', () => {
   beforeEach(() => {
     fetchMeMock.mockResolvedValue({
       id: 'owner-1',
@@ -47,8 +51,8 @@ describe('UsersPage', () => {
   });
 
   it('renders user list for owner', async () => {
-    render(<UsersPage />);
-    expect(await screen.findByText('Manajemen Pengguna')).toBeInTheDocument();
+    render(<UsersPageClient />);
+    expect(await screen.findByText('Pengguna & Peran')).toBeInTheDocument();
     expect(await screen.findByText('Kasir Demo')).toBeInTheDocument();
     expect(screen.getByText('Tambah Pengguna Baru')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ubah' })).toBeInTheDocument();

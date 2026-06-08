@@ -50,6 +50,41 @@ const nextConfig = {
         destination: '/master/bundles',
         permanent: true,
       },
+      {
+        source: '/dashboard/receivables',
+        destination: '/dashboard/finance?tab=piutang',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/receivables/aging',
+        destination: '/dashboard/finance?tab=aging',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/payables',
+        destination: '/dashboard/finance?tab=utang',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/deposits',
+        destination: '/dashboard/finance?tab=deposit',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/expenses',
+        destination: '/dashboard/finance?tab=pengeluaran',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/integrations',
+        destination: '/dashboard/settings?tab=integrasi',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/roles',
+        destination: '/dashboard/users?tab=roles',
+        permanent: true,
+      },
     ];
   },
 };
