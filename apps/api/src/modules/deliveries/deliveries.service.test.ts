@@ -28,12 +28,8 @@ function makeService(
   customersService: { resolveOptionalCustomerId: (...args: unknown[]) => Promise<string | null> } = {
     resolveOptionalCustomerId: async () => null,
   },
-  realtime: { emitDeliveryCreated: (...args: unknown[]) => void; emitDeliveryUpdated: (...args: unknown[]) => void } = {
-    emitDeliveryCreated: () => undefined,
-    emitDeliveryUpdated: () => undefined,
-  },
 ) {
-  return new DeliveriesService(prisma as never, customersService as never, realtime as never);
+  return new DeliveriesService(prisma as never, customersService as never);
 }
 
 test('Deliveries: updateStatus rejects invalid transition', async () => {
@@ -348,79 +344,6 @@ test('Deliveries: list date filter uses WIB calendar day bounds', async () => {
   const jakartaMidnightDelivery = new Date('2026-06-09T17:30:00.000Z');
   assert.ok(jakartaMidnightDelivery >= capturedWhere!.createdAt!.gte!);
   assert.ok(jakartaMidnightDelivery < capturedWhere.createdAt!.lt!);
-});
-
-test('Deliveries: create emits delivery:created realtime event', async () => {
-  const emitted: unknown[] = [];
-  const realtime = {
-    emitDeliveryCreated: (payload: unknown) => emitted.push(payload),
-    emitDeliveryUpdated: () => undefined,
-  };
-  const prisma = {
-    transaction: {
-      findFirst: async () => ({
-        id: 'trx-pos-1',
-        customerId: 'cust-1',
-        outletId: 'outlet-1',
-        status: 'COMPLETED',
-      }),
-    },
-    deliveryOrder: { findFirst: async () => null },
-    customer: { findFirst: async () => ({ id: 'cust-1' }) },
-    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        deliveryOrderSequence: {
-          upsert: async () => ({ lastValue: 3 }),
-        },
-        deliveryOrder: {
-          create: async () => ({
-            id: 'delivery-pos-emit',
-            deliveryNo: 'DLV-20260609-0003',
-            deliveryType: 'STORE_DIRECT',
-            status: 'MENUNGGU',
-            createdAt: new Date('2026-06-09T12:00:00.000Z'),
-            scheduledAt: null,
-            driverName: null,
-            notes: null,
-            addressLine1: 'Jl. POS 1',
-            addressLine2: null,
-            addressCity: 'Jakarta',
-            addressProvince: null,
-            customer: { id: 'cust-1', name: 'Budi', phone: '081234567890' },
-            outlet: { id: 'outlet-1', name: 'Toko Utama' },
-            onlineOrder: null,
-            transaction: {
-              id: 'trx-pos-1',
-              receiptNo: 'TRX-POS-1',
-              total: { toString: () => '70000' },
-              items: [{ id: 'item-1' }],
-            },
-          }),
-        },
-      }),
-  };
-
-  const service = makeService(prisma, undefined, realtime);
-  await service.create(cashierUser(), {
-    transactionId: 'trx-pos-1',
-    customerId: 'cust-1',
-    outletId: 'outlet-1',
-    addressSnapshot: {
-      label: 'Proyek',
-      addressLine1: 'Jl. POS 1',
-      city: 'Jakarta',
-    },
-  });
-
-  assert.equal(emitted.length, 1);
-  assert.deepEqual(emitted[0], {
-    tenantId: 'tenant-1',
-    outletId: 'outlet-1',
-    deliveryId: 'delivery-pos-emit',
-    deliveryNo: 'DLV-20260609-0003',
-    deliveryType: 'STORE_DIRECT',
-    status: 'MENUNGGU',
-  });
 });
 
 test('Deliveries: createForCompletedTransaction creates delivery row when required', async () => {

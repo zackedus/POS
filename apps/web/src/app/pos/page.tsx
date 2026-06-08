@@ -343,9 +343,10 @@ export default function PosPage() {
       notifyDeliveryCreated(order.deliveryNo);
       return order.deliveryNo;
     } catch (err) {
-      const code = err instanceof ApiClientError ? err.code : undefined;
+      const apiError = err instanceof ApiClientError ? err : null;
+      const code = apiError?.code;
       if (code === 'DELIVERY_ALREADY_EXISTS') {
-        const existingNo = err.message.match(/DLV-\d{8}-\d{4}/)?.[0];
+        const existingNo = apiError?.message.match(/DLV-\d{8}-\d{4}/)?.[0];
         if (existingNo) {
           notifyDeliveryCreated(existingNo);
           return existingNo;

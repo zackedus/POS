@@ -559,6 +559,7 @@ export class TransactionsService {
     outletId: string;
     shiftId: string | null;
     cashierId: string;
+    customerId: string | null;
     subtotal: Decimal;
     total: Decimal;
     completedAt: Date | null;
@@ -576,6 +577,7 @@ export class TransactionsService {
         outletId: true,
         shiftId: true,
         cashierId: true,
+        customerId: true,
         subtotal: true,
         total: true,
         completedAt: true,

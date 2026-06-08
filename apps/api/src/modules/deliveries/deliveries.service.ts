@@ -23,7 +23,6 @@ type DeliveryTypeValue = PrismaDeliveryType | DeliveryType;
 import { PrismaService } from '../../common/database/prisma.service';
 import { buildOutletWhere, resolveListOutletScope, resolveOutletId } from '../../common/utils/outlet.util';
 import { CustomersService } from '../customers/customers.service';
-import { RealtimeService } from '../realtime/realtime.service';
 import { toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { CreateDeliveryOrderDto } from './dto/delivery.dto';
@@ -45,7 +44,6 @@ export class DeliveriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly customersService: CustomersService,
-    private readonly realtime: RealtimeService,
   ) {}
 
   async list(user: AuthJwtPayload, query: DeliveryListQueryDto) {
@@ -346,16 +344,7 @@ export class DeliveriesService {
       return order;
     });
 
-    const listItem = this.toListItem(created);
-    this.realtime.emitDeliveryCreated({
-      tenantId: user.tenantId,
-      outletId,
-      deliveryId: listItem.id,
-      deliveryNo: listItem.deliveryNo,
-      deliveryType: listItem.deliveryType,
-      status: listItem.status,
-    });
-    return listItem;
+    return this.toListItem(created);
   }
 
   async updateStatus(
@@ -431,16 +420,7 @@ export class DeliveriesService {
       },
     });
 
-    const listItem = this.toListItem(updated);
-    this.realtime.emitDeliveryUpdated({
-      tenantId: user.tenantId,
-      outletId,
-      deliveryId: listItem.id,
-      deliveryNo: listItem.deliveryNo,
-      deliveryType: listItem.deliveryType,
-      status: listItem.status,
-    });
-    return listItem;
+    return this.toListItem(updated);
   }
 
   async queueSummary(user: AuthJwtPayload, query: DeliveryQueueSummaryQueryDto): Promise<DeliveryQueueSummary> {

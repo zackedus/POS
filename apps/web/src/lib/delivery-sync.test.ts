@@ -50,34 +50,4 @@ describe('delivery-sync', () => {
 
     unsubscribe();
   });
-
-  it('forwards delivery:created socket payload via subscribeDeliveryEvents', async () => {
-    const { subscribeDeliveryEvents } = await import('./socket-client');
-    const handlers = new Map<string, (payload: unknown) => void>();
-    const socket = {
-      on: vi.fn((event: string, handler: (payload: unknown) => void) => {
-        handlers.set(event, handler);
-      }),
-      off: vi.fn(),
-    };
-    const handler = vi.fn();
-    subscribeDeliveryEvents(socket as never, handler);
-
-    handlers.get('delivery:created')?.({
-      deliveryId: 'del-1',
-      deliveryNo: 'DLV-20260609-0001',
-      outletId: 'outlet-1',
-      deliveryType: 'STORE_DIRECT',
-      status: 'MENUNGGU',
-    });
-
-    expect(handler).toHaveBeenCalledWith({
-      type: 'created',
-      deliveryId: 'del-1',
-      deliveryNo: 'DLV-20260609-0001',
-      outletId: 'outlet-1',
-      deliveryType: 'STORE_DIRECT',
-      status: 'MENUNGGU',
-    });
-  });
 });
