@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned, computePosTax, previewLoyaltyRedeemDiscount } from '@barokah/shared';
+import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned, computePosTax, previewLoyaltyRedeemDiscount, parseMemberQrPayload } from '@barokah/shared';
 import { PosCartPanel } from '@/components/pos/PosCartPanel';
 import { PosProductGrid } from '@/components/pos/PosProductGrid';
 import { PosShiftBar } from '@/components/pos/PosShiftBar';
@@ -42,7 +42,7 @@ import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
 import { fetchActivePromos, previewPromoLocally, type PromoValidationResult } from '@/lib/promo-checkout-api';
 import { fetchTenantSettings } from '@/lib/settings-api';
-import { lookupCustomerByPhone } from '@/lib/customers-api';
+import { lookupCustomerByPhone, lookupCustomerByMemberCode } from '@/lib/customers-api';
 import {
   canSelectFinancePaymentMode,
   FINANCE_CUSTOMER_REQUIRED_MESSAGE,
@@ -180,6 +180,8 @@ export default function PosPage() {
   const [stockAlert, setStockAlert] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerMemberCode, setCustomerMemberCode] = useState('');
+  const [memberScanInput, setMemberScanInput] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [loyaltyPointsEnabled, setLoyaltyPointsEnabled] = useState(true);
   const [loyaltyEarnRateIdr, setLoyaltyEarnRateIdr] = useState(10_000);
@@ -211,16 +213,45 @@ export default function PosPage() {
       });
   }, []);
 
+  function applyCustomerLookup(customer: {
+    id: string;
+    name: string;
+    phone: string;
+    memberCode?: string;
+    points?: number;
+    receivableOutstanding?: number;
+    depositBalance?: number;
+    creditLimit?: number | null;
+    creditAvailable?: number | null;
+  }) {
+    setCustomerId(customer.id);
+    setCustomerName(customer.name);
+    setCustomerPhone(customer.phone);
+    setCustomerMemberCode(customer.memberCode ?? '');
+    setCustomerPointsBalance(customer.points ?? 0);
+    setCustomerReceivableOutstanding(customer.receivableOutstanding ?? 0);
+    setCustomerDepositBalance(customer.depositBalance ?? 0);
+    setCustomerCreditLimit(customer.creditLimit ?? null);
+    setCustomerCreditAvailable(customer.creditAvailable ?? null);
+  }
+
+  function clearCustomerLookup() {
+    setCustomerId(null);
+    setCustomerMemberCode('');
+    setCustomerPointsBalance(null);
+    setCustomerReceivableOutstanding(null);
+    setCustomerDepositBalance(null);
+    setCustomerCreditLimit(null);
+    setCustomerCreditAvailable(null);
+    setLoyaltyPointsToRedeem('');
+  }
+
   useEffect(() => {
     const phone = customerPhone.trim();
     if (!/^08\d{8,11}$/.test(phone)) {
-      setCustomerId(null);
-      setCustomerPointsBalance(null);
-      setCustomerReceivableOutstanding(null);
-      setCustomerDepositBalance(null);
-      setCustomerCreditLimit(null);
-      setCustomerCreditAvailable(null);
-      setLoyaltyPointsToRedeem('');
+      if (!memberScanInput.trim()) {
+        clearCustomerLookup();
+      }
       return;
     }
     let cancelled = false;
@@ -228,36 +259,42 @@ export default function PosPage() {
       .then((customer) => {
         if (cancelled) return;
         if (customer) {
-          setCustomerId(customer.id);
-          setCustomerName((prev) => (prev.trim() ? prev : customer.name));
-          setCustomerPointsBalance(customer.points ?? 0);
-          setCustomerReceivableOutstanding(customer.receivableOutstanding ?? 0);
-          setCustomerDepositBalance(customer.depositBalance ?? 0);
-          setCustomerCreditLimit(customer.creditLimit ?? null);
-          setCustomerCreditAvailable(customer.creditAvailable ?? null);
-        } else {
-          setCustomerId(null);
-          setCustomerPointsBalance(null);
-          setCustomerReceivableOutstanding(null);
-          setCustomerDepositBalance(null);
-          setCustomerCreditLimit(null);
-          setCustomerCreditAvailable(null);
+          applyCustomerLookup(customer);
+        } else if (!memberScanInput.trim()) {
+          clearCustomerLookup();
         }
       })
       .catch(() => {
-        if (!cancelled) {
-          setCustomerId(null);
-          setCustomerPointsBalance(null);
-          setCustomerReceivableOutstanding(null);
-          setCustomerDepositBalance(null);
-          setCustomerCreditLimit(null);
-          setCustomerCreditAvailable(null);
+        if (!cancelled && !memberScanInput.trim()) {
+          clearCustomerLookup();
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [customerPhone]);
+  }, [customerPhone, memberScanInput]);
+
+  useEffect(() => {
+    const raw = memberScanInput.trim();
+    if (!raw) return;
+    const parsed = parseMemberQrPayload(raw);
+    const code = parsed?.memberCode ?? (raw.startsWith('MBR-') ? raw.toUpperCase() : '');
+    if (!code) return;
+    let cancelled = false;
+    void lookupCustomerByMemberCode(code)
+      .then((customer) => {
+        if (cancelled) return;
+        if (customer) {
+          applyCustomerLookup(customer);
+        }
+      })
+      .catch(() => {
+        /* ignore scan errors */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [memberScanInput]);
 
   function buildCustomerCheckoutPayload() {
     const name = customerName.trim();
@@ -1527,6 +1564,9 @@ export default function PosPage() {
           onCloseReceipt={() => setReceiptPreview(null)}
           customerName={customerName}
           customerPhone={customerPhone}
+          customerMemberCode={customerMemberCode}
+          memberScanInput={memberScanInput}
+          onMemberScanChange={setMemberScanInput}
           onCustomerNameChange={setCustomerName}
           onCustomerPhoneChange={setCustomerPhone}
           loyaltyPointsPreview={loyaltyPointsPreview}

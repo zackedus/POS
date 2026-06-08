@@ -1,11 +1,24 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { UserRole } from '@barokah/database';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { CreateCustomerAddressDto, UpdateCustomerAddressDto } from './dto/customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { LoyaltyLedgerQueryDto } from './dto/loyalty-ledger-query.dto';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomersService } from './customers.service';
 
 @Controller('customers')
@@ -30,15 +43,104 @@ export class CustomersController {
       .then((customer) => ({ customer }));
   }
 
+  @Get('lookup/by-code')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  lookupByCode(@CurrentUser() user: AuthJwtPayload, @Query('code') code?: string) {
+    if (!code?.trim()) {
+      return { customer: null };
+    }
+    return this.customersService
+      .lookupByMemberCode(user.tenantId, code.trim())
+      .then((customer) => ({ customer }));
+  }
+
   @Get(':customerId')
-  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
   getById(@CurrentUser() user: AuthJwtPayload, @Param('customerId') customerId: string) {
     return this.customersService.getById(user, customerId);
+  }
+
+  @Patch(':customerId')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  update(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Body() dto: UpdateCustomerDto,
+  ) {
+    return this.customersService.update(user, customerId, dto);
   }
 
   @Post()
   @Roles(UserRole.OWNER, UserRole.MANAGER)
   create(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreateCustomerDto) {
     return this.customersService.create(user, dto);
+  }
+
+  @Get(':customerId/addresses')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  listAddresses(@CurrentUser() user: AuthJwtPayload, @Param('customerId') customerId: string) {
+    return this.customersService.listAddresses(user, customerId);
+  }
+
+  @Post(':customerId/addresses')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  createAddress(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Body() dto: CreateCustomerAddressDto,
+  ) {
+    return this.customersService.createAddress(user, customerId, dto);
+  }
+
+  @Patch(':customerId/addresses/:addressId')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  updateAddress(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Param('addressId') addressId: string,
+    @Body() dto: UpdateCustomerAddressDto,
+  ) {
+    return this.customersService.updateAddress(user, customerId, addressId, dto);
+  }
+
+  @Delete(':customerId/addresses/:addressId')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  deleteAddress(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Param('addressId') addressId: string,
+  ) {
+    return this.customersService.deleteAddress(user, customerId, addressId);
+  }
+
+  @Get(':customerId/loyalty-ledger')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  loyaltyLedger(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Query() query: LoyaltyLedgerQueryDto,
+  ) {
+    return this.customersService.getLoyaltyLedger(user, customerId, query);
+  }
+
+  @Get(':customerId/finance-summary')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  financeSummary(@CurrentUser() user: AuthJwtPayload, @Param('customerId') customerId: string) {
+    return this.customersService.getFinanceSummary(user, customerId);
+  }
+
+  @Get(':customerId/member-card')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  memberCard(@CurrentUser() user: AuthJwtPayload, @Param('customerId') customerId: string) {
+    return this.customersService.getMemberCard(user, customerId);
+  }
+
+  @Post(':customerId/member-card/regenerate-code')
+  @Roles(UserRole.OWNER)
+  regenerateMemberCode(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.customersService.regenerateMemberCode(user, customerId);
   }
 }

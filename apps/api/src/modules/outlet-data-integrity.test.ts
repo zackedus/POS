@@ -192,6 +192,8 @@ test('Outlet isolation: checkout on outlet A does not deduct outlet B stock', as
     {
       resolveOptionalCustomerId: async () => null,
       resolveLoyaltyRedeem: async () => ({ pointsRedeemed: 0, discountIdr: 0 }),
+      recordLoyaltyRedeemInTransaction: async () => undefined,
+      earnPointsForCompletedTransaction: async () => 0,
       getLoyaltyConfig: async () => ({
         loyaltyPointsEnabled: false,
         loyaltyEarnRateIdr: 10000,

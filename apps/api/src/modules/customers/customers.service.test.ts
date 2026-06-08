@@ -1,14 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 
-test('CustomersService: findOrCreateByPhone creates new customer', async () => {
-  const created: Array<{ tenantId: string; name: string; phone: string }> = [];
+function makeService(prisma: Record<string, unknown>) {
+  const financeCheckout = {
+    getCustomerOutstandingReceivableIdr: async () => 0,
+    getCustomerDepositBalanceIdr: async () => 0,
+  };
+  const receivablesService = {
+    getCustomerFinanceSummary: async () => ({ customer: {}, finance: null, receivables: [], deposit: null }),
+  };
+  return new CustomersService(prisma as never, financeCheckout as never, receivablesService as never);
+}
+
+test('CustomersService: findOrCreateByPhone creates new customer with member code', async () => {
+  const created: Array<{ tenantId: string; name: string; phone: string; memberCode: string }> = [];
   const prisma = {
     customer: {
       findUnique: async () => null,
-      create: async ({ data }: { data: { tenantId: string; name: string; phone: string } }) => {
+      findFirst: async () => null,
+      create: async ({
+        data,
+      }: {
+        data: { tenantId: string; name: string; phone: string; memberCode: string };
+      }) => {
         created.push(data);
         return { id: 'cust-1', ...data, points: 0 };
       },
@@ -18,14 +34,15 @@ test('CustomersService: findOrCreateByPhone creates new customer', async () => {
     },
   };
 
-  const service = new CustomersService(prisma as never);
+  const service = makeService(prisma);
   const result = await service.findOrCreateByPhone('tenant-1', 'Budi', '081234567890');
   assert.equal(result.id, 'cust-1');
   assert.equal(created[0]?.phone, '6281234567890');
+  assert.match(created[0]?.memberCode ?? '', /^MBR-/);
 });
 
 test('CustomersService: resolveOptionalCustomerId returns null when phone missing', async () => {
-  const service = new CustomersService({ customer: {} } as never);
+  const service = makeService({ customer: {} });
   const id = await service.resolveOptionalCustomerId('tenant-1', {
     customerName: 'Ani',
   });
@@ -38,30 +55,41 @@ test('CustomersService: resolveOptionalCustomerId links by customerId', async ()
       findFirst: async () => ({ id: 'cust-2' }),
     },
   };
-  const service = new CustomersService(prisma as never);
+  const service = makeService(prisma);
   const id = await service.resolveOptionalCustomerId('tenant-1', {
     customerId: 'cust-2',
   });
   assert.equal(id, 'cust-2');
 });
 
-test('CustomersService: earnPointsForCompletedTransaction increments points', async () => {
+test('CustomersService: earnPointsForCompletedTransaction writes ledger', async () => {
   let increment = 0;
+  let ledgerCreated = false;
   const prisma = {
     tenantSettings: {
       findUnique: async () => ({ loyaltyPointsEnabled: true, loyaltyEarnRateIdr: 10_000 }),
     },
-    customer: {
-      update: async ({ data }: { data: { points: { increment: number } } }) => {
-        increment = data.points.increment;
-        return { points: 5 };
-      },
-    },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        customer: {
+          update: async ({ data }: { data: { points: { increment: number } } }) => {
+            increment = data.points.increment;
+            return { points: 5 };
+          },
+        },
+        loyaltyPointLedger: {
+          create: async () => {
+            ledgerCreated = true;
+            return {};
+          },
+        },
+      }),
   };
-  const service = new CustomersService(prisma as never);
-  const earned = await service.earnPointsForCompletedTransaction('tenant-1', 'cust-1', 25_000);
+  const service = makeService(prisma);
+  const earned = await service.earnPointsForCompletedTransaction('tenant-1', 'cust-1', 25_000, 'tx-1');
   assert.equal(earned, 2);
   assert.equal(increment, 2);
+  assert.equal(ledgerCreated, true);
 });
 
 test('CustomersService: resolveLoyaltyRedeem rejects over balance', async () => {
@@ -78,7 +106,7 @@ test('CustomersService: resolveLoyaltyRedeem rejects over balance', async () => 
       findFirst: async () => ({ points: 3 }),
     },
   };
-  const service = new CustomersService(prisma as never);
+  const service = makeService(prisma);
   await assert.rejects(
     () =>
       service.resolveLoyaltyRedeem({
@@ -109,7 +137,7 @@ test('CustomersService: resolveLoyaltyRedeem returns capped discount', async () 
       findFirst: async () => ({ points: 100 }),
     },
   };
-  const service = new CustomersService(prisma as never);
+  const service = makeService(prisma);
   const result = await service.resolveLoyaltyRedeem({
     tenantId: 'tenant-1',
     customerId: 'cust-1',
@@ -126,7 +154,7 @@ test('CustomersService: create rejects duplicate phone', async () => {
       findUnique: async () => ({ id: 'existing' }),
     },
   };
-  const service = new CustomersService(prisma as never);
+  const service = makeService(prisma);
   await assert.rejects(
     () => service.create({ tenantId: 't1', sub: 'u1', role: 'OWNER' } as never, { name: 'Ani', phone: '08123' }),
     (err: unknown) => err instanceof ConflictException,
@@ -141,7 +169,12 @@ test('CustomersService: registerPublic creates member for active tenant', async 
     },
     customer: {
       findUnique: async () => null,
-      create: async ({ data }: { data: { tenantId: string; name: string; phone: string } }) => {
+      findFirst: async () => null,
+      create: async ({
+        data,
+      }: {
+        data: { tenantId: string; name: string; phone: string; memberCode: string };
+      }) => {
         created = true;
         return { id: 'cust-1', ...data, points: 0, updatedAt: new Date() };
       },
@@ -150,9 +183,111 @@ test('CustomersService: registerPublic creates member for active tenant', async 
       },
     },
   };
-  const service = new CustomersService(prisma as never);
+  const service = makeService(prisma);
   const result = await service.registerPublic('toko-demo', { name: 'Budi', phone: '081234567890' });
   assert.equal(created, true);
   assert.equal(result.customer.phone, '6281234567890');
   assert.match(result.message, /staff admin/i);
+});
+
+test('CustomersService: lookupByMemberCode returns customer with finance', async () => {
+  const prisma = {
+    customer: {
+      findFirst: async () => ({
+        id: 'cust-1',
+        name: 'Budi',
+        phone: '6281234567890',
+        memberCode: 'MBR-TEST1234',
+        points: 10,
+        creditLimit: null,
+      }),
+    },
+  };
+  const service = makeService(prisma);
+  const result = await service.lookupByMemberCode('tenant-1', 'MBR-TEST1234');
+  assert.ok(result);
+  assert.equal(result?.memberCode, 'MBR-TEST1234');
+  assert.equal(result?.points, 10);
+});
+
+test('CustomersService: getMemberCard returns QR payload', async () => {
+  const prisma = {
+    customer: {
+      findFirst: async () => ({
+        id: 'cust-1',
+        name: 'Budi',
+        memberCode: 'MBR-ABC12345',
+        memberSince: new Date('2026-06-01'),
+        points: 25,
+        tenant: { name: 'Toko Demo', slug: 'toko-demo', logoUrl: null },
+      }),
+    },
+  };
+  const service = makeService(prisma);
+  const card = await service.getMemberCard(
+    { tenantId: 'tenant-1', sub: 'u1', role: 'OWNER' } as never,
+    'cust-1',
+  );
+  assert.equal(card.memberCode, 'MBR-ABC12345');
+  assert.match(card.qrPayload, /barokah:member:toko-demo:MBR-ABC12345/);
+});
+
+test('CustomersService: createAddress sets first address as default', async () => {
+  let createdDefault = false;
+  const prisma = {
+    customer: {
+      findFirst: async () => ({ id: 'cust-1' }),
+    },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        customerAddress: {
+          count: async () => 0,
+          updateMany: async () => ({ count: 0 }),
+          create: async ({ data }: { data: { isDefault: boolean } }) => {
+            createdDefault = data.isDefault;
+            return {
+              id: 'addr-1',
+              label: 'Rumah',
+              addressLine1: 'Jl. Test 1',
+              addressLine2: null,
+              city: 'Jakarta',
+              province: null,
+              postalCode: null,
+              isDefault: data.isDefault,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+          },
+        },
+      }),
+  };
+  const service = makeService(prisma);
+  const address = await service.createAddress(
+    { tenantId: 'tenant-1', sub: 'u1', role: 'OWNER' } as never,
+    'cust-1',
+    { label: 'Rumah', addressLine1: 'Jl. Test 1', city: 'Jakarta' },
+  );
+  assert.equal(createdDefault, true);
+  assert.equal(address.isDefault, true);
+});
+
+test('CustomersService: deleteAddress throws when not found', async () => {
+  const prisma = {
+    customer: {
+      findFirst: async () => ({ id: 'cust-1' }),
+    },
+    customerAddress: {
+      findFirst: async () => null,
+    },
+  };
+  const service = makeService(prisma);
+  await assert.rejects(
+    () =>
+      service.deleteAddress(
+        { tenantId: 'tenant-1', sub: 'u1', role: 'OWNER' } as never,
+        'cust-1',
+        'addr-missing',
+      ),
+    (err: unknown) => err instanceof NotFoundException,
+  );
 });

@@ -113,6 +113,9 @@ export interface PosCartPanelProps {
   onCloseReceipt: () => void;
   customerName?: string;
   customerPhone?: string;
+  customerMemberCode?: string;
+  memberScanInput?: string;
+  onMemberScanChange?: (value: string) => void;
   customerId?: string | null;
   onCustomerNameChange?: (value: string) => void;
   onCustomerPhoneChange?: (value: string) => void;
@@ -196,6 +199,9 @@ export function PosCartPanel({
   onCloseReceipt,
   customerName = '',
   customerPhone = '',
+  customerMemberCode = '',
+  memberScanInput = '',
+  onMemberScanChange,
   customerId = null,
   onCustomerNameChange,
   onCustomerPhoneChange,
@@ -437,9 +443,31 @@ export function PosCartPanel({
               fontSize: '0.875rem',
             }}
           />
+          {onMemberScanChange ? (
+            <input
+              type="text"
+              value={memberScanInput}
+              onChange={(event) => onMemberScanChange(event.target.value)}
+              placeholder="Scan QR / ketik kode MBR-…"
+              aria-label="Scan kartu member"
+              style={{
+                minHeight: 44,
+                padding: '0.5rem 0.75rem',
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
+                fontSize: '0.875rem',
+                fontFamily: 'monospace',
+              }}
+            />
+          ) : null}
           {customerLinked ? (
             <p style={{ margin: 0, fontSize: '0.8125rem', color: '#166534' }}>
               Pelanggan terhubung: <strong>{customerName.trim() || '—'}</strong>
+              {customerMemberCode ? (
+                <span style={{ marginLeft: 6, fontFamily: 'monospace', color: '#1d4ed8' }}>
+                  ({customerMemberCode})
+                </span>
+              ) : null}
             </p>
           ) : customerPhone.trim().length >= 8 ? (
             <p style={{ margin: 0, fontSize: '0.8125rem', color: '#b45309' }}>
@@ -498,7 +526,18 @@ export function PosCartPanel({
               <strong style={{ display: 'block', marginBottom: '0.35rem', color: '#1e40af' }}>
                 Info Keuangan Pelanggan
               </strong>
+              {customerMemberCode ? (
+                <div style={{ fontFamily: 'monospace', marginBottom: '0.25rem' }}>
+                  Kode member: <strong>{customerMemberCode}</strong>
+                </div>
+              ) : null}
               <div style={{ display: 'grid', gap: '0.2rem' }}>
+                <div>
+                  Saldo poin:{' '}
+                  <strong style={{ color: '#16a34a' }}>
+                    {(customerPointsBalance ?? 0).toLocaleString('id-ID')}
+                  </strong>
+                </div>
                 <div>
                   Limit kredit:{' '}
                   <strong>

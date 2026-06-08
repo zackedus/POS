@@ -14,9 +14,7 @@ import { useAdminTheme } from '@/hooks/useAdminTheme';
 import { fetchMe, type AuthUser } from '@/lib/auth';
 import {
   createCustomer,
-  fetchCustomerDetail,
   fetchCustomers,
-  type CustomerDetail,
   type CustomerListItem,
 } from '@/lib/customers-api';
 import { canManageCustomers } from '@/lib/rbac';
@@ -30,9 +28,6 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<CustomerDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createPhone, setCreatePhone] = useState('');
   const [creating, setCreating] = useState(false);
@@ -64,18 +59,6 @@ export default function CustomersPage() {
     return () => clearTimeout(timer);
   }, [load]);
 
-  useEffect(() => {
-    if (!selectedId) {
-      setDetail(null);
-      return;
-    }
-    setDetailLoading(true);
-    void fetchCustomerDetail(selectedId)
-      .then(setDetail)
-      .catch((err) => setError(mapApiError(err, 'Gagal memuat detail pelanggan.')))
-      .finally(() => setDetailLoading(false));
-  }, [selectedId]);
-
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!canEdit) return;
@@ -99,7 +82,7 @@ export default function CustomersPage() {
     <div style={{ maxWidth: 1100, display: 'grid', gap: '1.25rem' }}>
       <PageHeader
         title="Member & Pelanggan"
-        description="Daftar member dari POS, storefront, dan pendaftaran walk-in staff. Poin loyalty otomatis saat checkout."
+        description="Kelola profil member, poin, piutang, deposit, dan kartu member."
       />
 
       {error ? <AlertBanner variant="error" onRetry={() => void load()}>{error}</AlertBanner> : null}
@@ -107,145 +90,84 @@ export default function CustomersPage() {
 
       <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem', maxWidth: 360 }}>
-          Cari nama / no. HP
+          Cari nama / no. HP / kode member
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ketik nama atau 08…"
+            placeholder="Ketik nama, 08…, atau MBR-…"
             style={{ padding: '0.5rem', borderRadius: 8, border: `1px solid ${tokens.cardBorder}` }}
           />
         </label>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 340px)', gap: '1rem' }}>
-        <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
-          {loading ? (
-            <LoadingSkeleton rows={5} />
-          ) : customers.length === 0 ? (
-            <p style={{ margin: 0, color: tokens.muted }}>Belum ada pelanggan terdaftar.</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${tokens.cardBorder}`, textAlign: 'left' }}>
-                    <th style={{ padding: '0.5rem' }}>Nama</th>
-                    <th style={{ padding: '0.5rem' }}>No. HP</th>
-                    <th style={{ padding: '0.5rem' }}>Poin</th>
+      <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
+        {loading ? (
+          <LoadingSkeleton rows={5} />
+        ) : customers.length === 0 ? (
+          <p style={{ margin: 0, color: tokens.muted }}>Belum ada pelanggan terdaftar.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${tokens.cardBorder}`, textAlign: 'left' }}>
+                  <th style={{ padding: '0.5rem' }}>Nama</th>
+                  <th style={{ padding: '0.5rem' }}>Member</th>
+                  <th style={{ padding: '0.5rem' }}>Poin</th>
+                  <th style={{ padding: '0.5rem' }}>Piutang</th>
+                  <th style={{ padding: '0.5rem' }}>Deposit</th>
+                  <th style={{ padding: '0.5rem' }} />
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((customer) => (
+                  <tr key={customer.id} style={{ borderBottom: `1px solid ${tokens.cardBorder}` }}>
+                    <td style={{ padding: '0.65rem 0.5rem' }}>
+                      <div style={{ fontWeight: 600 }}>{customer.name}</div>
+                      <div style={{ color: tokens.muted, fontSize: '0.8125rem' }}>{customer.phone}</div>
+                    </td>
+                    <td style={{ padding: '0.65rem 0.5rem' }}>
+                      {customer.memberCode ? (
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: 6,
+                            fontFamily: 'monospace',
+                          }}
+                        >
+                          {customer.memberCode}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td style={{ padding: '0.65rem 0.5rem', color: '#16a34a', fontWeight: 700 }}>
+                      {customer.points.toLocaleString('id-ID')}
+                    </td>
+                    <td style={{ padding: '0.65rem 0.5rem' }}>
+                      {formatCurrencyIDR(customer.receivableOutstanding ?? 0)}
+                    </td>
+                    <td style={{ padding: '0.65rem 0.5rem' }}>
+                      {formatCurrencyIDR(customer.depositBalance ?? 0)}
+                    </td>
+                    <td style={{ padding: '0.65rem 0.5rem' }}>
+                      <Link href={`/dashboard/customers/${customer.id}`}>
+                        <Button type="button" variant="secondary" style={{ fontSize: '0.8125rem' }}>
+                          Detail
+                        </Button>
+                      </Link>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {customers.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      onClick={() => setSelectedId(customer.id)}
-                      style={{
-                        borderBottom: `1px solid ${tokens.cardBorder}`,
-                        cursor: 'pointer',
-                        background: selectedId === customer.id ? '#f0fdf4' : undefined,
-                      }}
-                    >
-                      <td style={{ padding: '0.65rem 0.5rem', fontWeight: 600 }}>{customer.name}</td>
-                      <td style={{ padding: '0.65rem 0.5rem' }}>{customer.phone}</td>
-                      <td style={{ padding: '0.65rem 0.5rem', color: '#16a34a', fontWeight: 700 }}>
-                        {customer.points.toLocaleString('id-ID')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
-          <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Detail pelanggan</h3>
-          {!selectedId ? (
-            <p style={{ margin: 0, color: tokens.muted, fontSize: '0.875rem' }}>Pilih baris untuk melihat riwayat.</p>
-          ) : detailLoading ? (
-            <LoadingSkeleton rows={3} />
-          ) : detail ? (
-            <div style={{ fontSize: '0.875rem', display: 'grid', gap: '0.5rem' }}>
-              <div>
-                <strong>{detail.name}</strong>
-                <div style={{ color: tokens.muted }}>{detail.phone}</div>
-              </div>
-              <div>
-                Saldo poin: <strong style={{ color: '#16a34a' }}>{detail.points.toLocaleString('id-ID')}</strong>
-              </div>
-              <div style={{ color: tokens.muted }}>
-                Transaksi POS: {detail.stats.transactionCount} · Order online: {detail.stats.onlineOrderCount}
-              </div>
-              <div style={{ padding: '0.65rem', background: '#f8fafc', borderRadius: 8, display: 'grid', gap: '0.35rem' }}>
-                <div style={{ fontWeight: 600, color: '#1e40af' }}>Ringkasan Keuangan</div>
-                <div>
-                  Piutang:{' '}
-                  <strong>{formatCurrencyIDR(detail.receivableOutstanding ?? 0)}</strong>
-                </div>
-                <div>
-                  Deposit: <strong>{formatCurrencyIDR(detail.depositBalance ?? 0)}</strong>
-                </div>
-                <div>
-                  Limit kredit:{' '}
-                  <strong>
-                    {detail.creditLimit === 0
-                      ? 'Tidak diizinkan tempo'
-                      : detail.creditLimit != null
-                        ? formatCurrencyIDR(detail.creditLimit)
-                        : 'Unlimited'}
-                  </strong>
-                </div>
-                {detail.creditAvailable != null && detail.creditLimit !== 0 ? (
-                  <div style={{ color: '#166534' }}>
-                    Kredit tersedia: <strong>{formatCurrencyIDR(detail.creditAvailable)}</strong>
-                  </div>
-                ) : null}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-                  <Link href={`/dashboard/receivables?customerId=${detail.id}`}>
-                    <Button type="button" variant="secondary" style={{ fontSize: '0.8125rem' }}>
-                      Lihat Piutang
-                    </Button>
-                  </Link>
-                  <Link href="/dashboard/deposits">
-                    <Button type="button" variant="secondary" style={{ fontSize: '0.8125rem' }}>
-                      Top-up Deposit
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-              <Link href={`/dashboard/receivables/statement/${detail.id}`}>
-                <Button type="button" variant="secondary" style={{ marginTop: '0.25rem' }}>
-                  Cetak Statement
-                </Button>
-              </Link>
-              {detail.recentTransactions.length > 0 ? (
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Transaksi terakhir</div>
-                  <ul style={{ margin: 0, paddingLeft: '1rem' }}>
-                    {detail.recentTransactions.map((tx) => (
-                      <li key={tx.id}>
-                        {tx.receiptNo} — Rp {tx.total.toLocaleString('id-ID')}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {detail.recentOnlineOrders.length > 0 ? (
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Order online terakhir</div>
-                  <ul style={{ margin: 0, paddingLeft: '1rem' }}>
-                    {detail.recentOnlineOrders.map((order) => (
-                      <li key={order.id}>
-                        {order.orderNo} — Rp {order.total.toLocaleString('id-ID')}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {canEdit ? (
         <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>

@@ -13,4 +13,5 @@ export * from './promo-calculator';
 export * from './tax-calculator';
 export * from './product-search';
 export * from './loyalty-points';
+export * from './member-code';
 export * from './product-csv-import';

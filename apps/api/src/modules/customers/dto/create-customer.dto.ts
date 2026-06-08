@@ -1,4 +1,4 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateCustomerDto {
   @IsString()
@@ -10,4 +10,9 @@ export class CreateCustomerDto {
   @MinLength(8, { message: 'phone minimal 8 digit' })
   @MaxLength(20, { message: 'phone maksimal 20 karakter' })
   phone!: string;
+
+  @IsOptional()
+  @IsEmail({}, { message: 'Format email tidak valid' })
+  @MaxLength(120)
+  email?: string;
 }

@@ -17,11 +17,13 @@ Panduan singkat shift harian toko bahan bangunan.
 1. **Cari produk:** ketik nama/SKU/barcode atau tap grid kategori
 2. **Multi satuan:** pilih dus/kg/m di dropdown keranjang jika produk punya beberapa satuan jual
 3. **Qty:** tombol ± atau ketik langsung
-4. **Pelanggan (opsional):** isi nama + HP `08…` untuk earn/redeem poin
+4. **Pelanggan (opsional):** isi nama + HP `08…` untuk earn/redeem poin, tempo, deposit
+   - **Scan kartu member:** ketik/scan QR `MBR-…` di field scan member
+   - Panel info menampilkan kode member, saldo poin, piutang, deposit
 5. **Promo:** pilih otomatis atau promo spesifik di dropdown
 6. **Tukar poin:** jika pelanggan terdaftar dan punya saldo, isi jumlah poin (maks 50% total)
 7. **Total:** periksa subtotal, diskon, PPN (jika aktif), total akhir
-8. **Bayar:** Tunai / Transfer / QRIS / Split
+8. **Bayar:** Tunai / Transfer / QRIS / Split / Tempo / Deposit
 9. **Struk:** preview digital; cetak PDF atau thermal (jika terhubung)
 
 ## Hold & Recall

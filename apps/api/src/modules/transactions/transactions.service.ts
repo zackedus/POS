@@ -9,7 +9,7 @@ import {
 import { UserRole } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
-import { ErrorCodes, PaymentMethod, computePosTax, computeLoyaltyPointsEarned } from '@barokah/shared';
+import { ErrorCodes, PaymentMethod, computePosTax } from '@barokah/shared';
 import {
   buildInsufficientStockDetail,
   convertToBaseQuantity,
@@ -1364,23 +1364,23 @@ export class TransactionsService {
       }
 
       if (loyaltyRedeem.pointsRedeemed > 0 && customerId) {
-        const updatedCustomer = await tx.customer.update({
-          where: { id: customerId },
-          data: { points: { decrement: loyaltyRedeem.pointsRedeemed } },
-          select: { points: true },
+        await this.customersService.recordLoyaltyRedeemInTransaction(tx, {
+          tenantId: user.tenantId,
+          customerId,
+          pointsRedeemed: loyaltyRedeem.pointsRedeemed,
+          transactionId: created.id,
         });
-        if (updatedCustomer.points < 0) {
-          throw new ConflictException({
-            code: ErrorCodes.LOYALTY_INSUFFICIENT_POINTS,
-            message: 'Saldo poin tidak mencukupi saat checkout.',
-          });
-        }
       }
 
       return created;
     });
 
-    const loyaltyMeta = await this.applyLoyaltyEarn(user.tenantId, customerId, subtotal - discount);
+    const loyaltyMeta = await this.applyLoyaltyEarn(
+      user.tenantId,
+      customerId,
+      subtotal - discount,
+      transaction.id,
+    );
 
     return this.buildCheckoutResponse(
       transaction,
@@ -1545,17 +1545,12 @@ export class TransactionsService {
         }
 
         if (loyaltyRedeem.pointsRedeemed > 0 && customerId) {
-          const updatedCustomer = await tx.customer.update({
-            where: { id: customerId },
-            data: { points: { decrement: loyaltyRedeem.pointsRedeemed } },
-            select: { points: true },
+          await this.customersService.recordLoyaltyRedeemInTransaction(tx, {
+            tenantId: user.tenantId,
+            customerId,
+            pointsRedeemed: loyaltyRedeem.pointsRedeemed,
+            transactionId: created.id,
           });
-          if (updatedCustomer.points < 0) {
-            throw new ConflictException({
-              code: ErrorCodes.LOYALTY_INSUFFICIENT_POINTS,
-              message: 'Saldo poin tidak mencukupi saat checkout.',
-            });
-          }
         }
 
         if (customerId) {
@@ -1578,7 +1573,12 @@ export class TransactionsService {
       return acc;
     }, {});
 
-    const loyaltyMeta = await this.applyLoyaltyEarn(user.tenantId, customerId, subtotal - discount);
+    const loyaltyMeta = await this.applyLoyaltyEarn(
+      user.tenantId,
+      customerId,
+      subtotal - discount,
+      transaction.id,
+    );
 
     return this.buildCheckoutResponse(
       transaction,
@@ -1602,17 +1602,21 @@ export class TransactionsService {
     tenantId: string,
     customerId: string | null,
     netSpendIdr: number,
+    transactionId?: string,
   ): Promise<{ pointsEarned?: number; customerPoints?: number }> {
     if (!customerId || netSpendIdr <= 0) return {};
-    const config = await this.customersService.getLoyaltyConfig(tenantId);
-    const pointsEarned = computeLoyaltyPointsEarned(netSpendIdr, config);
+    const pointsEarned = await this.customersService.earnPointsForCompletedTransaction(
+      tenantId,
+      customerId,
+      netSpendIdr,
+      transactionId,
+    );
     if (pointsEarned <= 0) return {};
-    const updated = await this.prisma.customer.update({
+    const updated = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      data: { points: { increment: pointsEarned } },
       select: { points: true },
     });
-    return { pointsEarned, customerPoints: updated.points };
+    return { pointsEarned, customerPoints: updated?.points };
   }
 
   private assertOutletAccess(user: AuthJwtPayload, outletId: string) {

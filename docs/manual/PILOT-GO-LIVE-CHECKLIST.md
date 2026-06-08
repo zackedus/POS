@@ -235,7 +235,8 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Uji login/logout + outlet scope (kasir = cabang assign; manager/owner = semua cabang tenant)
 - [ ] **Pusat Admin** (`/dashboard/admin`) — Owner/Manager only; Kasir redirect `/pos`
 - [ ] **Pengguna & RBAC** (`/dashboard/users`) — Owner buat semua role; Manager buat kasir saja
-- [ ] **Member & Pelanggan** (`/dashboard/customers`) — daftar, detail poin, walk-in register staff
+- [ ] **Member & Pelanggan** (`/dashboard/customers`) — list poin/piutang/deposit; detail tab profil/alamat/poin/piutang/deposit/kartu member
+- [ ] **Kartu member** — preview digital + cetak dari tab Kartu Member; scan QR di POS kasir
 - [ ] **Integrasi & API** (`/dashboard/integrations`) — webhook Midtrans URL, tes koneksi sandbox
 - [ ] **Member storefront** (`/store/barokah-bangunan/register`) — publik; bukan self-register admin staff
 

@@ -426,7 +426,40 @@ Log audit append-only untuk aksi sensitif sistem.
 
 | Kolom | Tipe | Deskripsi |
 |-------|------|-----------|
+| email | Text nullable | Email opsional |
+| member_code | Text | Kode kartu member unik per tenant (MBR-XXXXXXXX) |
+| member_since | Timestamptz | Tanggal jadi member |
+| notes | Text nullable | Catatan internal |
 | credit_limit | Decimal(15,2) nullable | Limit kredit tempo; null = unlimited, 0 = tidak boleh tempo |
+| points | Int | Saldo poin agregat (ledger di `loyalty_point_ledger`) |
+
+### customer_addresses
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| customer_id | UUID FK | Pelanggan |
+| label | Text | Rumah / Kantor / Proyek / Lainnya |
+| address_line1 | Text | Alamat utama |
+| address_line2 | Text nullable | Patokan / gedung |
+| city | Text | Kota |
+| province | Text nullable | Provinsi |
+| postal_code | Text nullable | Kode pos |
+| is_default | Boolean | Alamat utama |
+
+### loyalty_point_ledger
+
+| Kolom | Tipe | Deskripsi |
+|-------|------|-----------|
+| tenant_id | UUID FK | Scope tenant |
+| customer_id | UUID FK | Pelanggan |
+| type | LoyaltyPointType | EARN, REDEEM, ADJUST |
+| points | Int | Delta (+ earn, − redeem) |
+| balance_after | Int | Saldo setelah transaksi |
+| transaction_id | UUID FK nullable | Transaksi POS terkait |
+| notes | Text nullable | Keterangan |
+| recorded_by_id | UUID FK nullable | User (untuk ADJUST manual) |
+
+> Spec CRM: [`docs/domain/CUSTOMER-MEMBER-CRM.md`](../domain/CUSTOMER-MEMBER-CRM.md)
 
 ### receivables
 

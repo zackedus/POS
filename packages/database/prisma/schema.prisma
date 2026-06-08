@@ -41,9 +41,11 @@ model Tenant {
   purchaseOrderReturns         PurchaseOrderReturn[]
   tenantSettings               TenantSettings?
   customers                    Customer[]
+  loyaltyPointLedger           LoyaltyPointLedger[]
   receivables                  Receivable[]
   payables                     Payable[]
   customerDeposits             CustomerDeposit[]
+  customerCreditAuditLogs      CustomerCreditAuditLog[]
 
   @@map("tenants")
 }
@@ -135,6 +137,9 @@ model User {
   receivablePaymentsRecorded ReceivablePayment[] @relation("ReceivablePaymentRecordedBy")
   payablePaymentsRecorded    PayablePayment[]    @relation("PayablePaymentRecordedBy")
   depositTransactionsRecorded DepositTransaction[] @relation("DepositTransactionRecordedBy")
+  loyaltyPointLedgerRecorded  LoyaltyPointLedger[]
+  creditAuditLogsRecorded     CustomerCreditAuditLog[] @relation("CreditAuditRecordedBy")
+  creditAuditLogsApproved     CustomerCreditAuditLog[] @relation("CreditAuditApprovedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -629,20 +634,108 @@ model Customer {
   tenantId    String   @map("tenant_id")
   name        String
   phone       String
-  points      Int      @default(0)
-  creditLimit Decimal? @map("credit_limit") @db.Decimal(15, 2)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  email       String?
+  memberCode  String   @map("member_code")
+  memberSince DateTime @default(now()) @map("member_since")
+  notes       String?
+  points            Int      @default(0)
+  creditLimit       Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  autoLimitEnabled  Boolean  @default(true) @map("auto_limit_enabled")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
-  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  transactions Transaction[]
-  onlineOrders OnlineOrder[]
-  receivables  Receivable[]
-  deposit      CustomerDeposit?
+  tenant         Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  addresses      CustomerAddress[]
+  loyaltyLedger  LoyaltyPointLedger[]
+  transactions   Transaction[]
+  onlineOrders   OnlineOrder[]
+  receivables    Receivable[]
+  deposit        CustomerDeposit?
+  creditAuditLogs CustomerCreditAuditLog[]
 
   @@unique([tenantId, phone])
+  @@unique([tenantId, memberCode])
   @@index([tenantId, name])
   @@map("customers")
+}
+
+model CustomerAddress {
+  id           String   @id @default(uuid())
+  customerId   String   @map("customer_id")
+  label        String
+  addressLine1 String   @map("address_line1")
+  addressLine2 String?  @map("address_line2")
+  city         String
+  province     String?
+  postalCode   String?  @map("postal_code")
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+enum LoyaltyPointType {
+  EARN
+  REDEEM
+  ADJUST
+}
+
+model LoyaltyPointLedger {
+  id            String           @id @default(uuid())
+  tenantId      String           @map("tenant_id")
+  customerId    String           @map("customer_id")
+  type          LoyaltyPointType
+  points        Int
+  balanceAfter  Int              @map("balance_after")
+  transactionId String?          @map("transaction_id")
+  notes         String?
+  recordedById  String?          @map("recorded_by_id")
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  recordedBy  User?        @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+  @@index([tenantId])
+  @@map("loyalty_point_ledger")
+}
+
+enum CustomerCreditAuditAction {
+  LIMIT_SET
+  LIMIT_AUTO_INCREASE
+  OVER_LIMIT_APPROVAL
+  CREDIT_SALE
+}
+
+model CustomerCreditAuditLog {
+  id            String                    @id @default(uuid())
+  tenantId      String                    @map("tenant_id")
+  customerId    String                    @map("customer_id")
+  action        CustomerCreditAuditAction
+  oldLimit      Decimal?                  @map("old_limit") @db.Decimal(15, 2)
+  newLimit      Decimal?                  @map("new_limit") @db.Decimal(15, 2)
+  amount        Decimal?                  @db.Decimal(15, 2)
+  transactionId String?                   @map("transaction_id")
+  approvedById  String?                   @map("approved_by_id")
+  recordedById  String?                   @map("recorded_by_id")
+  notes         String?
+  createdAt     DateTime                  @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  approvedBy  User?        @relation("CreditAuditApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  recordedBy  User?        @relation("CreditAuditRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+  @@index([tenantId])
+  @@map("customer_credit_audit_logs")
 }
 
 // ─── Transactions ────────────────────────────────────────
@@ -674,6 +767,8 @@ model Transaction {
   payments    Payment[]
   adjustments TransactionAdjustment[]
   receivable  Receivable?
+  loyaltyLedger LoyaltyPointLedger[]
+  creditAuditLogs CustomerCreditAuditLog[]
 
   @@unique([outletId, receiptNo])
   @@index([outletId, createdAt])

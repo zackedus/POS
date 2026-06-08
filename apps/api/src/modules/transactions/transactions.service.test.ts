@@ -15,6 +15,8 @@ function createCustomersServiceStub() {
   return {
     resolveOptionalCustomerId: async () => null,
     resolveLoyaltyRedeem: async () => ({ pointsRedeemed: 0, discountIdr: 0 }),
+    recordLoyaltyRedeemInTransaction: async () => undefined,
+    earnPointsForCompletedTransaction: async () => 0,
   };
 }
 
@@ -1679,6 +1681,8 @@ test('Edge BL-EC-03: checkoutSplit stacks promo discount + loyalty redeem (not p
   const customersService = {
     resolveOptionalCustomerId: async () => 'cust-1',
     resolveLoyaltyRedeem: async () => ({ pointsRedeemed: 10, discountIdr: 10_000 }),
+    recordLoyaltyRedeemInTransaction: async () => undefined,
+    earnPointsForCompletedTransaction: async () => 5,
     getLoyaltyConfig: async () => ({
       earnRateIdr: 10_000,
       pointValueIdr: 1_000,
@@ -1688,6 +1692,7 @@ test('Edge BL-EC-03: checkoutSplit stacks promo discount + loyalty redeem (not p
   const base = checkoutPrismaMock({ product: sellableProduct(), stockQty: 10 });
   const customerStub = {
     findFirst: async () => ({ creditLimit: null }),
+    findUnique: async () => ({ points: 95 }),
     update: async () => ({ points: 100 }),
   };
   const prisma = {
