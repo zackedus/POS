@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { UserRole } from '@barokah/database';
 import type { Prisma } from '@prisma/client';
 import { ErrorCodes, PaymentMethod } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
@@ -7,7 +6,7 @@ import { buildAnalyticsMarginCsv } from '../../common/utils/analytics-export.uti
 import { buildDailySalesCsv, buildDailySalesPdf } from '../../common/utils/daily-export.util';
 import { resolveReportDayRange } from '../../common/utils/report-date.util';
 import { toIdrInteger } from '../../common/utils/money.util';
-import { resolveOutletId } from '../../common/utils/outlet.util';
+import { canAccessAnyTenantOutlet, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { DailyExportQueryDto } from './dto/daily-export-query.dto';
 import { ReportsQueryDto } from './dto/reports-query.dto';
@@ -149,14 +148,13 @@ export class ReportsService {
   }
 
   async listOutlets(user: AuthJwtPayload) {
-    const where: Prisma.OutletWhereInput =
-      user.role === UserRole.OWNER
-        ? { tenantId: user.tenantId, isActive: true }
-        : {
-            tenantId: user.tenantId,
-            isActive: true,
-            id: { in: user.outletIds },
-          };
+    const where: Prisma.OutletWhereInput = canAccessAnyTenantOutlet(user)
+      ? { tenantId: user.tenantId, isActive: true }
+      : {
+          tenantId: user.tenantId,
+          isActive: true,
+          id: { in: user.outletIds },
+        };
 
     const outlets = await this.prisma.outlet.findMany({
       where,
@@ -270,9 +268,9 @@ export class ReportsService {
       where: {
         tenantId: user.tenantId,
         isActive: true,
-        ...(user.role !== UserRole.OWNER
-          ? { id: { in: user.outletIds.filter((id) => id !== currentOutletId) } }
-          : { id: { not: currentOutletId } }),
+        ...(canAccessAnyTenantOutlet(user)
+          ? { id: { not: currentOutletId } }
+          : { id: { in: user.outletIds.filter((id) => id !== currentOutletId) } }),
       },
       select: { id: true, name: true, code: true },
       orderBy: { name: 'asc' },

@@ -4,7 +4,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { ErrorCodes } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
-import { resolveOutletId } from '../../common/utils/outlet.util';
+import { canAccessAnyTenantOutlet, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import {
   CreateExpenseDto,
@@ -129,7 +129,7 @@ export class ExpensesService {
     if (query.outletId) {
       const outletId = resolveOutletId(user, query.outletId);
       where.outletId = outletId;
-    } else if (user.outletIds.length > 0 && user.role !== 'OWNER') {
+    } else if (user.outletIds.length > 0 && !canAccessAnyTenantOutlet(user)) {
       where.outletId = { in: user.outletIds };
     }
 

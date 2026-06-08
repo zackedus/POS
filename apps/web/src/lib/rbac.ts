@@ -20,6 +20,11 @@ export function canViewCostPrice(role: string): boolean {
   return role === UserRole.OWNER || role === UserRole.MANAGER;
 }
 
+/** Owner & Manager may switch to any active outlet in the tenant. */
+export function canAccessAnyTenantOutlet(role: string): boolean {
+  return role === UserRole.OWNER || role === UserRole.MANAGER;
+}
+
 /** Jalur redirect setelah login berhasil. */
 export function getPostLoginPath(role: string): '/dashboard' | '/pos' {
   return canAccessDashboard(role) ? '/dashboard' : '/pos';

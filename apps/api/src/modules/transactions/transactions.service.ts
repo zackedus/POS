@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -23,7 +22,7 @@ import {
 } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
-import { resolveOutletId } from '../../common/utils/outlet.util';
+import { assertOutletAccess as enforceOutletAccess, resolveOutletId } from '../../common/utils/outlet.util';
 import { resolveReportDayRange } from '../../common/utils/report-date.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { PromoService } from '../promo/promo.service';
@@ -1552,12 +1551,7 @@ export class TransactionsService {
   }
 
   private assertOutletAccess(user: AuthJwtPayload, outletId: string) {
-    if (user.role !== UserRole.OWNER && !user.outletIds.includes(outletId)) {
-      throw new ForbiddenException({
-        code: ErrorCodes.INSUFFICIENT_PERMISSION,
-        message: 'Anda tidak memiliki akses ke outlet transaksi ini.',
-      });
-    }
+    enforceOutletAccess(user, outletId);
   }
 
   private async loadTransactionForUser(user: AuthJwtPayload, transactionId: string) {

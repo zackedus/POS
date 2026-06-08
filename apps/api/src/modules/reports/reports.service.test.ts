@@ -26,6 +26,16 @@ function createOwner(): AuthJwtPayload {
   };
 }
 
+function createCashier(outletIds: string[] = ['outlet-1']): AuthJwtPayload {
+  return {
+    sub: 'cashier-1',
+    email: 'kasir@barokah.test',
+    tenantId: 'tenant-1',
+    role: UserRole.CASHIER,
+    outletIds,
+  };
+}
+
 function createOwnerSingleOutlet(): AuthJwtPayload {
   return {
     ...createOwner(),
@@ -98,7 +108,7 @@ test('SCR-R01: getDailySales rejects outlet outside tenant', async () => {
   );
 });
 
-test('SCR-R01: manager without outlet access cannot query reports', async () => {
+test('SCR-R01: cashier without outlet access cannot query reports', async () => {
   const prisma = {
     outlet: {
       findFirst: async () => {
@@ -108,14 +118,10 @@ test('SCR-R01: manager without outlet access cannot query reports', async () => 
   };
 
   const service = new ReportsService(prisma as never);
-  const managerOtherOutlet: AuthJwtPayload = {
-    ...createManager(),
-    outletIds: ['outlet-2'],
-  };
 
   await assert.rejects(
     () =>
-      service.getDailySales(managerOtherOutlet, {
+      service.getDailySales(createCashier(['outlet-2']), {
         outletId: 'outlet-1',
       }),
     (error: unknown) => {
@@ -125,6 +131,56 @@ test('SCR-R01: manager without outlet access cannot query reports', async () => 
       return true;
     },
   );
+});
+
+test('SCR-R01b: manager may query any tenant outlet when switching branch', async () => {
+  const prisma = {
+    outlet: {
+      findFirst: async () => ({ id: 'outlet-1' }),
+    },
+    transaction: {
+      aggregate: async () => ({
+        _sum: { total: '100000' },
+        _count: { _all: 1 },
+      }),
+    },
+    payment: {
+      groupBy: async () => [
+        { method: PaymentMethod.CASH, _sum: { amount: '100000' }, _count: { id: 1 } },
+      ],
+    },
+    transactionAdjustment: {
+      aggregate: async () => ({
+        _sum: { amount: null },
+        _count: { _all: 0 },
+      }),
+    },
+  };
+
+  const service = new ReportsService(prisma as never);
+  const result = await service.getDailySales(createManager(), { outletId: 'outlet-1' });
+  assert.equal(result.grossOmzet, 100_000);
+});
+
+test('SCR-R01c: listOutlets returns all active tenant outlets for manager', async () => {
+  const capturedWhere: Array<Record<string, unknown>> = [];
+  const prisma = {
+    outlet: {
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        capturedWhere.push(where);
+        return [
+          { id: 'outlet-1', name: 'Main', code: 'MAIN', address: null, isActive: true, isDefault: true },
+          { id: 'outlet-2', name: 'North', code: 'NORTH', address: null, isActive: true, isDefault: false },
+        ];
+      },
+    },
+  };
+
+  const service = new ReportsService(prisma as never);
+  const result = await service.listOutlets(createManager());
+
+  assert.equal(result.outlets.length, 2);
+  assert.equal(capturedWhere[0]?.id, undefined);
 });
 
 test('SCR-R02: getDashboard includes pulse and shift summaries', async () => {
@@ -239,18 +295,49 @@ test('SCR-R03: listOutlets returns all tenant outlets for owner', async () => {
   assert.equal(result.defaultOutletId, null);
 });
 
-test('SCR-R03: listOutlets scopes manager to assigned outlets only', async () => {
+test('SCR-R03: listOutlets returns all tenant outlets for manager', async () => {
   const prisma = {
     outlet: {
-      findMany: async (args: { where: { id?: { in: string[] } } }) => {
-        assert.deepEqual(args.where.id?.in, ['outlet-1']);
-        return [{ id: 'outlet-1', name: 'Cabang A', code: 'A', address: null }];
+      findMany: async (args: { where: { tenantId: string; id?: { in: string[] } } }) => {
+        assert.equal(args.where.tenantId, 'tenant-1');
+        assert.equal(args.where.id, undefined);
+        return [
+          { id: 'outlet-1', name: 'Cabang A', code: 'A', address: 'Jl. A', isActive: true, isDefault: true },
+          { id: 'outlet-2', name: 'Cabang B', code: 'B', address: null, isActive: true, isDefault: false },
+        ];
       },
     },
   };
 
   const service = new ReportsService(prisma as never);
   const result = await service.listOutlets(createManager());
+
+  assert.equal(result.outlets.length, 2);
+  assert.equal(result.requiresOutletSelection, true);
+  assert.equal(result.defaultOutletId, 'outlet-1');
+});
+
+test('SCR-R03: listOutlets scopes cashier to assigned outlets only', async () => {
+  const prisma = {
+    outlet: {
+      findMany: async (args: { where: { id?: { in: string[] } } }) => {
+        assert.deepEqual(args.where.id?.in, ['outlet-1']);
+        return [
+          {
+            id: 'outlet-1',
+            name: 'Cabang A',
+            code: 'A',
+            address: null,
+            isActive: true,
+            isDefault: true,
+          },
+        ];
+      },
+    },
+  };
+
+  const service = new ReportsService(prisma as never);
+  const result = await service.listOutlets(createCashier(['outlet-1']));
 
   assert.equal(result.outlets.length, 1);
   assert.equal(result.requiresOutletSelection, false);

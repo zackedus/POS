@@ -7,6 +7,16 @@ import { InventoryService } from './inventory/inventory.service';
 import { PurchaseOrdersService } from './suppliers/purchase-orders.service';
 import { TransactionsService } from './transactions/transactions.service';
 
+function cashier(outletIds: string[]): AuthJwtPayload {
+  return {
+    sub: 'cashier-1',
+    email: 'kasir@test.local',
+    tenantId: 'tenant-1',
+    role: 'CASHIER',
+    outletIds,
+  };
+}
+
 function manager(outletIds: string[]): AuthJwtPayload {
   return {
     sub: 'mgr-1',
@@ -17,7 +27,7 @@ function manager(outletIds: string[]): AuthJwtPayload {
   };
 }
 
-test('Outlet isolation: PO detail blocked for outlet outside user scope', async () => {
+test('Outlet isolation: PO detail blocked for outlet outside cashier scope', async () => {
   const po = {
     id: 'po-north',
     tenantId: 'tenant-1',
@@ -49,9 +59,44 @@ test('Outlet isolation: PO detail blocked for outlet outside user scope', async 
 
   const service = new PurchaseOrdersService(prisma as never);
   await assert.rejects(
-    () => service.getPurchaseOrder(manager(['outlet-main']), 'po-north'),
+    () => service.getPurchaseOrder(cashier(['outlet-main']), 'po-north'),
     (error: unknown) => error instanceof ForbiddenException,
   );
+});
+
+test('Outlet isolation: manager may access PO on unassigned tenant outlet', async () => {
+  const po = {
+    id: 'po-north',
+    tenantId: 'tenant-1',
+    outletId: 'outlet-north',
+    supplierId: 'sup-1',
+    orderNo: 'PO-20260606-0099',
+    status: 'ORDERED',
+    notes: null,
+    orderedAt: new Date(),
+    expectedDeliveryAt: null,
+    receivedAt: null,
+    cancelledAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    supplier: { id: 'sup-1', name: 'Supplier', phone: null, email: null, address: null },
+    outlet: { id: 'outlet-north', name: 'Cabang Utara', code: 'NORTH', address: null },
+    createdBy: { id: 'mgr-1', fullName: 'Manager' },
+    submittedBy: null,
+    items: [],
+    receipts: [],
+    returns: [],
+  };
+
+  const prisma = {
+    purchaseOrder: {
+      findFirst: async () => po,
+    },
+  };
+
+  const service = new PurchaseOrdersService(prisma as never);
+  const result = await service.getPurchaseOrder(manager(['outlet-main']), 'po-north');
+  assert.equal(result.id, 'po-north');
 });
 
 test('Outlet isolation: checkout on outlet A does not deduct outlet B stock', async () => {

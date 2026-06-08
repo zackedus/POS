@@ -4,7 +4,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { ErrorCodes } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
-import { resolveOutletId } from '../../common/utils/outlet.util';
+import { assertOutletAccess, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { ForceCloseShiftDto } from './dto/force-close-shift.dto';
@@ -125,12 +125,7 @@ export class ShiftsService {
       });
     }
 
-    if (user.role !== UserRole.OWNER && !user.outletIds.includes(shift.outletId)) {
-      throw new ForbiddenException({
-        code: ErrorCodes.INSUFFICIENT_PERMISSION,
-        message: 'Anda tidak memiliki akses ke outlet shift ini.',
-      });
-    }
+    assertOutletAccess(user, shift.outletId);
 
     if (outletId && shift.outletId !== resolveOutletId(user, outletId)) {
       throw new NotFoundException({
@@ -224,12 +219,7 @@ export class ShiftsService {
       });
     }
 
-    if (user.role !== UserRole.OWNER && !user.outletIds.includes(shift.outletId)) {
-      throw new ForbiddenException({
-        code: ErrorCodes.INSUFFICIENT_PERMISSION,
-        message: 'Anda tidak memiliki akses ke outlet shift ini.',
-      });
-    }
+    assertOutletAccess(user, shift.outletId);
 
     if (shift.closedAt) {
       throw new ConflictException({

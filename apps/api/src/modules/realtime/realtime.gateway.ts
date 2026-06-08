@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Server, Socket } from 'socket.io';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { canAccessAnyTenantOutlet } from '../../common/utils/outlet.util';
 import { RealtimeService } from './realtime.service';
 
 @WebSocketGateway({
@@ -66,7 +67,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
       client.data.user = payload;
 
-      if (outletId && (payload.role === 'OWNER' || payload.outletIds.includes(outletId))) {
+      if (
+        outletId &&
+        (canAccessAnyTenantOutlet(payload) || payload.outletIds.includes(outletId))
+      ) {
         const room = this.realtime.outletRoom(payload.tenantId, outletId);
         await client.join(room);
         client.data.outletId = outletId;

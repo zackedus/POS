@@ -1,11 +1,9 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { UserRole } from '@barokah/database';
 import { PurchaseOrderStatus, Prisma } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
@@ -17,7 +15,7 @@ import {
   mapPrismaUnitConversions,
 } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
-import { resolveOutletId } from '../../common/utils/outlet.util';
+import { assertOutletAccess, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { CreatePurchaseOrderReturnDto } from './dto/create-purchase-order-return.dto';
@@ -840,12 +838,7 @@ export class PurchaseOrdersService {
   }
 
   private assertPoOutletAccess(user: AuthJwtPayload, outletId: string) {
-    if (user.role !== UserRole.OWNER && !user.outletIds.includes(outletId)) {
-      throw new ForbiddenException({
-        code: ErrorCodes.INSUFFICIENT_PERMISSION,
-        message: 'Anda tidak memiliki akses ke outlet order distributor ini.',
-      });
-    }
+    assertOutletAccess(user, outletId);
   }
 
   private async findPurchaseOrderOrThrow(
