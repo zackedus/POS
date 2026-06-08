@@ -106,9 +106,9 @@ test('Smoke RBAC: inventory adjust requires MANAGER/OWNER', () => {
   ]);
 });
 
-test('Smoke RBAC: users write endpoints require OWNER only', () => {
-  assert.deepEqual(getRoles(UsersController.prototype, 'createUser'), [UserRole.OWNER]);
-  assert.deepEqual(getRoles(UsersController.prototype, 'updateUser'), [UserRole.OWNER]);
+test('Smoke RBAC: users write endpoints — create/update OWNER+MANAGER, deactivate OWNER only', () => {
+  assert.deepEqual(getRoles(UsersController.prototype, 'createUser'), [UserRole.OWNER, UserRole.MANAGER]);
+  assert.deepEqual(getRoles(UsersController.prototype, 'updateUser'), [UserRole.OWNER, UserRole.MANAGER]);
   assert.deepEqual(getRoles(UsersController.prototype, 'deactivateUser'), [UserRole.OWNER]);
 });
 

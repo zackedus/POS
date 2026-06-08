@@ -6,6 +6,7 @@ import {
   CatalogProductsQueryDto,
 } from './dto/catalog-products-query.dto';
 import { OrderStatusQueryDto } from './dto/order-status-query.dto';
+import { RegisterCustomerDto } from './dto/register-customer.dto';
 import { StorefrontRateLimitGuard } from './storefront-rate-limit.guard';
 import { StorefrontService } from './storefront.service';
 
@@ -74,5 +75,14 @@ export class StorefrontController {
     @Body() body: OrderStatusQueryDto,
   ) {
     return this.storefrontService.retryPayment(tenantSlug, orderNo, body.phone);
+  }
+
+  @Post('register')
+  @UseGuards(StorefrontRateLimitGuard)
+  registerMember(@Param('tenantSlug') tenantSlug: string, @Body() dto: RegisterCustomerDto) {
+    if (dto.website?.trim()) {
+      return { ok: true, message: 'Terima kasih.' };
+    }
+    return this.storefrontService.registerMember(tenantSlug, dto);
   }
 }

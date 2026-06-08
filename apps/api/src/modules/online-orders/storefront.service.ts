@@ -747,4 +747,11 @@ export class StorefrontService {
       });
     }
   }
+
+  async registerMember(
+    tenantSlug: string,
+    dto: { name: string; phone: string; email?: string },
+  ) {
+    return this.customersService.registerPublic(tenantSlug, dto);
+  }
 }

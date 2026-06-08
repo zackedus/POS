@@ -65,6 +65,19 @@ export function StoreHeader() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
         <Link
+          href={`/store/${slug}/register`}
+          style={{
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            color: colors.primary[600],
+            textDecoration: 'none',
+            padding: '0.35rem 0.5rem',
+          }}
+        >
+          Member
+        </Link>
+
+        <Link
           href={`/store/${slug}/orders`}
           style={{
             fontSize: '0.8125rem',

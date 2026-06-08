@@ -37,6 +37,7 @@ export class UsersService {
   }
 
   async createUser(actor: AuthJwtPayload, dto: CreateUserDto) {
+    this.assertActorCanAssignRole(actor, dto.role);
     await this.ensureOutletsBelongToTenant(actor.tenantId, dto.outletIds);
 
     const email = dto.email.trim().toLowerCase();
@@ -100,6 +101,14 @@ export class UsersService {
       });
     }
 
+    this.assertActorCanManageUser(actor, existing.role);
+    if (dto.role !== undefined) {
+      this.assertActorCanAssignRole(actor, dto.role);
+    }
+    if (dto.isActive === false) {
+      this.assertActorCanDeactivate(actor);
+    }
+
     if (dto.outletIds?.length) {
       await this.ensureOutletsBelongToTenant(actor.tenantId, dto.outletIds);
     }
@@ -142,6 +151,7 @@ export class UsersService {
   }
 
   async deactivateUser(actor: AuthJwtPayload, userId: string) {
+    this.assertActorCanDeactivate(actor);
     if (actor.sub === userId) {
       throw new ForbiddenException({
         code: ErrorCodes.FORBIDDEN,
@@ -157,6 +167,8 @@ export class UsersService {
         message: 'Akun owner tidak dapat dinonaktifkan.',
       });
     }
+
+    this.assertActorCanManageUser(actor, existing.role);
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -189,6 +201,43 @@ export class UsersService {
     }
 
     return row;
+  }
+
+  private assertActorCanAssignRole(actor: AuthJwtPayload, targetRole: UserRole) {
+    if (actor.role === UserRole.OWNER) {
+      if (targetRole === UserRole.OWNER) {
+        throw new ForbiddenException({
+          code: ErrorCodes.FORBIDDEN,
+          message: 'Role pemilik tidak dapat ditetapkan melalui endpoint ini.',
+        });
+      }
+      return;
+    }
+    if (actor.role === UserRole.MANAGER && targetRole === UserRole.CASHIER) {
+      return;
+    }
+    throw new ForbiddenException({
+      code: ErrorCodes.FORBIDDEN,
+      message: 'Anda tidak memiliki izin untuk menetapkan role ini.',
+    });
+  }
+
+  private assertActorCanManageUser(actor: AuthJwtPayload, targetRole: UserRole) {
+    if (actor.role === UserRole.OWNER) return;
+    if (actor.role === UserRole.MANAGER && targetRole === UserRole.CASHIER) return;
+    throw new ForbiddenException({
+      code: ErrorCodes.FORBIDDEN,
+      message: 'Anda hanya dapat mengelola akun kasir.',
+    });
+  }
+
+  private assertActorCanDeactivate(actor: AuthJwtPayload) {
+    if (actor.role !== UserRole.OWNER) {
+      throw new ForbiddenException({
+        code: ErrorCodes.FORBIDDEN,
+        message: 'Hanya pemilik yang dapat menonaktifkan pengguna.',
+      });
+    }
   }
 
   private async ensureOutletsBelongToTenant(tenantId: string, outletIds: string[]) {

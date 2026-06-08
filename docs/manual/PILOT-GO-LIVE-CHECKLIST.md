@@ -233,6 +233,11 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Manager: 1 akun (void approval, tutup shift paksa)
 - [ ] Kasir: minimal 2 akun shift bergantian
 - [ ] Uji login/logout + outlet scope (kasir = cabang assign; manager/owner = semua cabang tenant)
+- [ ] **Pusat Admin** (`/dashboard/admin`) — Owner/Manager only; Kasir redirect `/pos`
+- [ ] **Pengguna & RBAC** (`/dashboard/users`) — Owner buat semua role; Manager buat kasir saja
+- [ ] **Member & Pelanggan** (`/dashboard/customers`) — daftar, detail poin, walk-in register staff
+- [ ] **Integrasi & API** (`/dashboard/integrations`) — webhook Midtrans URL, tes koneksi sandbox
+- [ ] **Member storefront** (`/store/barokah-bangunan/register`) — publik; bukan self-register admin staff
 
 ## 5. Shift & Kasir Harian
 

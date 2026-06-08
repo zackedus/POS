@@ -48,16 +48,24 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/master/products', label: 'Produk' },
       { href: '/master/bundles', label: 'Paket Bundling' },
       { href: '/dashboard/promotions', label: 'Promo & Diskon' },
-      { href: '/dashboard/customers', label: 'Pelanggan & Poin' },
       { href: '/master/categories', label: 'Kategori' },
       { href: '/dashboard/units', label: 'Satuan' },
-      { href: '/dashboard/users', label: 'Pengguna' },
+    ],
+  },
+  {
+    title: 'Admin Center',
+    items: [
+      { href: '/dashboard/admin', label: 'Pusat Admin', exact: true },
+      { href: '/dashboard/users', label: 'Pengguna & RBAC' },
+      { href: '/dashboard/customers', label: 'Member & Pelanggan' },
+      { href: '/dashboard/integrations', label: 'Integrasi & API' },
     ],
   },
   {
     title: 'Pengaturan',
     items: [
       { href: '/dashboard/outlets', label: 'Cabang' },
+      { href: '/dashboard/store', label: 'Profil Toko' },
       { href: '/dashboard/settings', label: 'Pengaturan Aplikasi' },
     ],
   },
@@ -78,10 +86,13 @@ const ICONS: Record<string, string> = {
   Produk: '▦',
   'Paket Bundling': '▣',
   'Promo & Diskon': '％',
-  'Pelanggan & Poin': '★',
   Kategori: '▥',
   Satuan: '⎔',
-  Pengguna: '◉',
+  'Pusat Admin': '◈',
+  'Pengguna & RBAC': '◉',
+  'Member & Pelanggan': '★',
+  'Integrasi & API': '⇄',
+  'Profil Toko': '⌂',
   'Pengaturan Aplikasi': '⚙',
   Cabang: '⌂',
 };
@@ -147,8 +158,10 @@ function roleLabel(role: string): string {
 function pageTitle(pathname: string): string {
   if (pathname === '/dashboard') return 'Ringkasan';
   if (pathname.startsWith('/dashboard/analytics')) return 'Analitik';
+  if (pathname.startsWith('/dashboard/admin')) return 'Pusat Admin';
+  if (pathname.startsWith('/dashboard/integrations')) return 'Integrasi & API';
   if (pathname.startsWith('/dashboard/promotions')) return 'Promo & Diskon';
-  if (pathname.startsWith('/dashboard/customers')) return 'Pelanggan & Poin';
+  if (pathname.startsWith('/dashboard/customers')) return 'Member & Pelanggan';
   if (pathname.startsWith('/dashboard/inventory') || pathname.startsWith('/dashboard/stock')) return 'Manajemen Stok';
   if (pathname.startsWith('/dashboard/outlets')) return 'Manajemen Cabang';
   if (pathname.startsWith('/dashboard/store')) return 'Profil Toko';

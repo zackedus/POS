@@ -27,13 +27,13 @@ export class UsersController {
   }
 
   @Post()
-  @Roles(UserRole.OWNER)
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   createUser(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreateUserDto) {
     return this.usersService.createUser(user, dto);
   }
 
   @Patch(':userId')
-  @Roles(UserRole.OWNER)
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
   updateUser(
     @CurrentUser() user: AuthJwtPayload,
     @Param('userId') userId: string,

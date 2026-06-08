@@ -1,4 +1,9 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   computeLoyaltyPointsEarned,
   computeLoyaltyRedeemDiscount,
@@ -10,8 +15,10 @@ import {
   type LoyaltyRedeemConfig,
 } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
+import { toIdrInteger } from '../../common/utils/money.util';
 import { normalizePhone } from '../online-orders/online-order.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import type { CreateCustomerDto } from './dto/create-customer.dto';
 import type { LinkCustomerDto } from './dto/link-customer.dto';
 
 @Injectable()
@@ -155,6 +162,128 @@ export class CustomersService {
       data: { points: { increment: earned } },
     });
     return earned;
+  }
+
+  async create(user: AuthJwtPayload, dto: CreateCustomerDto) {
+    const normalizedPhone = normalizePhone(dto.phone);
+    const existing = await this.prisma.customer.findUnique({
+      where: { tenantId_phone: { tenantId: user.tenantId, phone: normalizedPhone } },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: ErrorCodes.DUPLICATE_ENTRY,
+        message: 'Nomor HP sudah terdaftar sebagai pelanggan.',
+      });
+    }
+    const row = await this.prisma.customer.create({
+      data: {
+        tenantId: user.tenantId,
+        name: dto.name.trim(),
+        phone: normalizedPhone,
+      },
+    });
+    return this.toCustomerSummary(row);
+  }
+
+  async getById(user: AuthJwtPayload, customerId: string) {
+    const row = await this.prisma.customer.findFirst({
+      where: { id: customerId, tenantId: user.tenantId },
+      include: {
+        _count: { select: { transactions: true, onlineOrders: true } },
+        transactions: {
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            receiptNo: true,
+            total: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+        onlineOrders: {
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            orderNo: true,
+            total: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Pelanggan tidak ditemukan.',
+      });
+    }
+    return {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      points: row.points,
+      updatedAt: row.updatedAt.toISOString(),
+      stats: {
+        transactionCount: row._count.transactions,
+        onlineOrderCount: row._count.onlineOrders,
+      },
+      recentTransactions: row.transactions.map((tx) => ({
+        id: tx.id,
+        receiptNo: tx.receiptNo,
+        total: toIdrInteger(tx.total),
+        status: tx.status,
+        createdAt: tx.createdAt.toISOString(),
+      })),
+      recentOnlineOrders: row.onlineOrders.map((order) => ({
+        id: order.id,
+        orderNo: order.orderNo,
+        total: toIdrInteger(order.total),
+        status: order.status,
+        createdAt: order.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async registerPublic(tenantSlug: string, dto: { name: string; phone: string; email?: string }) {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { slug: tenantSlug, isActive: true },
+      select: { id: true, name: true },
+    });
+    if (!tenant) {
+      throw new NotFoundException({
+        code: ErrorCodes.ONLINE_STORE_NOT_FOUND,
+        message: 'Toko tidak ditemukan.',
+      });
+    }
+    const customer = await this.findOrCreateByPhone(tenant.id, dto.name, dto.phone);
+    return {
+      customer: this.toCustomerSummary(customer),
+      tenantName: tenant.name,
+      message:
+        'Pendaftaran member berhasil. Akun staff admin hanya dibuat oleh Pemilik/Manajer di dashboard.',
+      memberLoginNote: 'Login member dengan password — belum tersedia (Fase 2).',
+      emailStored: Boolean(dto.email?.trim()),
+    };
+  }
+
+  private toCustomerSummary(row: {
+    id: string;
+    name: string;
+    phone: string;
+    points: number;
+    updatedAt?: Date;
+  }) {
+    return {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      points: row.points,
+      updatedAt: row.updatedAt?.toISOString() ?? new Date().toISOString(),
+    };
   }
 
   async list(user: AuthJwtPayload, search?: string) {

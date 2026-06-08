@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 
 test('CustomersService: findOrCreateByPhone creates new customer', async () => {
@@ -118,4 +118,41 @@ test('CustomersService: resolveLoyaltyRedeem returns capped discount', async () 
   });
   assert.equal(result.discountIdr, 50_000);
   assert.equal(result.pointsRedeemed, 50);
+});
+
+test('CustomersService: create rejects duplicate phone', async () => {
+  const prisma = {
+    customer: {
+      findUnique: async () => ({ id: 'existing' }),
+    },
+  };
+  const service = new CustomersService(prisma as never);
+  await assert.rejects(
+    () => service.create({ tenantId: 't1', sub: 'u1', role: 'OWNER' } as never, { name: 'Ani', phone: '08123' }),
+    (err: unknown) => err instanceof ConflictException,
+  );
+});
+
+test('CustomersService: registerPublic creates member for active tenant', async () => {
+  let created = false;
+  const prisma = {
+    tenant: {
+      findFirst: async () => ({ id: 'tenant-1', name: 'Toko Demo' }),
+    },
+    customer: {
+      findUnique: async () => null,
+      create: async ({ data }: { data: { tenantId: string; name: string; phone: string } }) => {
+        created = true;
+        return { id: 'cust-1', ...data, points: 0, updatedAt: new Date() };
+      },
+      update: async () => {
+        throw new Error('update should not run');
+      },
+    },
+  };
+  const service = new CustomersService(prisma as never);
+  const result = await service.registerPublic('toko-demo', { name: 'Budi', phone: '081234567890' });
+  assert.equal(created, true);
+  assert.equal(result.customer.phone, '6281234567890');
+  assert.match(result.message, /staff admin/i);
 });

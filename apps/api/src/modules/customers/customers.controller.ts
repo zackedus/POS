@@ -1,10 +1,11 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@barokah/database';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CustomersService } from './customers.service';
 
 @Controller('customers')
@@ -27,5 +28,17 @@ export class CustomersController {
     return this.customersService
       .lookupByPhone(user.tenantId, phone.trim())
       .then((customer) => ({ customer }));
+  }
+
+  @Get(':customerId')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  getById(@CurrentUser() user: AuthJwtPayload, @Param('customerId') customerId: string) {
+    return this.customersService.getById(user, customerId);
+  }
+
+  @Post()
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  create(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreateCustomerDto) {
+    return this.customersService.create(user, dto);
   }
 }

@@ -205,3 +205,21 @@ export async function confirmMockPayment(slug: string, orderNo: string, phone: s
     'Gagal mengonfirmasi pembayaran mock.',
   );
 }
+
+export async function registerStoreMember(
+  slug: string,
+  input: { name: string; phone: string; email?: string; website?: string },
+) {
+  return storeFetch<{
+    customer: { id: string; name: string; phone: string; points: number };
+    tenantName: string;
+    message: string;
+  }>(
+    `/${slug}/register`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+    'Pendaftaran member gagal.',
+  );
+}

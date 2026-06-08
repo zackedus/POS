@@ -15,7 +15,7 @@ import {
 } from '@/components/dashboard/dashboard-ui';
 import { fetchMe, type AuthUser } from '@/lib/auth';
 import { fetchOutlets } from '@/lib/reports';
-import { canManageUsers } from '@/lib/rbac';
+import { canAssignRole, canCreateUser, canDeactivateUser, canEditUser } from '@/lib/rbac';
 import {
   createUser,
   deactivateUser,
@@ -60,7 +60,9 @@ export default function UsersPage() {
     password: '',
   });
 
-  const canEdit = currentUser ? canManageUsers(currentUser.role) : false;
+  const canCreate = currentUser ? canCreateUser(currentUser.role) : false;
+  const actorRole = currentUser?.role ?? '';
+  const assignableRoles = ASSIGNABLE_ROLES.filter((role) => canAssignRole(actorRole, role));
   const { page, totalPages, pageItems, setPage, totalItems, pageSize } = useClientPagination(users, 8);
 
   const loadData = useCallback(async () => {
@@ -105,7 +107,7 @@ export default function UsersPage() {
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!canEdit) return;
+    if (!canCreate) return;
 
     setSaving(true);
     setError(null);
@@ -122,8 +124,8 @@ export default function UsersPage() {
     }
   }
 
-  async function handleUpdate(userId: string) {
-    if (!canEdit || !editForm.fullName.trim() || editForm.outletIds.length === 0) {
+  async function handleUpdate(userId: string, targetRole: string) {
+    if (!currentUser || !canEditUser(currentUser.role, targetRole) || !editForm.fullName.trim() || editForm.outletIds.length === 0) {
       setError('Nama lengkap dan minimal satu outlet wajib diisi.');
       return;
     }
@@ -149,7 +151,7 @@ export default function UsersPage() {
   }
 
   async function toggleActive(user: UserSummary) {
-    if (!canEdit || user.role === 'OWNER') return;
+    if (!currentUser || !canDeactivateUser(currentUser.role) || user.role === 'OWNER') return;
 
     setError(null);
     try {
@@ -203,7 +205,7 @@ export default function UsersPage() {
     <div style={{ maxWidth: 1100, display: 'grid', gap: '1.25rem' }}>
       <PageHeader
         title="Manajemen Pengguna"
-        description="Kelola akun staff tenant. Pemilik dapat menambah, mengubah, dan menonaktifkan pengguna."
+        description="Kelola akun staff tenant. Pemilik mengelola semua role; Manajer hanya dapat menambah/mengubah kasir."
         actions={
           <Button type="button" variant="secondary" onClick={() => void loadData()} disabled={loading}>
             Muat ulang
@@ -237,14 +239,15 @@ export default function UsersPage() {
                     <th style={tableStyles.th}>Role</th>
                     <th style={tableStyles.th}>Outlet</th>
                     <th style={tableStyles.th}>Status</th>
-                    {canEdit ? <th style={tableStyles.th}>Aksi</th> : null}
+                    {canCreate ? <th style={tableStyles.th}>Aksi</th> : null}
                   </tr>
                 </thead>
                 <tbody>
-                  {pageItems.map((user) =>
-                    editingId === user.id ? (
+                  {pageItems.map((user) => {
+                    const rowCanEdit = currentUser ? canEditUser(currentUser.role, user.role) : false;
+                    return editingId === user.id ? (
                       <tr key={user.id} style={tableStyles.row}>
-                        <td colSpan={canEdit ? 6 : 5} style={{ ...tableStyles.td, padding: '1rem' }}>
+                        <td colSpan={canCreate ? 6 : 5} style={{ ...tableStyles.td, padding: '1rem' }}>
                           <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 520 }}>
                             <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
                               Nama lengkap
@@ -266,7 +269,7 @@ export default function UsersPage() {
                                 {user.role === 'OWNER' ? (
                                   <option value="OWNER">{USER_ROLE_LABELS.OWNER}</option>
                                 ) : (
-                                  ASSIGNABLE_ROLES.map((role) => (
+                                  assignableRoles.map((role) => (
                                     <option key={role} value={role}>
                                       {USER_ROLE_LABELS[role]}
                                     </option>
@@ -287,7 +290,7 @@ export default function UsersPage() {
                               />
                             </label>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <Button type="button" variant="primary" disabled={saving} onClick={() => void handleUpdate(user.id)}>
+                              <Button type="button" variant="primary" disabled={saving} onClick={() => void handleUpdate(user.id, user.role)}>
                                 {saving ? 'Menyimpan…' : 'Simpan Perubahan'}
                               </Button>
                               <Button type="button" variant="secondary" disabled={saving} onClick={cancelEdit}>
@@ -306,17 +309,19 @@ export default function UsersPage() {
                         <td style={tableStyles.td}>
                           <StatusBadge label={user.isActive ? 'Aktif' : 'Nonaktif'} variant={user.isActive ? 'success' : 'neutral'} />
                         </td>
-                        {canEdit ? (
+                        {canCreate ? (
                           <td style={tableStyles.td}>
                             <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                              {user.role !== 'OWNER' && user.id !== currentUser?.id ? (
+                              {rowCanEdit && user.id !== currentUser?.id ? (
                                 <>
                                   <Button type="button" variant="secondary" onClick={() => startEdit(user)}>
                                     Ubah
                                   </Button>
-                                  <Button type="button" variant="ghost" onClick={() => void toggleActive(user)}>
-                                    {user.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                                  </Button>
+                                  {canDeactivateUser(actorRole) ? (
+                                    <Button type="button" variant="ghost" onClick={() => void toggleActive(user)}>
+                                      {user.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                                    </Button>
+                                  ) : null}
                                 </>
                               ) : (
                                 '—'
@@ -325,8 +330,8 @@ export default function UsersPage() {
                           </td>
                         ) : null}
                       </tr>
-                    ),
-                  )}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -335,9 +340,11 @@ export default function UsersPage() {
         )}
       </section>
 
-      {canEdit ? (
+      {canCreate ? (
         <section id="tambah-pengguna" style={cardStyle()}>
-          <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Tambah Pengguna Baru</h3>
+          <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>
+            {actorRole === 'MANAGER' ? 'Tambah Kasir Baru' : 'Tambah Pengguna Baru'}
+          </h3>
           <form onSubmit={(e) => void handleCreate(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
             <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
               Nama lengkap
@@ -376,7 +383,7 @@ export default function UsersPage() {
                 onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
                 style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
               >
-                {ASSIGNABLE_ROLES.map((role) => (
+                {assignableRoles.map((role) => (
                   <option key={role} value={role}>
                     {USER_ROLE_LABELS[role]}
                   </option>
