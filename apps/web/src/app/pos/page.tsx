@@ -207,6 +207,8 @@ export default function PosPage() {
   const [showCreditApproval, setShowCreditApproval] = useState(false);
   const [managerApprovalToken, setManagerApprovalToken] = useState<string | null>(null);
   const [showReceivablePayment, setShowReceivablePayment] = useState(false);
+  const [defaultCreditTermsDays, setDefaultCreditTermsDays] = useState(30);
+  const [creditTermsDays, setCreditTermsDays] = useState(30);
 
   useEffect(() => {
     void fetchTenantSettings()
@@ -218,6 +220,8 @@ export default function PosPage() {
         setLoyaltyRedeemMaxPercent(settings.loyaltyRedeemMaxPercent);
         setPpnEnabled(settings.ppnEnabled);
         setPpnRatePercent(settings.ppnRatePercent);
+        setDefaultCreditTermsDays(settings.defaultCreditTermsDays);
+        setCreditTermsDays(settings.defaultCreditTermsDays);
       })
       .catch(() => {
         /* keep defaults */
@@ -1408,6 +1412,7 @@ export default function PosPage() {
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
           ...buildCustomerCheckoutPayload(),
           ...(managerApprovalToken ? { managerApprovalToken } : {}),
+          ...(payments.some((p) => p.method === 'CREDIT') ? { creditTermsDays } : {}),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
@@ -1706,6 +1711,9 @@ export default function PosPage() {
           hasCreditApprovalToken={Boolean(managerApprovalToken)}
           onCheckoutDepositPlusCredit={() => void handleCheckoutDepositPlusCredit()}
           onOpenReceivablePayment={() => setShowReceivablePayment(true)}
+          defaultCreditTermsDays={defaultCreditTermsDays}
+          creditTermsDays={creditTermsDays}
+          onCreditTermsDaysChange={setCreditTermsDays}
         />
       </div>
 

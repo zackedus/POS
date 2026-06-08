@@ -33,6 +33,7 @@ export interface TenantSettingsView {
   loyaltyRedeemEnabled: boolean;
   loyaltyRedeemValueIdr: number;
   loyaltyRedeemMaxPercent: number;
+  defaultCreditTermsDays: number;
   midtrans: MidtransConfigView;
 }
 
@@ -163,6 +164,7 @@ export class SettingsService {
       loyaltyRedeemEnabled?: boolean;
       loyaltyRedeemValueIdr?: number;
       loyaltyRedeemMaxPercent?: number;
+      defaultCreditTermsDays?: number;
     } = {};
 
     if (dto.ppnEnabled !== undefined) data.ppnEnabled = dto.ppnEnabled;
@@ -184,6 +186,9 @@ export class SettingsService {
     }
     if (dto.loyaltyRedeemMaxPercent !== undefined) {
       data.loyaltyRedeemMaxPercent = dto.loyaltyRedeemMaxPercent;
+    }
+    if (dto.defaultCreditTermsDays !== undefined) {
+      data.defaultCreditTermsDays = dto.defaultCreditTermsDays;
     }
     if (dto.midtransIsProduction !== undefined) data.midtransIsProduction = dto.midtransIsProduction;
     if (dto.clearMidtransServerKey) {
@@ -207,6 +212,7 @@ export class SettingsService {
         loyaltyRedeemEnabled: data.loyaltyRedeemEnabled ?? true,
         loyaltyRedeemValueIdr: data.loyaltyRedeemValueIdr ?? 1_000,
         loyaltyRedeemMaxPercent: data.loyaltyRedeemMaxPercent ?? 50,
+        defaultCreditTermsDays: data.defaultCreditTermsDays ?? 30,
       },
       update: data,
     });
@@ -261,6 +267,7 @@ export class SettingsService {
       loyaltyRedeemEnabled?: boolean;
       loyaltyRedeemValueIdr?: number;
       loyaltyRedeemMaxPercent?: number;
+      defaultCreditTermsDays?: number;
     } | null,
   ): TenantSettingsView {
     const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
@@ -297,6 +304,7 @@ export class SettingsService {
       loyaltyRedeemEnabled: row?.loyaltyRedeemEnabled ?? true,
       loyaltyRedeemValueIdr: row?.loyaltyRedeemValueIdr ?? 1_000,
       loyaltyRedeemMaxPercent: row?.loyaltyRedeemMaxPercent ?? 50,
+      defaultCreditTermsDays: row?.defaultCreditTermsDays ?? 30,
       midtrans: {
         mode,
         isProduction,

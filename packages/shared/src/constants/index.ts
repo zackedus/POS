@@ -6,5 +6,6 @@ export * from './online-orders';
 export * from './pos-config';
 export * from './rbac-permissions';
 export * from './customer-credit';
+export * from './credit-terms';
 export * from './delivery';
 export * from './receivable-payment';

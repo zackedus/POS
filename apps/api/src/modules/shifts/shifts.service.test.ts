@@ -77,6 +77,12 @@ test('SCR-S03: cashier can close active shift with cash reconciliation', async (
         };
       },
     },
+    receivablePayment: {
+      aggregate: async () => ({ _sum: { amount: null } }),
+    },
+    expense: {
+      aggregate: async () => ({ _sum: { amount: null } }),
+    },
   };
 
   const service = new ShiftsService(prisma as never);
@@ -161,6 +167,12 @@ test('Phase 8: close preview includes active held transaction count', async () =
     },
     heldTransaction: {
       count: async () => 2,
+    },
+    receivablePayment: {
+      aggregate: async () => ({ _sum: { amount: null } }),
+    },
+    expense: {
+      aggregate: async () => ({ _sum: { amount: null } }),
     },
   };
 
@@ -255,6 +267,12 @@ test('Shifts: getClosePreview returns expected cash before close', async () => {
     heldTransaction: {
       count: async () => 0,
     },
+    receivablePayment: {
+      aggregate: async () => ({ _sum: { amount: null } }),
+    },
+    expense: {
+      aggregate: async () => ({ _sum: { amount: null } }),
+    },
   };
 
   const service = new ShiftsService(prisma as never);
@@ -264,4 +282,45 @@ test('Shifts: getClosePreview returns expected cash before close', async () => {
   assert.equal(preview.expectedCash, 250_000);
   assert.equal(preview.transactionCount, 1);
   assert.equal(preview.heldCount, 0);
+});
+
+test('Shifts: expected cash includes AR collections and subtracts expenses', async () => {
+  const baseShift = {
+    id: 'shift-1',
+    outletId: 'outlet-1',
+    cashierId: 'user-1',
+    openingCash: '100000',
+    openedAt: new Date('2026-06-02T08:00:00.000Z'),
+    closedAt: null,
+    outlet: { tenantId: 'tenant-1' },
+    transactions: [
+      {
+        status: 'COMPLETED',
+        total: '50000',
+        payments: [{ method: 'CASH', amount: '50000' }],
+      },
+    ],
+  };
+
+  const prisma = {
+    shift: {
+      findUnique: async () => baseShift,
+    },
+    heldTransaction: {
+      count: async () => 0,
+    },
+    receivablePayment: {
+      aggregate: async () => ({ _sum: { amount: '75000' } }),
+    },
+    expense: {
+      aggregate: async () => ({ _sum: { amount: '20000' } }),
+    },
+  };
+
+  const service = new ShiftsService(prisma as never);
+  const preview = await service.getClosePreview(createUser(UserRole.CASHIER), 'shift-1');
+  assert.equal(preview.cashSales, 50_000);
+  assert.equal(preview.arCashCollections, 75_000);
+  assert.equal(preview.cashExpenses, 20_000);
+  assert.equal(preview.expectedCash, 205_000);
 });

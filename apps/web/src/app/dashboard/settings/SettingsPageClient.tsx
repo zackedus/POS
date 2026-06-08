@@ -69,6 +69,7 @@ export function SettingsPageClient({ tab }: { tab?: string }) {
   const [redeemEnabled, setRedeemEnabled] = useState(true);
   const [redeemValue, setRedeemValue] = useState('1000');
   const [redeemMaxPercent, setRedeemMaxPercent] = useState('50');
+  const [defaultCreditTermsDays, setDefaultCreditTermsDays] = useState(30);
   const [midtransKeyInput, setMidtransKeyInput] = useState('');
   const [midtransProduction, setMidtransProduction] = useState(false);
   const [weeklyReportEmail, setWeeklyReportEmail] = useState(false);
@@ -95,6 +96,7 @@ export function SettingsPageClient({ tab }: { tab?: string }) {
     setRedeemEnabled(settings.loyaltyRedeemEnabled);
     setRedeemValue(String(settings.loyaltyRedeemValueIdr));
     setRedeemMaxPercent(String(settings.loyaltyRedeemMaxPercent));
+    setDefaultCreditTermsDays(settings.defaultCreditTermsDays);
     setMidtransProduction(settings.midtrans.isProduction);
     setWeeklyReportEmail(settings.weeklyReportEmailEnabled);
   }, [settings]);
@@ -167,6 +169,19 @@ export function SettingsPageClient({ tab }: { tab?: string }) {
     }
   }
 
+  async function handleSaveCreditTerms() {
+    if (!canEdit) return;
+    try {
+      await updateMutation.mutateAsync({ defaultCreditTermsDays });
+      setToast({ variant: 'success', message: 'Jatuh tempo piutang default berhasil disimpan.' });
+    } catch (err) {
+      setToast({
+        variant: 'error',
+        message: err instanceof Error ? err.message : 'Gagal menyimpan jatuh tempo.',
+      });
+    }
+  }
+
   async function handleSaveMidtrans() {
     if (!isOwner) return;
     try {
@@ -224,7 +239,16 @@ export function SettingsPageClient({ tab }: { tab?: string }) {
           />
         );
       case 'kasir':
-        return <KasirPosSection />;
+        return (
+          <KasirPosSection
+            settings={settings}
+            canEdit={canEdit}
+            defaultCreditTermsDays={defaultCreditTermsDays}
+            onDefaultCreditTermsDaysChange={setDefaultCreditTermsDays}
+            onSaveCreditTerms={() => void handleSaveCreditTerms()}
+            saving={updateMutation.isPending}
+          />
+        );
       case 'loyalty':
         return (
           <LoyaltySection

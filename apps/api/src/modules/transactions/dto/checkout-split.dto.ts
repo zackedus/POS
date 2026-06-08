@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
-import { PaymentMethod } from '@barokah/shared';
+import { CREDIT_TERMS_DAYS_OPTIONS, PaymentMethod } from '@barokah/shared';
 import { CheckoutItemDto } from './checkout-cash.dto';
 import { CheckoutCustomerFields } from './checkout-customer.dto';
 
@@ -52,4 +52,13 @@ export class CheckoutSplitDto extends CheckoutCustomerFields {
   @IsOptional()
   @IsString({ message: 'managerApprovalToken harus berupa teks.' })
   managerApprovalToken?: string;
+
+  /** Override tenant default credit terms (7/14/30 days) when checkout includes CREDIT. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'creditTermsDays harus bilangan bulat.' })
+  @IsIn(CREDIT_TERMS_DAYS_OPTIONS as unknown as number[], {
+    message: 'creditTermsDays hanya boleh 7, 14, atau 30.',
+  })
+  creditTermsDays?: number;
 }

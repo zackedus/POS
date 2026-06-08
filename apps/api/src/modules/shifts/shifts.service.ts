@@ -77,7 +77,7 @@ export class ShiftsService {
 
   async getClosePreview(user: AuthJwtPayload, shiftId: string, outletId?: string) {
     const shift = await this.getShiftForClose(user, shiftId, outletId);
-    const { openingCash, cashSales, expectedCash, transactionCount } = await this.computeShiftCashSummary(shift);
+    const summary = await this.computeShiftCashSummary(shift);
     const heldCount = await this.prisma.heldTransaction.count({
       where: {
         outletId: shift.outletId,
@@ -86,10 +86,12 @@ export class ShiftsService {
     });
     return {
       shiftId: shift.id,
-      openingCash,
-      cashSales,
-      expectedCash,
-      transactionCount,
+      openingCash: summary.openingCash,
+      cashSales: summary.cashSales,
+      arCashCollections: summary.arCashCollections,
+      cashExpenses: summary.cashExpenses,
+      expectedCash: summary.expectedCash,
+      transactionCount: summary.transactionCount,
       heldCount,
       heldWarning:
         heldCount > 0
@@ -145,7 +147,12 @@ export class ShiftsService {
   }
 
   private async computeShiftCashSummary(shift: {
+    id: string;
+    outletId: string;
+    cashierId: string;
     openingCash: Decimal;
+    openedAt: Date;
+    closedAt: Date | null;
     transactions: Array<{
       total: Decimal;
       payments: Array<{ method: string; amount: Decimal }>;
@@ -161,10 +168,32 @@ export class ShiftsService {
         cashSales += cashPayments.reduce((sum, payment) => sum + toIdrInteger(payment.amount), 0);
       }
     }
+
+    const windowEnd = shift.closedAt ?? new Date();
+    const [arCashAgg, expenseAgg] = await Promise.all([
+      this.prisma.receivablePayment.aggregate({
+        where: { shiftId: shift.id, method: 'CASH' },
+        _sum: { amount: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: {
+          outletId: shift.outletId,
+          createdById: shift.cashierId,
+          createdAt: { gte: shift.openedAt, lte: windowEnd },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const arCashCollections = arCashAgg._sum.amount != null ? toIdrInteger(arCashAgg._sum.amount) : 0;
+    const cashExpenses = expenseAgg._sum.amount != null ? toIdrInteger(expenseAgg._sum.amount) : 0;
+
     return {
       openingCash,
       cashSales,
-      expectedCash: openingCash + cashSales,
+      arCashCollections,
+      cashExpenses,
+      expectedCash: openingCash + cashSales + arCashCollections - cashExpenses,
       transactionCount: shift.transactions.length,
     };
   }

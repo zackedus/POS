@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -8,6 +9,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { CREDIT_TERMS_DAYS_OPTIONS } from '@barokah/shared';
 
 export class UpdateTenantSettingsDto {
   @IsOptional()
@@ -64,4 +66,12 @@ export class UpdateTenantSettingsDto {
   @Min(1, { message: 'Maks redeem minimal 1%' })
   @Max(100, { message: 'Maks redeem maksimal 100%' })
   loyaltyRedeemMaxPercent?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Jatuh tempo default harus angka' })
+  @IsIn(CREDIT_TERMS_DAYS_OPTIONS as unknown as number[], {
+    message: 'Jatuh tempo default hanya 7, 14, atau 30 hari',
+  })
+  defaultCreditTermsDays?: number;
 }

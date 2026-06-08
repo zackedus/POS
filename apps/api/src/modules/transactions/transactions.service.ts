@@ -9,7 +9,7 @@ import {
 import { UserRole } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
-import { ErrorCodes, PaymentMethod, computePosTax } from '@barokah/shared';
+import { ErrorCodes, PaymentMethod, computeCreditDueDate, computePosTax, isValidCreditTermsDays } from '@barokah/shared';
 import {
   buildInsufficientStockDetail,
   convertToBaseQuantity,
@@ -146,6 +146,30 @@ export class TransactionsService {
       ppnEnabled: row?.ppnEnabled ?? false,
       ppnRatePercent: row ? Number(row.ppnRatePercent) : 11,
     };
+  }
+
+  private async getTenantDefaultCreditTermsDays(tenantId: string): Promise<number> {
+    const row = await this.prisma.tenantSettings.findUnique({
+      where: { tenantId },
+      select: { defaultCreditTermsDays: true },
+    });
+    const days = row?.defaultCreditTermsDays ?? 30;
+    return isValidCreditTermsDays(days) ? days : 30;
+  }
+
+  private async resolveCreditDueDate(
+    tenantId: string,
+    creditTermsDays: number | undefined,
+    hasCreditPayment: boolean,
+  ): Promise<string | null> {
+    if (!hasCreditPayment) {
+      return null;
+    }
+    const terms =
+      creditTermsDays != null && isValidCreditTermsDays(creditTermsDays)
+        ? creditTermsDays
+        : await this.getTenantDefaultCreditTermsDays(tenantId);
+    return computeCreditDueDate(terms);
   }
 
   private async runWithRetry<T>(work: () => Promise<T>): Promise<T> {
@@ -1500,6 +1524,11 @@ export class TransactionsService {
         ? `Loyalty: -${loyaltyRedeem.pointsRedeemed} poin (−${loyaltyRedeem.discountIdr} IDR)`
         : null;
     const mergedNotes = [notes, promoNote, loyaltyNote].filter(Boolean).join(' | ') || null;
+    const creditDueDate = await this.resolveCreditDueDate(
+      user.tenantId,
+      dto.creditTermsDays,
+      creditTotal > 0,
+    );
     const transaction = await this.runWithRetry(() =>
       this.prisma.$transaction(async (tx) => {
         const created = await tx.transaction.create({
@@ -1591,6 +1620,7 @@ export class TransactionsService {
             transactionId: created.id,
             recordedById: user.sub,
             payments: dto.payments,
+            dueDate: creditDueDate,
           });
 
           if (creditTotal > 0) {
@@ -2079,6 +2109,14 @@ export class TransactionsService {
           notes: `Refund penuh transaksi ${transaction.receiptNo}`,
         });
       }
+
+      await this.financeCheckout.reverseFinanceForRefund(tx, {
+        tenantId: user.tenantId,
+        transactionId: transaction.id,
+        recordedById: user.sub,
+        refundAmountIdr: dto.amount,
+        isFullRefund,
+      });
 
       await tx.auditLog.create({
         data: {

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatCurrencyIDR, parseQuantityInput } from '@barokah/shared';
+import { formatCurrencyIDR, parseQuantityInput, CREDIT_TERMS_DAYS_OPTIONS } from '@barokah/shared';
 import { Button, CurrencyInput, QuantityInput } from '@barokah/ui';
 import type { CartMarginWarning, CartStockIssue } from '@/lib/cart-margin';
 import { evaluateCartLineStock } from '@/lib/pos-stock-display';
@@ -141,6 +141,9 @@ export interface PosCartPanelProps {
   hasCreditApprovalToken?: boolean;
   onCheckoutDepositPlusCredit?: () => void;
   onOpenReceivablePayment?: () => void;
+  defaultCreditTermsDays?: number;
+  creditTermsDays?: number;
+  onCreditTermsDaysChange?: (days: number) => void;
 }
 
 const standardPaymentModes: PaymentMode[] = ['CASH', 'TRANSFER', 'QRIS'];
@@ -245,6 +248,9 @@ export function PosCartPanel({
   hasCreditApprovalToken = false,
   onCheckoutDepositPlusCredit,
   onOpenReceivablePayment,
+  defaultCreditTermsDays = 30,
+  creditTermsDays = defaultCreditTermsDays,
+  onCreditTermsDaysChange,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
   const customerLinked = isCustomerLinkedForFinance(customerId);
@@ -897,6 +903,35 @@ export function PosCartPanel({
                   }}
                 >
                   <strong>Masuk piutang:</strong> {formatCurrencyIDR(total)}
+                  <label
+                    style={{
+                      display: 'grid',
+                      gap: 4,
+                      marginTop: '0.5rem',
+                      fontSize: '0.8125rem',
+                      color: '#14532d',
+                    }}
+                  >
+                    Jatuh tempo
+                    <select
+                      value={creditTermsDays}
+                      onChange={(e) => onCreditTermsDaysChange?.(Number(e.target.value))}
+                      style={{
+                        padding: '0.45rem 0.5rem',
+                        borderRadius: 6,
+                        border: '1px solid #86efac',
+                        fontSize: '0.8125rem',
+                        minHeight: 40,
+                      }}
+                    >
+                      {CREDIT_TERMS_DAYS_OPTIONS.map((days) => (
+                        <option key={days} value={days}>
+                          {days} hari
+                          {days === defaultCreditTermsDays ? ' (default toko)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               ) : null}
               {paymentMode === 'DEPOSIT' && customerLinked ? (

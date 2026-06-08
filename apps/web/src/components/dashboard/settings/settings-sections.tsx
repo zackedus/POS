@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@barokah/ui';
 import {
+  CREDIT_TERMS_DAYS_OPTIONS,
   ONLINE_DELIVERY_FLAT_FEE,
   ONLINE_PAYMENT_TTL_MINUTES,
   POS_HOLD_TTL_MINUTES,
@@ -150,7 +151,21 @@ export function TokoTenantSection({
   );
 }
 
-export function KasirPosSection() {
+export function KasirPosSection({
+  settings,
+  canEdit,
+  defaultCreditTermsDays,
+  onDefaultCreditTermsDaysChange,
+  onSaveCreditTerms,
+  saving,
+}: {
+  settings: TenantSettingsView | null;
+  canEdit: boolean;
+  defaultCreditTermsDays: number;
+  onDefaultCreditTermsDaysChange: (value: number) => void;
+  onSaveCreditTerms: () => void;
+  saving: boolean;
+}) {
   return (
     <SectionCard
       title="Kasir & POS"
@@ -202,6 +217,40 @@ export function KasirPosSection() {
         <p style={{ margin: '0.75rem 0 0', fontSize: '0.8125rem', color: '#64748b' }}>
           Konfigurasi per-metode di dashboard akan tersedia setelah integrasi gateway live (Arif).
         </p>
+      </div>
+
+      <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid #e2e8f0' }}>
+        <h4 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Jatuh tempo piutang (Tempo)</h4>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem', color: '#64748b' }}>
+          Default jatuh tempo saat checkout tempo di kasir. Kasir dapat override per transaksi (7/14/30 hari).
+        </p>
+        {canEdit ? (
+          <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 320 }}>
+            <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
+              Jatuh tempo default
+              <select
+                value={defaultCreditTermsDays}
+                onChange={(e) => onDefaultCreditTermsDaysChange(Number(e.target.value))}
+                style={inputStyle()}
+              >
+                {CREDIT_TERMS_DAYS_OPTIONS.map((days) => (
+                  <option key={days} value={days}>
+                    {days} hari
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button type="button" onClick={onSaveCreditTerms} disabled={saving}>
+              {saving ? 'Menyimpan…' : 'Simpan jatuh tempo'}
+            </Button>
+          </div>
+        ) : (
+          <SettingsFieldGrid>
+            <SettingsFieldRow label="Jatuh tempo default">
+              {settings?.defaultCreditTermsDays ?? 30} hari
+            </SettingsFieldRow>
+          </SettingsFieldGrid>
+        )}
       </div>
     </SectionCard>
   );

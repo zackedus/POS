@@ -26,6 +26,7 @@ export interface TenantSettingsView {
   loyaltyRedeemEnabled: boolean;
   loyaltyRedeemValueIdr: number;
   loyaltyRedeemMaxPercent: number;
+  defaultCreditTermsDays: number;
   midtrans: MidtransConfigView;
 }
 
@@ -57,6 +58,7 @@ export async function updateTenantSettings(input: {
   loyaltyRedeemEnabled?: boolean;
   loyaltyRedeemValueIdr?: number;
   loyaltyRedeemMaxPercent?: number;
+  defaultCreditTermsDays?: number;
   clearMidtransServerKey?: boolean;
 }): Promise<TenantSettingsView> {
   const res = await authFetch(`${SETTINGS_BASE}/tenant`, {
