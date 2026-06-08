@@ -16,6 +16,10 @@ export class ListPayablesQueryDto {
   supplierId?: string;
 
   @IsOptional()
+  @IsUUID('4')
+  outletId?: string;
+
+  @IsOptional()
   @IsIn(['OPEN', 'PARTIAL', 'PAID', 'VOID', 'OVERDUE'])
   status?: 'OPEN' | 'PARTIAL' | 'PAID' | 'VOID' | 'OVERDUE';
 }

@@ -14,6 +14,7 @@ import {
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
 import { mapApiError } from '@/lib/api-client';
+import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   fetchPayables,
   PAYABLE_STATUS_LABELS,
@@ -22,6 +23,7 @@ import {
 } from '@/lib/payables-api';
 
 export default function PayablesPage() {
+  const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [rows, setRows] = useState<PayableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,17 +37,24 @@ export default function PayablesPage() {
   const [paying, setPaying] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (needsOutletPick) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchPayables({ status: statusFilter || undefined });
+      const data = await fetchPayables({
+        status: statusFilter || undefined,
+        outletId: selectedOutletId ?? undefined,
+      });
       setRows(data);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat utang.'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, needsOutletPick, selectedOutletId]);
 
   useEffect(() => {
     void loadData();
@@ -85,6 +94,9 @@ export default function PayablesPage() {
       <PageHeader title="Utang Supplier" description="Hutang ke distributor — buat dari PO atau manual, catat pembayaran." />
       {error && <AlertBanner variant="error">{error}</AlertBanner>}
       {success && <AlertBanner variant="success">{success}</AlertBanner>}
+      {needsOutletPick ? (
+        <AlertBanner variant="warning">Pilih cabang di header untuk filter utang per outlet (via PO).</AlertBanner>
+      ) : null}
 
       <SectionCard title="Outstanding">
         <strong style={{ fontSize: '1.35rem' }}>{formatCurrencyIDR(totalOutstanding)}</strong>

@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { formatCurrencyIDR } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -174,6 +176,25 @@ export default function CustomersPage() {
               <div style={{ color: tokens.muted }}>
                 Transaksi POS: {detail.stats.transactionCount} · Order online: {detail.stats.onlineOrderCount}
               </div>
+              {(detail.receivableOutstanding != null && detail.receivableOutstanding > 0) ||
+              (detail.depositBalance != null && detail.depositBalance > 0) ? (
+                <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: 8 }}>
+                  {detail.receivableOutstanding != null && detail.receivableOutstanding > 0 ? (
+                    <div>Piutang: {formatCurrencyIDR(detail.receivableOutstanding)}</div>
+                  ) : null}
+                  {detail.depositBalance != null && detail.depositBalance > 0 ? (
+                    <div>Deposit: {formatCurrencyIDR(detail.depositBalance)}</div>
+                  ) : null}
+                  {detail.creditLimit != null ? (
+                    <div>Limit kredit: {formatCurrencyIDR(detail.creditLimit)}</div>
+                  ) : null}
+                </div>
+              ) : null}
+              <Link href={`/dashboard/receivables/statement/${detail.id}`}>
+                <Button type="button" variant="secondary" style={{ marginTop: '0.25rem' }}>
+                  Cetak Statement
+                </Button>
+              </Link>
               {detail.recentTransactions.length > 0 ? (
                 <div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>Transaksi terakhir</div>

@@ -10,6 +10,8 @@ import {
   ListReceivablesQueryDto,
   RecordReceivablePaymentDto,
   UpdateCustomerCreditLimitDto,
+  AgingReportQueryDto,
+  CustomerStatementQueryDto,
 } from './dto/receivable.dto';
 import { ReceivablesService } from './receivables.service';
 
@@ -26,8 +28,24 @@ export class ReceivablesController {
 
   @Get('overdue')
   @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
-  listOverdue(@CurrentUser() user: AuthJwtPayload) {
-    return this.receivablesService.listOverdue(user);
+  listOverdue(@CurrentUser() user: AuthJwtPayload, @Query() query: ListReceivablesQueryDto) {
+    return this.receivablesService.listOverdue(user, query);
+  }
+
+  @Get('aging')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  agingReport(@CurrentUser() user: AuthJwtPayload, @Query() query: AgingReportQueryDto) {
+    return this.receivablesService.getAgingReport(user, query);
+  }
+
+  @Get('customers/:customerId/statement')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.CASHIER)
+  customerStatement(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Query() query: CustomerStatementQueryDto,
+  ) {
+    return this.receivablesService.getCustomerStatement(user, customerId, query);
   }
 
   @Get('customers/:customerId/summary')

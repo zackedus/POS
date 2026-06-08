@@ -253,6 +253,12 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **Deposit:** top-up di `/dashboard/deposits` → checkout DEPOSIT di kasir — saldo berkurang, ledger APPLY
 - [ ] Pelunasan piutang partial → full di dashboard — status OPEN → PARTIAL → PAID
 - [ ] Void transaksi kredit/deposit — piutang VOID, deposit di-refund
+- [ ] **Aging piutang:** `/dashboard/receivables/aging` — bucket 0–30/31–60/61–90/90+ hari, ekspor CSV
+- [ ] **Statement pelanggan:** cetak dari `/dashboard/receivables/statement/:id` — saldo awal/akhir + deposit
+- [ ] **Dashboard finance widgets:** piutang, utang, deposit, kas hari ini di `/dashboard`
+- [ ] **Overdue banner:** piutang jatuh tempo tampil di dashboard + badge merah di daftar piutang
+- [ ] **POS credit UX:** limit kredit, piutang, deposit tampil jelas; tempo diblokir jika over limit
+- [ ] **Filter outlet:** piutang & utang (via PO) filter per cabang
 - [ ] QRIS mock/sandbox: PASS di staging (perbaikan commit `750d4f5`: mock checkout tidak stuck polling — regresi TC005/QRIS UAT)
 - [ ] QRIS live + EDC + E-wallet: **defer** (butuh key Pak Zaki + hardware Arif)
 

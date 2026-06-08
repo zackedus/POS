@@ -69,12 +69,17 @@
 |--------|-------|------|
 | GET | `/receivables` | Owner, Manager, Accountant, Cashier (read) |
 | GET | `/receivables/overdue` | Owner, Manager, Accountant |
+| GET | `/receivables/aging` | Owner, Manager, Accountant |
+| GET | `/receivables/customers/:id/statement?from=&to=` | Owner, Manager, Accountant, Cashier |
 | GET | `/receivables/:id` | Owner, Manager, Accountant, Cashier |
 | POST | `/receivables` | Owner, Manager, Accountant |
 | POST | `/receivables/:id/payments` | Owner, Manager, Accountant, Cashier |
 | GET | `/receivables/customers/:id/summary` | Owner, Manager, Accountant, Cashier |
 | PATCH | `/receivables/customers/:id/credit-limit` | Owner, Manager |
-| GET | `/payables` | Owner, Manager, Accountant |
+| GET | `/finance/summary` | Owner, Manager, Accountant |
+| POST | `/finance/overdue-reminders` | Owner, Manager (email stub — log console) |
+| GET | `/payables` | Owner, Manager, Accountant (filter `outletId` via PO) |
+| GET | `/payables/overdue` | Owner, Manager, Accountant |
 | POST | `/payables` | Owner, Manager, Accountant |
 | POST | `/payables/from-po/:poId` | Owner, Manager, Accountant |
 | POST | `/payables/:id/payments` | Owner, Manager, Accountant |
@@ -94,9 +99,12 @@
 | Route | Halaman |
 |-------|---------|
 | `/dashboard/receivables` | Daftar piutang + catat pembayaran |
-| `/dashboard/payables` | Daftar utang supplier |
+| `/dashboard/receivables/aging` | Laporan aging piutang + ekspor CSV |
+| `/dashboard/receivables/statement/:customerId` | Statement piutang pelanggan (cetak HTML) |
+| `/dashboard/payables` | Daftar utang supplier (filter outlet via PO) |
 | `/dashboard/deposits` | Deposit pelanggan + top-up |
-| `/pos` | Metode Tempo & Deposit di kasir |
+| `/dashboard` | Widget ringkasan keuangan (piutang, utang, deposit, kas) |
+| `/pos` | Metode Tempo & Deposit di kasir + info limit kredit |
 
 ---
 
@@ -124,16 +132,20 @@
 | BL-FIN-04 | Void transaksi kredit | Receivable VOID |
 | BL-FIN-05 | Void transaksi deposit apply | Deposit REFUND ledger |
 | BL-FIN-06 | Credit over limit | 422 CREDIT_LIMIT_EXCEEDED |
+| BL-FIN-07 | Aging piutang bucket 0–30/31–60/61–90/90+ | Totals konsisten dengan outstanding |
+| BL-FIN-08 | Customer statement periode | Opening + entries = closing; deposit balance tampil |
+| BL-FIN-09 | Dashboard finance summary | Piutang/utang/deposit/kas hari ini match API |
+| BL-FIN-10 | Overdue reminder stub | POST `/finance/overdue-reminders` log console (WA defer Fase 3) |
 
 ---
 
-## 8. Out of Scope MVP
+## 8. Deferred (Fase 3)
 
-- Custom RBAC rules (Fase 3)
+- Custom RBAC rules
 - General ledger / jurnal double-entry penuh
 - Multi-currency
-- Aging report export (Fase 3)
+- WhatsApp reminder otomatis (SMTP email penuh)
 
 ---
 
-*Terakhir diperbarui: 9 Jun 2026 — Fitri (docs sync)*
+*Terakhir diperbarui: 9 Jun 2026 — P0 finance completion (aging, summary, statement, overdue UI)*

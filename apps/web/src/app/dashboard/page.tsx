@@ -15,6 +15,7 @@ import {
 } from '@/components/dashboard/dashboard-ui';
 import { fetchFulfillmentQueue } from '@/lib/online-orders-api';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
+import { fetchFinanceSummary, sendOverdueReminders, type FinanceSummary } from '@/lib/finance-api';
 import {
   exportDailyReport,
   exportLowStockCsv,
@@ -88,6 +89,9 @@ export default function DashboardHomePage() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [stockReport, setStockReport] = useState<StockReportSummary | null>(null);
   const [crossOutletStock, setCrossOutletStock] = useState<CrossOutletStockSummary | null>(null);
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   const reportQuery =
     reportMode === 'range'
@@ -138,6 +142,16 @@ export default function DashboardHomePage() {
         } catch {
           setOnlineOrderCount(null);
         }
+
+        try {
+          const finance = await fetchFinanceSummary({
+            outletId: selectedOutletId ?? undefined,
+            date: reportMode === 'range' ? dateTo : date,
+          });
+          setFinanceSummary(finance);
+        } catch {
+          setFinanceSummary(null);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Gagal memuat ringkasan dashboard.');
         setDashboard(null);
@@ -145,6 +159,7 @@ export default function DashboardHomePage() {
         setStockReport(null);
         setCrossOutletStock(null);
         setOnlineOrderCount(null);
+        setFinanceSummary(null);
       } finally {
         setLoading(false);
       }
@@ -243,6 +258,82 @@ export default function DashboardHomePage() {
       ) : null}
 
       {exportMessage ? <AlertBanner variant="success">{exportMessage}</AlertBanner> : null}
+
+      {financeSummary && financeSummary.overdueReceivableCount > 0 ? (
+        <AlertBanner variant="error">
+          <strong>{financeSummary.overdueReceivableCount} piutang jatuh tempo</strong> — total{' '}
+          {formatCurrencyIDR(financeSummary.overdueReceivableAmount)}.{' '}
+          <Link href="/dashboard/receivables?status=OVERDUE" style={{ color: 'inherit', fontWeight: 600 }}>
+            Lihat daftar →
+          </Link>
+        </AlertBanner>
+      ) : null}
+
+      {reminderMessage ? <AlertBanner variant="success">{reminderMessage}</AlertBanner> : null}
+
+      {financeSummary ? (
+        <SectionCard title="Ringkasan Keuangan" description="Piutang, utang, deposit, dan kas tunai hari ini.">
+          <div style={{ ...gridStyle, marginBottom: '0.75rem' }}>
+            <StatCard
+              label="Total Piutang"
+              value={formatCurrencyIDR(financeSummary.receivableOutstanding)}
+              accent={financeSummary.receivableOutstanding > 0 ? 'warning' : 'success'}
+            />
+            <StatCard
+              label="Total Utang"
+              value={formatCurrencyIDR(financeSummary.payableOutstanding)}
+              accent={financeSummary.payableOutstanding > 0 ? 'warning' : 'default'}
+            />
+            <StatCard
+              label="Saldo Deposit"
+              value={formatCurrencyIDR(financeSummary.depositBalance)}
+            />
+            <StatCard
+              label="Kas Hari Ini"
+              value={formatCurrencyIDR(financeSummary.cashToday)}
+              accent="success"
+              hint="Pembayaran tunai transaksi selesai"
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem', fontSize: '0.8125rem' }}>
+            <Link href="/dashboard/receivables" style={{ color: '#2563eb' }}>
+              Detail piutang →
+            </Link>
+            <Link href="/dashboard/payables" style={{ color: '#2563eb' }}>
+              Detail utang →
+            </Link>
+            <Link href="/dashboard/deposits" style={{ color: '#2563eb' }}>
+              Detail deposit →
+            </Link>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Link href="/dashboard/receivables/aging">
+              <Button type="button" variant="secondary">
+                Aging Piutang
+              </Button>
+            </Link>
+            {financeSummary.overdueReceivableCount > 0 ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={sendingReminder}
+                onClick={() => {
+                  setSendingReminder(true);
+                  setReminderMessage(null);
+                  void sendOverdueReminders(selectedOutletId ?? undefined)
+                    .then((r) => setReminderMessage(r.message))
+                    .catch((err) =>
+                      setReminderMessage(err instanceof Error ? err.message : 'Gagal mengirim pengingat.'),
+                    )
+                    .finally(() => setSendingReminder(false));
+                }}
+              >
+                {sendingReminder ? 'Memproses…' : 'Kirim Pengingat (Stub)'}
+              </Button>
+            ) : null}
+          </div>
+        </SectionCard>
+      ) : null}
 
       {source === 'mock' && !loading && !needsOutletPick ? (
         <AlertBanner variant="warning">

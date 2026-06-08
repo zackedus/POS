@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsDateString,
   IsIn,
@@ -7,6 +7,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  IsBoolean,
 } from 'class-validator';
 import { PaymentMethod } from '@barokah/shared';
 
@@ -72,4 +73,23 @@ export class UpdateCustomerCreditLimitDto {
   @IsInt()
   @Min(0)
   creditLimit?: number | null;
+}
+
+export class AgingReportQueryDto {
+  @IsOptional()
+  @IsUUID('4')
+  outletId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  groupByCustomer?: boolean;
+}
+
+export class CustomerStatementQueryDto {
+  @IsDateString()
+  from!: string;
+
+  @IsDateString()
+  to!: string;
 }

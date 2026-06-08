@@ -9,6 +9,7 @@ import { ErrorCodes } from '@barokah/shared';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
+import { resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { computeOutstanding, computePayableStatus } from './finance.util';
 import type {
@@ -28,6 +29,10 @@ export class PayablesService {
     const where: Prisma.PayableWhereInput = { tenantId: user.tenantId };
 
     if (query.supplierId) where.supplierId = query.supplierId;
+    if (query.outletId) {
+      const outletId = resolveOutletId(user, query.outletId);
+      where.OR = [{ purchaseOrder: { outletId } }, { poId: null }];
+    }
     if (query.status === 'OVERDUE') {
       where.AND = [{ status: { in: ['OPEN', 'PARTIAL'] }, dueDate: { lt: today } }];
     } else if (query.status) {

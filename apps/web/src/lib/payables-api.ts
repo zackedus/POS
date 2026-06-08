@@ -27,10 +27,12 @@ interface ApiEnvelope<T> {
 
 export async function fetchPayables(params?: {
   supplierId?: string;
+  outletId?: string;
   status?: string;
 }): Promise<PayableRow[]> {
   const search = new URLSearchParams();
   if (params?.supplierId) search.set('supplierId', params.supplierId);
+  if (params?.outletId) search.set('outletId', params.outletId);
   if (params?.status) search.set('status', params.status);
   const qs = search.toString();
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/payables${qs ? `?${qs}` : ''}`);

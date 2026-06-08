@@ -5,16 +5,18 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Prisma } from '@barokah/database';
-import { ErrorCodes } from '@barokah/shared';
+import { ErrorCodes, RECEIVABLE_AGING_BUCKET_LABELS, type ReceivableAgingReport } from '@barokah/shared';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import { resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { FinanceCheckoutService } from './finance-checkout.service';
-import { computeOutstanding, computeReceivableStatus } from './finance.util';
+import { computeOutstanding, computeReceivableStatus, computeAgingBucket, computeDaysOverdue, emptyAgingTotals, AGING_BUCKET_ORDER } from './finance.util';
 import type {
+  AgingReportQueryDto,
   CreateReceivableDto,
+  CustomerStatementQueryDto,
   ListReceivablesQueryDto,
   RecordReceivablePaymentDto,
   UpdateCustomerCreditLimitDto,
@@ -156,8 +158,241 @@ export class ReceivablesService {
     return this.getById(user, receivableId);
   }
 
-  async listOverdue(user: AuthJwtPayload) {
-    return this.list(user, { status: 'OVERDUE' });
+  async listOverdue(user: AuthJwtPayload, query: ListReceivablesQueryDto = {}) {
+    return this.list(user, { ...query, status: 'OVERDUE' });
+  }
+
+  async getAgingReport(user: AuthJwtPayload, query: AgingReportQueryDto): Promise<ReceivableAgingReport> {
+    const asOf = new Date();
+    asOf.setHours(0, 0, 0, 0);
+    const outletId = query.outletId ? resolveOutletId(user, query.outletId) : null;
+    const groupByCustomer = query.groupByCustomer === true;
+
+    const rows = await this.prisma.receivable.findMany({
+      where: {
+        tenantId: user.tenantId,
+        status: { in: ['OPEN', 'PARTIAL'] },
+        ...(outletId ? { outletId } : {}),
+      },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        outlet: { select: { id: true, name: true } },
+      },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    const totalsMap = emptyAgingTotals();
+    const agingRows: ReceivableAgingReport['rows'] = [];
+    const customerMap = new Map<
+      string,
+      {
+        customerId: string;
+        customerName: string;
+        customerPhone: string;
+        buckets: ReturnType<typeof emptyAgingTotals>;
+        totalOutstanding: number;
+      }
+    >();
+
+    for (const row of rows) {
+      const outstanding = computeOutstanding(toIdrInteger(row.amount), toIdrInteger(row.paidAmount));
+      if (outstanding <= 0) continue;
+
+      const daysOverdue = computeDaysOverdue(row.dueDate, asOf);
+      const bucket = computeAgingBucket(daysOverdue);
+
+      totalsMap[bucket].count += 1;
+      totalsMap[bucket].amount += outstanding;
+
+      if (groupByCustomer) {
+        let group = customerMap.get(row.customerId);
+        if (!group) {
+          group = {
+            customerId: row.customerId,
+            customerName: row.customer.name,
+            customerPhone: row.customer.phone,
+            buckets: emptyAgingTotals(),
+            totalOutstanding: 0,
+          };
+          customerMap.set(row.customerId, group);
+        }
+        group.buckets[bucket].count += 1;
+        group.buckets[bucket].amount += outstanding;
+        group.totalOutstanding += outstanding;
+      } else {
+        agingRows!.push({
+          receivableId: row.id,
+          customerId: row.customerId,
+          customerName: row.customer.name,
+          customerPhone: row.customer.phone,
+          outletId: row.outletId,
+          outletName: row.outlet?.name ?? null,
+          outstanding,
+          dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,
+          daysOverdue,
+          bucket,
+          createdAt: row.createdAt.toISOString(),
+        });
+      }
+    }
+
+    const totals = AGING_BUCKET_ORDER.map((bucket) => ({
+      bucket,
+      label: RECEIVABLE_AGING_BUCKET_LABELS[bucket],
+      count: totalsMap[bucket].count,
+      amount: totalsMap[bucket].amount,
+    }));
+
+    const totalOutstanding = totals.reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      asOf: asOf.toISOString().slice(0, 10),
+      outletId,
+      groupByCustomer,
+      totals,
+      totalOutstanding,
+      ...(groupByCustomer
+        ? {
+            byCustomer: Array.from(customerMap.values()).map((c) => ({
+              customerId: c.customerId,
+              customerName: c.customerName,
+              customerPhone: c.customerPhone,
+              totalOutstanding: c.totalOutstanding,
+              buckets: AGING_BUCKET_ORDER.map((bucket) => ({
+                bucket,
+                label: RECEIVABLE_AGING_BUCKET_LABELS[bucket],
+                count: c.buckets[bucket].count,
+                amount: c.buckets[bucket].amount,
+              })),
+            })),
+          }
+        : { rows: agingRows }),
+    };
+  }
+
+  async getCustomerStatement(
+    user: AuthJwtPayload,
+    customerId: string,
+    query: CustomerStatementQueryDto,
+  ) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, tenantId: user.tenantId },
+      select: { id: true, name: true, phone: true, creditLimit: true },
+    });
+    if (!customer) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Pelanggan tidak ditemukan.',
+      });
+    }
+
+    const fromDate = new Date(`${query.from.slice(0, 10)}T00:00:00.000Z`);
+    const toDateEnd = new Date(`${query.to.slice(0, 10)}T23:59:59.999Z`);
+
+    const receivables = await this.prisma.receivable.findMany({
+      where: { tenantId: user.tenantId, customerId },
+      include: {
+        payments: { orderBy: { createdAt: 'asc' } },
+        transaction: { select: { receiptNo: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    let openingBalance = 0;
+    for (const row of receivables) {
+      if (row.status === 'VOID') continue;
+      const amount = toIdrInteger(row.amount);
+      const paidBeforeFrom = row.payments
+        .filter((p) => p.createdAt < fromDate)
+        .reduce((sum, p) => sum + toIdrInteger(p.amount), 0);
+      if (row.createdAt < fromDate) {
+        openingBalance += Math.max(0, amount - paidBeforeFrom);
+      }
+    }
+
+    type RawEntry = {
+      id: string;
+      date: Date;
+      type: 'INVOICE' | 'PAYMENT';
+      description: string;
+      reference: string | null;
+      debit: number;
+      credit: number;
+    };
+
+    const rawEntries: RawEntry[] = [];
+
+    for (const row of receivables) {
+      if (row.status === 'VOID') continue;
+      const amount = toIdrInteger(row.amount);
+      if (row.createdAt >= fromDate && row.createdAt <= toDateEnd) {
+        rawEntries.push({
+          id: row.id,
+          date: row.createdAt,
+          type: 'INVOICE',
+          description: row.transaction?.receiptNo
+            ? `Piutang transaksi ${row.transaction.receiptNo}`
+            : 'Piutang manual',
+          reference: row.transaction?.receiptNo ?? null,
+          debit: amount,
+          credit: 0,
+        });
+      }
+      for (const payment of row.payments) {
+        if (payment.createdAt >= fromDate && payment.createdAt <= toDateEnd) {
+          rawEntries.push({
+            id: payment.id,
+            date: payment.createdAt,
+            type: 'PAYMENT',
+            description: `Pembayaran piutang (${payment.method})`,
+            reference: payment.reference,
+            debit: 0,
+            credit: toIdrInteger(payment.amount),
+          });
+        }
+      }
+    }
+
+    rawEntries.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let running = openingBalance;
+    const entries = rawEntries.map((entry) => {
+      running += entry.debit - entry.credit;
+      return {
+        id: entry.id,
+        date: entry.date.toISOString(),
+        type: entry.type,
+        description: entry.description,
+        reference: entry.reference,
+        debit: entry.debit,
+        credit: entry.credit,
+        balanceAfter: running,
+      };
+    });
+
+    const deposit = await this.prisma.customerDeposit.findUnique({
+      where: { customerId },
+      select: { balance: true, status: true, tenantId: true },
+    });
+    const depositBalance =
+      deposit && deposit.tenantId === user.tenantId && deposit.status === 'ACTIVE'
+        ? toIdrInteger(deposit.balance)
+        : 0;
+
+    return {
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        creditLimit: customer.creditLimit != null ? toIdrInteger(customer.creditLimit) : null,
+      },
+      period: { from: query.from.slice(0, 10), to: query.to.slice(0, 10) },
+      openingBalance,
+      entries,
+      closingBalance: running,
+      depositBalance,
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   async updateCustomerCreditLimit(

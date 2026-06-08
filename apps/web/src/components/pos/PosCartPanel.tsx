@@ -117,6 +117,7 @@ export interface PosCartPanelProps {
   customerPointsBalance?: number | null;
   customerReceivableOutstanding?: number | null;
   customerDepositBalance?: number | null;
+  customerCreditLimit?: number | null;
   customerCreditAvailable?: number | null;
   loyaltyPointsToRedeem?: string;
   onLoyaltyPointsToRedeemChange?: (value: string) => void;
@@ -198,6 +199,7 @@ export function PosCartPanel({
   customerPointsBalance = null,
   customerReceivableOutstanding = null,
   customerDepositBalance = null,
+  customerCreditLimit = null,
   customerCreditAvailable = null,
   loyaltyPointsToRedeem = '',
   onLoyaltyPointsToRedeemChange,
@@ -463,28 +465,46 @@ export function PosCartPanel({
               ) : null}
             </label>
           ) : null}
-          {customerPhone.trim().length >= 8 &&
-          (customerReceivableOutstanding != null || customerDepositBalance != null) ? (
+          {customerPhone.trim().length >= 8 ? (
             <div
+              role="status"
               style={{
                 marginTop: '0.35rem',
-                padding: '0.5rem 0.65rem',
+                padding: '0.65rem 0.75rem',
                 borderRadius: 8,
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
                 fontSize: '0.8125rem',
-                color: '#334155',
+                color: '#1e3a5f',
               }}
             >
-              {customerReceivableOutstanding != null && customerReceivableOutstanding > 0 ? (
-                <div>Piutang: {formatCurrencyIDR(customerReceivableOutstanding)}</div>
-              ) : null}
-              {customerDepositBalance != null && customerDepositBalance > 0 ? (
-                <div>Deposit: {formatCurrencyIDR(customerDepositBalance)}</div>
-              ) : null}
-              {customerCreditAvailable != null ? (
-                <div>Kredit tersedia: {formatCurrencyIDR(customerCreditAvailable)}</div>
-              ) : null}
+              <strong style={{ display: 'block', marginBottom: '0.35rem', color: '#1e40af' }}>
+                Info Keuangan Pelanggan
+              </strong>
+              <div style={{ display: 'grid', gap: '0.2rem' }}>
+                <div>
+                  Limit kredit:{' '}
+                  <strong>
+                    {customerCreditLimit === 0
+                      ? 'Tidak diizinkan tempo'
+                      : customerCreditLimit != null
+                        ? formatCurrencyIDR(customerCreditLimit)
+                        : 'Unlimited'}
+                  </strong>
+                </div>
+                <div>
+                  Piutang outstanding:{' '}
+                  <strong>{formatCurrencyIDR(customerReceivableOutstanding ?? 0)}</strong>
+                </div>
+                <div>
+                  Saldo deposit: <strong>{formatCurrencyIDR(customerDepositBalance ?? 0)}</strong>
+                </div>
+                {customerCreditLimit !== 0 && customerCreditAvailable != null ? (
+                  <div style={{ color: '#166534' }}>
+                    Kredit tersedia: <strong>{formatCurrencyIDR(customerCreditAvailable)}</strong>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>
@@ -690,11 +710,20 @@ export function PosCartPanel({
                   Isi nama &amp; HP pelanggan untuk {paymentMode === 'CREDIT' ? 'tempo/piutang' : 'pakai deposit'}.
                 </p>
               ) : null}
+              {paymentMode === 'CREDIT' && customerCreditLimit === 0 ? (
+                <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
+                  Pelanggan ini tidak diizinkan transaksi tempo (limit kredit = 0).
+                </p>
+              ) : null}
               {paymentMode === 'CREDIT' &&
+              customerCreditLimit !== 0 &&
               customerCreditAvailable != null &&
               total > customerCreditAvailable ? (
                 <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
-                  Melebihi limit kredit tersedia ({formatCurrencyIDR(customerCreditAvailable)}).
+                  Transaksi tempo diblokir — melebihi limit kredit tersedia (
+                  {formatCurrencyIDR(customerCreditAvailable)}). Outstanding:{' '}
+                  {formatCurrencyIDR(customerReceivableOutstanding ?? 0)}
+                  {customerCreditLimit != null ? ` / Limit: ${formatCurrencyIDR(customerCreditLimit)}` : ''}.
                 </p>
               ) : null}
               {paymentMode === 'DEPOSIT' &&
@@ -713,8 +742,8 @@ export function PosCartPanel({
                   customerName.trim().length < 2 ||
                   customerPhone.trim().length < 8 ||
                   (paymentMode === 'CREDIT' &&
-                    customerCreditAvailable != null &&
-                    total > customerCreditAvailable) ||
+                    (customerCreditLimit === 0 ||
+                      (customerCreditAvailable != null && total > customerCreditAvailable))) ||
                   (paymentMode === 'DEPOSIT' &&
                     (customerDepositBalance ?? 0) < total)
                 }

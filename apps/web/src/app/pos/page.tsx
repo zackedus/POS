@@ -186,6 +186,7 @@ export default function PosPage() {
   const [customerPointsBalance, setCustomerPointsBalance] = useState<number | null>(null);
   const [customerReceivableOutstanding, setCustomerReceivableOutstanding] = useState<number | null>(null);
   const [customerDepositBalance, setCustomerDepositBalance] = useState<number | null>(null);
+  const [customerCreditLimit, setCustomerCreditLimit] = useState<number | null>(null);
   const [customerCreditAvailable, setCustomerCreditAvailable] = useState<number | null>(null);
   const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState('');
 
@@ -211,6 +212,7 @@ export default function PosPage() {
       setCustomerPointsBalance(null);
       setCustomerReceivableOutstanding(null);
       setCustomerDepositBalance(null);
+      setCustomerCreditLimit(null);
       setCustomerCreditAvailable(null);
       setLoyaltyPointsToRedeem('');
       return;
@@ -222,6 +224,7 @@ export default function PosPage() {
         setCustomerPointsBalance(customer?.points ?? 0);
         setCustomerReceivableOutstanding(customer?.receivableOutstanding ?? 0);
         setCustomerDepositBalance(customer?.depositBalance ?? 0);
+        setCustomerCreditLimit(customer?.creditLimit ?? null);
         setCustomerCreditAvailable(customer?.creditAvailable ?? null);
       })
       .catch(() => {
@@ -229,6 +232,7 @@ export default function PosPage() {
           setCustomerPointsBalance(null);
           setCustomerReceivableOutstanding(null);
           setCustomerDepositBalance(null);
+          setCustomerCreditLimit(null);
           setCustomerCreditAvailable(null);
         }
       });
@@ -1491,6 +1495,7 @@ export default function PosPage() {
           customerPointsBalance={customerPointsBalance}
           customerReceivableOutstanding={customerReceivableOutstanding}
           customerDepositBalance={customerDepositBalance}
+          customerCreditLimit={customerCreditLimit}
           customerCreditAvailable={customerCreditAvailable}
           loyaltyPointsToRedeem={loyaltyPointsToRedeem}
           onLoyaltyPointsToRedeemChange={setLoyaltyPointsToRedeem}

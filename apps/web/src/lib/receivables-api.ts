@@ -1,3 +1,4 @@
+import type { CustomerStatement, ReceivableAgingReport } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
 
@@ -54,6 +55,96 @@ interface ApiEnvelope<T> {
   success: boolean;
   data?: T;
   error?: { message?: string };
+}
+
+export async function fetchOverdueReceivables(params?: {
+  outletId?: string;
+}): Promise<ReceivableRow[]> {
+  const search = new URLSearchParams();
+  if (params?.outletId) search.set('outletId', params.outletId);
+  const qs = search.toString();
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/overdue${qs ? `?${qs}` : ''}`);
+  const json = (await res.json()) as ApiEnvelope<ReceivableRow[]>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat piutang jatuh tempo.');
+  }
+  return json.data;
+}
+
+export async function fetchReceivableAging(params?: {
+  outletId?: string;
+  groupByCustomer?: boolean;
+}): Promise<ReceivableAgingReport> {
+  const search = new URLSearchParams();
+  if (params?.outletId) search.set('outletId', params.outletId);
+  if (params?.groupByCustomer) search.set('groupByCustomer', 'true');
+  const qs = search.toString();
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/aging${qs ? `?${qs}` : ''}`);
+  const json = (await res.json()) as ApiEnvelope<ReceivableAgingReport>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat laporan aging piutang.');
+  }
+  return json.data;
+}
+
+export async function fetchCustomerStatement(
+  customerId: string,
+  params: { from: string; to: string },
+): Promise<CustomerStatement> {
+  const search = new URLSearchParams({ from: params.from, to: params.to });
+  const res = await authFetch(
+    `${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/customers/${customerId}/statement?${search}`,
+  );
+  const json = (await res.json()) as ApiEnvelope<CustomerStatement>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat statement pelanggan.');
+  }
+  return json.data;
+}
+
+export function exportAgingCsv(report: ReceivableAgingReport): void {
+  const lines: string[] = [];
+  if (report.groupByCustomer && report.byCustomer) {
+    lines.push('Pelanggan,Telepon,Total Outstanding,Belum Jatuh Tempo,1-30 hari,31-60 hari,61-90 hari,90+ hari');
+    for (const row of report.byCustomer) {
+      const amounts = row.buckets.map((b) => b.amount);
+      lines.push(
+        [
+          `"${row.customerName.replace(/"/g, '""')}"`,
+          row.customerPhone,
+          row.totalOutstanding,
+          ...amounts,
+        ].join(','),
+      );
+    }
+  } else if (report.rows) {
+    lines.push('Pelanggan,Telepon,Outlet,Sisa,Jatuh Tempo,Hari Terlambat,Bucket');
+    for (const row of report.rows) {
+      lines.push(
+        [
+          `"${row.customerName.replace(/"/g, '""')}"`,
+          row.customerPhone,
+          `"${(row.outletName ?? '—').replace(/"/g, '""')}"`,
+          row.outstanding,
+          row.dueDate ?? '',
+          row.daysOverdue,
+          row.bucket,
+        ].join(','),
+      );
+    }
+  }
+  lines.push('');
+  lines.push('Ringkasan Bucket,Jumlah Tagihan,Total (IDR)');
+  for (const t of report.totals) {
+    lines.push([t.label, t.count, t.amount].join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `aging-piutang-${report.asOf}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function fetchReceivables(params?: {

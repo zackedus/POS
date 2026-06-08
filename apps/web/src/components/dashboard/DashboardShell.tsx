@@ -40,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard/inventory', label: 'Stok' },
       { href: '/dashboard/expenses', label: 'Pengeluaran' },
       { href: '/dashboard/receivables', label: 'Piutang' },
+      { href: '/dashboard/receivables/aging', label: 'Aging Piutang' },
       { href: '/dashboard/payables', label: 'Utang' },
       { href: '/dashboard/deposits', label: 'Deposit' },
       { href: '/dashboard/purchase-orders', label: 'Order Distributor' },

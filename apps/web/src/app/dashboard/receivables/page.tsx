@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
 import { Button, CurrencyInput } from '@barokah/ui';
 import {
@@ -23,12 +25,13 @@ import {
 } from '@/lib/receivables-api';
 
 export default function ReceivablesPage() {
+  const searchParams = useSearchParams();
   const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [rows, setRows] = useState<ReceivableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') ?? '');
   const [payForm, setPayForm] = useState<{ receivableId: string; amount: string; method: string }>({
     receivableId: '',
     amount: '',
@@ -91,13 +94,35 @@ export default function ReceivablesPage() {
 
   const openRows = rows.filter((r) => r.status === 'OPEN' || r.status === 'PARTIAL');
   const totalOutstanding = openRows.reduce((sum, r) => sum + r.outstanding, 0);
+  const overdueCount = rows.filter((r) => r.isOverdue).length;
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gap: '1.25rem' }}>
       <PageHeader
         title="Piutang Pelanggan"
         description="Tagihan tempo / kredit — catat pelunasan di kasir atau dashboard."
+        actions={
+          <>
+            <Link href="/dashboard/receivables/aging">
+              <Button type="button" variant="secondary">
+                Aging Piutang
+              </Button>
+            </Link>
+          </>
+        }
       />
+      {overdueCount > 0 ? (
+        <AlertBanner variant="error">
+          <strong>{overdueCount} tagihan terlambat</strong> — segera tindak lanjuti pelunasan.{' '}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('OVERDUE')}
+            style={{ background: 'none', border: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            Filter jatuh tempo
+          </button>
+        </AlertBanner>
+      ) : null}
       {error && <AlertBanner variant="error">{error}</AlertBanner>}
       {success && <AlertBanner variant="success">{success}</AlertBanner>}
       {needsOutletPick && (
@@ -184,12 +209,37 @@ export default function ReceivablesPage() {
                     <td style={tableStyles.td}>
                       <div>{row.customer?.name ?? '—'}</div>
                       <small>{row.customer?.phone}</small>
+                      {row.customer?.id ? (
+                        <div style={{ marginTop: 4 }}>
+                          <Link
+                            href={`/dashboard/receivables/statement/${row.customer.id}`}
+                            style={{ fontSize: '0.75rem', color: '#2563eb' }}
+                          >
+                            Cetak Statement
+                          </Link>
+                        </div>
+                      ) : null}
                     </td>
                     <td style={tableStyles.td}>{formatCurrencyIDR(row.amount)}</td>
                     <td style={tableStyles.td}>{formatCurrencyIDR(row.outstanding)}</td>
                     <td style={tableStyles.td}>
                       {row.dueDate ?? '—'}
-                      {row.isOverdue && <StatusBadge label="Terlambat" variant="error" />}
+                      {row.isOverdue ? (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            marginLeft: 6,
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: 999,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            background: '#fef2f2',
+                            color: '#b91c1c',
+                          }}
+                        >
+                          Terlambat
+                        </span>
+                      ) : null}
                     </td>
                     <td style={tableStyles.td}>
                       <StatusBadge
