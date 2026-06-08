@@ -180,7 +180,7 @@ describe('DashboardHomePage', () => {
       },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Muat ulang' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Muat ulang' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Omzet harian')).toHaveTextContent(/200\.000/);

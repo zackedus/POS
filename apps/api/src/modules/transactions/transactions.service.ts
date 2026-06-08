@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -159,6 +160,26 @@ export class TransactionsService {
     }
 
     throw latestError;
+  }
+
+  private assertLinkedCustomerForFinancePayments(
+    payments: CheckoutSplitDto['payments'],
+    customerId?: string | null,
+  ) {
+    const hasCredit = payments.some((p) => p.method === PaymentMethod.CREDIT && p.amount > 0);
+    const hasDeposit = payments.some((p) => p.method === PaymentMethod.DEPOSIT && p.amount > 0);
+    if (hasCredit && !customerId?.trim()) {
+      throw new BadRequestException({
+        code: ErrorCodes.CUSTOMER_REQUIRED_FOR_CREDIT,
+        message: 'Pilih pelanggan terlebih dahulu untuk bayar tempo.',
+      });
+    }
+    if (hasDeposit && !customerId?.trim()) {
+      throw new BadRequestException({
+        code: ErrorCodes.CUSTOMER_REQUIRED_FOR_DEPOSIT,
+        message: 'Pilih pelanggan terlebih dahulu untuk bayar deposit.',
+      });
+    }
   }
 
   private assertValidSplitPayments(payments: CheckoutSplitDto['payments'], subtotal: number) {
@@ -1381,6 +1402,7 @@ export class TransactionsService {
 
   async checkoutSplit(user: AuthJwtPayload, dto: CheckoutSplitDto) {
     const outletId = resolveOutletId(user, dto.outletId);
+    this.assertLinkedCustomerForFinancePayments(dto.payments, dto.customerId);
     const existing = await this.findExistingTransactionByRequest(outletId, dto.clientRequestId);
     if (existing) {
       const existingPaymentSummary = existing.payments.reduce<Record<string, number>>((acc, payment) => {

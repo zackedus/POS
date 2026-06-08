@@ -93,8 +93,9 @@ export default function DepositsPage() {
       <SectionCard title="Top-up Deposit">
         <form onSubmit={(e) => void handleTopUp(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
           <label>
-            Pelanggan
+            Pelanggan <span style={{ color: '#b91c1c' }}>*</span>
             <select
+              required
               value={form.customerId}
               onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))}
               style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.5rem' }}

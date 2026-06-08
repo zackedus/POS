@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnprocessableEntityException,
@@ -84,10 +85,17 @@ export class FinanceCheckoutService {
       .filter((p) => p.method === PaymentMethod.DEPOSIT)
       .reduce((sum, p) => sum + p.amount, 0);
 
-    if ((creditTotal > 0 || depositTotal > 0) && !params.customerId) {
-      throw new UnprocessableEntityException({
-        code: ErrorCodes.FINANCE_CUSTOMER_REQUIRED,
-        message: 'Piutang atau deposit memerlukan pelanggan terhubung.',
+    if (creditTotal > 0 && !params.customerId) {
+      throw new BadRequestException({
+        code: ErrorCodes.CUSTOMER_REQUIRED_FOR_CREDIT,
+        message: 'Pilih pelanggan terlebih dahulu untuk bayar tempo.',
+      });
+    }
+
+    if (depositTotal > 0 && !params.customerId) {
+      throw new BadRequestException({
+        code: ErrorCodes.CUSTOMER_REQUIRED_FOR_DEPOSIT,
+        message: 'Pilih pelanggan terlebih dahulu untuk bayar deposit.',
       });
     }
 

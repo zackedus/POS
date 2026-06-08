@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ConflictException, ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, BadRequestException, UnprocessableEntityException } from '@nestjs/common';
 import { ErrorCodes, PaymentMethod } from '@barokah/shared';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { TransactionsService } from './transactions.service';
@@ -158,6 +158,38 @@ test('Transactions: recallHeldTransaction detects stock conflict early', async (
       assert.equal(response.code, ErrorCodes.INSUFFICIENT_STOCK);
       return true;
     },
+  );
+});
+
+test('Transactions: checkoutSplit rejects CREDIT without linked customerId', async () => {
+  const service = createTransactionsService({});
+  await assert.rejects(
+    () =>
+      service.checkoutSplit(createUser(), {
+        outletId: 'outlet-1',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        payments: [{ method: PaymentMethod.CREDIT, amount: 100_000 }],
+        clientRequestId: 'req-credit-no-customer',
+      }),
+    (error: unknown) =>
+      error instanceof BadRequestException &&
+      (error.getResponse() as { code?: string }).code === ErrorCodes.CUSTOMER_REQUIRED_FOR_CREDIT,
+  );
+});
+
+test('Transactions: checkoutSplit rejects DEPOSIT without linked customerId', async () => {
+  const service = createTransactionsService({});
+  await assert.rejects(
+    () =>
+      service.checkoutSplit(createUser(), {
+        outletId: 'outlet-1',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        payments: [{ method: PaymentMethod.DEPOSIT, amount: 50_000 }],
+        clientRequestId: 'req-deposit-no-customer',
+      }),
+    (error: unknown) =>
+      error instanceof BadRequestException &&
+      (error.getResponse() as { code?: string }).code === ErrorCodes.CUSTOMER_REQUIRED_FOR_DEPOSIT,
   );
 });
 

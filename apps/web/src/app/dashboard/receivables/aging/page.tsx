@@ -22,7 +22,7 @@ import {
   type ReceivableAgingReport,
 } from '@/lib/receivables-api';
 
-const BUCKET_VARIANT: Record<ReceivableAgingBucket, 'success' | 'warning' | 'error' | 'neutral'> = {
+const BUCKET_VARIANT: Record<ReceivableAgingBucket, 'success' | 'warning' | 'error' | 'default'> = {
   CURRENT: 'success',
   DAYS_0_30: 'warning',
   DAYS_31_60: 'warning',

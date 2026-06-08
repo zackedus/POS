@@ -8,6 +8,11 @@ import type { RecentTransactionSummary, ReceiptResponse } from '@/lib/transactio
 import { ReceiptPanel } from '@/components/pos/ReceiptPanel';
 import { PosAccordionSection } from '@/components/pos/PosAccordionSection';
 import type { CartItem, HeldTransactionSummary, PaymentMode, ProductGridItem } from './pos-types';
+import {
+  FINANCE_CUSTOMER_REQUIRED_MESSAGE,
+  isCustomerLinkedForFinance,
+  isFinancePaymentButtonDisabled,
+} from '@/lib/pos-finance-payment';
 
 import {
   formatPromoTargetingLabel,
@@ -108,6 +113,7 @@ export interface PosCartPanelProps {
   onCloseReceipt: () => void;
   customerName?: string;
   customerPhone?: string;
+  customerId?: string | null;
   onCustomerNameChange?: (value: string) => void;
   onCustomerPhoneChange?: (value: string) => void;
   loyaltyPointsPreview?: number | null;
@@ -190,6 +196,7 @@ export function PosCartPanel({
   onCloseReceipt,
   customerName = '',
   customerPhone = '',
+  customerId = null,
   onCustomerNameChange,
   onCustomerPhoneChange,
   loyaltyPointsPreview = null,
@@ -205,6 +212,7 @@ export function PosCartPanel({
   onLoyaltyPointsToRedeemChange,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
+  const customerLinked = isCustomerLinkedForFinance(customerId);
   const stepperStyle = { minHeight: 44, minWidth: 44, padding: 0, fontSize: '1.125rem' };
 
   return (
@@ -429,7 +437,16 @@ export function PosCartPanel({
               fontSize: '0.875rem',
             }}
           />
-          {customerName.trim().length >= 2 && customerPhone.trim().length >= 8 && loyaltyPointsPreview != null && loyaltyPointsPreview > 0 ? (
+          {customerLinked ? (
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#166534' }}>
+              Pelanggan terhubung: <strong>{customerName.trim() || '—'}</strong>
+            </p>
+          ) : customerPhone.trim().length >= 8 ? (
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#b45309' }}>
+              No. HP belum terdaftar — daftar pelanggan di dashboard untuk tempo/deposit.
+            </p>
+          ) : null}
+          {customerLinked && loyaltyPointsPreview != null && loyaltyPointsPreview > 0 ? (
             <p style={{ margin: 0, fontSize: '0.8125rem', color: '#166534' }}>
               Estimasi poin didapat: <strong>+{loyaltyPointsPreview}</strong> (1 poin / Rp{' '}
               {loyaltyEarnRateIdr.toLocaleString('id-ID')})
@@ -465,7 +482,7 @@ export function PosCartPanel({
               ) : null}
             </label>
           ) : null}
-          {customerPhone.trim().length >= 8 ? (
+          {customerLinked ? (
             <div
               role="status"
               style={{
@@ -613,11 +630,15 @@ export function PosCartPanel({
           >
             {(['CASH', 'TRANSFER', 'QRIS', 'CREDIT', 'DEPOSIT', 'SPLIT'] as PaymentMode[]).map((mode) => {
               const active = paymentMode === mode;
+              const financeDisabled = isFinancePaymentButtonDisabled(mode, customerId);
               return (
                 <button
                   key={mode}
                   type="button"
                   aria-pressed={active}
+                  aria-disabled={financeDisabled}
+                  disabled={financeDisabled}
+                  title={financeDisabled ? FINANCE_CUSTOMER_REQUIRED_MESSAGE : undefined}
                   onClick={() => onPaymentModeChange(mode)}
                   style={{
                     minHeight: 48,
@@ -625,10 +646,11 @@ export function PosCartPanel({
                     padding: '0 1rem',
                     borderRadius: 8,
                     border: `2px solid ${active ? '#16a34a' : '#e2e8f0'}`,
-                    background: active ? '#f0fdf4' : '#fff',
-                    color: active ? '#15803d' : '#334155',
+                    background: active ? '#f0fdf4' : financeDisabled ? '#f8fafc' : '#fff',
+                    color: active ? '#15803d' : financeDisabled ? '#94a3b8' : '#334155',
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: financeDisabled ? 'not-allowed' : 'pointer',
+                    opacity: financeDisabled ? 0.75 : 1,
                   }}
                 >
                   {paymentLabels[mode]}
@@ -636,6 +658,11 @@ export function PosCartPanel({
               );
             })}
           </div>
+          {!customerLinked && (paymentMode === 'CREDIT' || paymentMode === 'DEPOSIT') ? (
+            <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
+              {FINANCE_CUSTOMER_REQUIRED_MESSAGE}
+            </p>
+          ) : null}
 
           {paymentMode === 'CASH' ? (
             <>
@@ -705,9 +732,9 @@ export function PosCartPanel({
 
           {paymentMode === 'CREDIT' || paymentMode === 'DEPOSIT' ? (
             <>
-              {customerName.trim().length < 2 || customerPhone.trim().length < 8 ? (
+              {!customerLinked ? (
                 <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
-                  Isi nama &amp; HP pelanggan untuk {paymentMode === 'CREDIT' ? 'tempo/piutang' : 'pakai deposit'}.
+                  {FINANCE_CUSTOMER_REQUIRED_MESSAGE}
                 </p>
               ) : null}
               {paymentMode === 'CREDIT' && customerCreditLimit === 0 ? (
@@ -739,8 +766,7 @@ export function PosCartPanel({
                   processingSplit ||
                   checkoutBlockedByStock ||
                   (!activeShift && isOnline) ||
-                  customerName.trim().length < 2 ||
-                  customerPhone.trim().length < 8 ||
+                  !customerLinked ||
                   (paymentMode === 'CREDIT' &&
                     (customerCreditLimit === 0 ||
                       (customerCreditAvailable != null && total > customerCreditAvailable))) ||

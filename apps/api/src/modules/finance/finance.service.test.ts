@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
 import { ErrorCodes, PaymentMethod } from '@barokah/shared';
 import { computeOutstanding, computePayableStatus, computeReceivableStatus, computeAgingBucket, computeDaysOverdue, emptyAgingTotals, AGING_BUCKET_ORDER } from './finance.util';
 import { FinanceCheckoutService } from './finance-checkout.service';
@@ -35,8 +35,26 @@ test('Finance checkout: blocks credit without customer', () => {
         depositBalanceIdr: 0,
       }),
     (error: unknown) =>
-      error instanceof UnprocessableEntityException &&
-      (error.getResponse() as { code?: string }).code === ErrorCodes.FINANCE_CUSTOMER_REQUIRED,
+      error instanceof BadRequestException &&
+      (error.getResponse() as { code?: string }).code === ErrorCodes.CUSTOMER_REQUIRED_FOR_CREDIT,
+  );
+});
+
+test('Finance checkout: blocks deposit without customer', () => {
+  const service = new FinanceCheckoutService({} as never);
+  assert.throws(
+    () =>
+      service.assertCheckoutFinancePayments({
+        payments: [{ method: PaymentMethod.DEPOSIT, amount: 30_000 }],
+        customerId: null,
+        tenantId: 'tenant-1',
+        customerCreditLimitIdr: null,
+        customerOutstandingIdr: 0,
+        depositBalanceIdr: 0,
+      }),
+    (error: unknown) =>
+      error instanceof BadRequestException &&
+      (error.getResponse() as { code?: string }).code === ErrorCodes.CUSTOMER_REQUIRED_FOR_DEPOSIT,
   );
 });
 

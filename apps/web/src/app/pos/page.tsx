@@ -43,6 +43,10 @@ import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from
 import { fetchActivePromos, previewPromoLocally, type PromoValidationResult } from '@/lib/promo-checkout-api';
 import { fetchTenantSettings } from '@/lib/settings-api';
 import { lookupCustomerByPhone } from '@/lib/customers-api';
+import {
+  canSelectFinancePaymentMode,
+  FINANCE_CUSTOMER_REQUIRED_MESSAGE,
+} from '@/lib/pos-finance-payment';
 import type { PromoRuleView } from '@/lib/promotions-api';
 import { mapRecallItemsToCart } from '@/lib/recall-cart';
 import { evaluateAddToCartStock, resolveStockErrorMessage } from '@/lib/stock-errors';
@@ -176,6 +180,7 @@ export default function PosPage() {
   const [stockAlert, setStockAlert] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [loyaltyPointsEnabled, setLoyaltyPointsEnabled] = useState(true);
   const [loyaltyEarnRateIdr, setLoyaltyEarnRateIdr] = useState(10_000);
   const [loyaltyRedeemEnabled, setLoyaltyRedeemEnabled] = useState(false);
@@ -209,6 +214,7 @@ export default function PosPage() {
   useEffect(() => {
     const phone = customerPhone.trim();
     if (!/^08\d{8,11}$/.test(phone)) {
+      setCustomerId(null);
       setCustomerPointsBalance(null);
       setCustomerReceivableOutstanding(null);
       setCustomerDepositBalance(null);
@@ -221,14 +227,26 @@ export default function PosPage() {
     void lookupCustomerByPhone(phone)
       .then((customer) => {
         if (cancelled) return;
-        setCustomerPointsBalance(customer?.points ?? 0);
-        setCustomerReceivableOutstanding(customer?.receivableOutstanding ?? 0);
-        setCustomerDepositBalance(customer?.depositBalance ?? 0);
-        setCustomerCreditLimit(customer?.creditLimit ?? null);
-        setCustomerCreditAvailable(customer?.creditAvailable ?? null);
+        if (customer) {
+          setCustomerId(customer.id);
+          setCustomerName((prev) => (prev.trim() ? prev : customer.name));
+          setCustomerPointsBalance(customer.points ?? 0);
+          setCustomerReceivableOutstanding(customer.receivableOutstanding ?? 0);
+          setCustomerDepositBalance(customer.depositBalance ?? 0);
+          setCustomerCreditLimit(customer.creditLimit ?? null);
+          setCustomerCreditAvailable(customer.creditAvailable ?? null);
+        } else {
+          setCustomerId(null);
+          setCustomerPointsBalance(null);
+          setCustomerReceivableOutstanding(null);
+          setCustomerDepositBalance(null);
+          setCustomerCreditLimit(null);
+          setCustomerCreditAvailable(null);
+        }
       })
       .catch(() => {
         if (!cancelled) {
+          setCustomerId(null);
           setCustomerPointsBalance(null);
           setCustomerReceivableOutstanding(null);
           setCustomerDepositBalance(null);
@@ -244,10 +262,13 @@ export default function PosPage() {
   function buildCustomerCheckoutPayload() {
     const name = customerName.trim();
     const phone = customerPhone.trim();
-    if (!name && !phone) {
+    if (!name && !phone && !customerId) {
       return {};
     }
     const payload: Record<string, string | number> = {};
+    if (customerId) {
+      payload.customerId = customerId;
+    }
     if (name.length >= 2 && /^08\d{8,11}$/.test(phone)) {
       payload.customerName = name;
       payload.customerPhone = phone;
@@ -257,6 +278,14 @@ export default function PosPage() {
       payload.loyaltyPointsToRedeem = pointsToRedeem;
     }
     return payload;
+  }
+
+  function handlePaymentModeChange(mode: PaymentMode) {
+    if (!canSelectFinancePaymentMode(mode, customerId)) {
+      setError(FINANCE_CUSTOMER_REQUIRED_MESSAGE);
+      return;
+    }
+    setPaymentMode(mode);
   }
 
   useEffect(() => {
@@ -392,6 +421,12 @@ export default function PosPage() {
     }
     if (code === 'INVALID_INPUT') {
       return fallback ?? 'Data split payment tidak valid. Periksa nominal cash/transfer lalu coba lagi.';
+    }
+    if (code === 'CUSTOMER_REQUIRED_FOR_CREDIT' || code === 'FINANCE_CUSTOMER_REQUIRED') {
+      return fallback ?? 'Pilih pelanggan terlebih dahulu untuk bayar tempo.';
+    }
+    if (code === 'CUSTOMER_REQUIRED_FOR_DEPOSIT') {
+      return fallback ?? 'Pilih pelanggan terlebih dahulu untuk bayar deposit.';
     }
     return fallback ?? 'Checkout split payment gagal. Silakan coba lagi.';
   }
@@ -1218,6 +1253,11 @@ export default function PosPage() {
       return;
     }
 
+    if ((method === 'CREDIT' || method === 'DEPOSIT') && !customerId) {
+      setError(FINANCE_CUSTOMER_REQUIRED_MESSAGE);
+      return;
+    }
+
     if (checkoutBlockedByOutlet) {
       setError(checkoutOutletHint);
       return;
@@ -1439,7 +1479,8 @@ export default function PosPage() {
           checkoutStockHint={checkoutBlockHint}
           qrisPending={Boolean(qrisSession)}
           paymentMode={paymentMode}
-          onPaymentModeChange={setPaymentMode}
+          onPaymentModeChange={handlePaymentModeChange}
+          customerId={customerId}
           cashReceived={cashReceived}
           onCashReceivedChange={setCashReceived}
           nonCashReference={nonCashReference}

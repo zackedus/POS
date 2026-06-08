@@ -1,4 +1,5 @@
 import type { CustomerStatement, ReceivableAgingReport } from '@barokah/shared';
+export type { ReceivableAgingReport } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
 
@@ -170,6 +171,25 @@ export async function fetchReceivableDetail(receivableId: string): Promise<Recei
   const json = (await res.json()) as ApiEnvelope<ReceivableRow>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat detail piutang.');
+  }
+  return json.data;
+}
+
+export async function createReceivable(body: {
+  customerId: string;
+  amount: number;
+  outletId?: string;
+  dueDate?: string;
+  notes?: string;
+}): Promise<ReceivableRow> {
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json()) as ApiEnvelope<ReceivableRow>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal membuat piutang.');
   }
   return json.data;
 }

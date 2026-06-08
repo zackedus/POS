@@ -16,8 +16,10 @@ import {
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
 import { mapApiError } from '@/lib/api-client';
+import { fetchCustomers, type CustomerListItem } from '@/lib/customers-api';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
+  createReceivable,
   fetchReceivables,
   recordReceivablePayment,
   RECEIVABLE_STATUS_LABELS,
@@ -37,7 +39,15 @@ export default function ReceivablesPage() {
     amount: '',
     method: 'CASH',
   });
+  const [createForm, setCreateForm] = useState({
+    customerId: '',
+    amount: '',
+    dueDate: '',
+    notes: '',
+  });
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [paying, setPaying] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const loadData = useCallback(async () => {
     if (needsOutletPick) {
@@ -47,11 +57,15 @@ export default function ReceivablesPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchReceivables({
-        outletId: selectedOutletId ?? undefined,
-        status: statusFilter || undefined,
-      });
+      const [data, customerList] = await Promise.all([
+        fetchReceivables({
+          outletId: selectedOutletId ?? undefined,
+          status: statusFilter || undefined,
+        }),
+        fetchCustomers(),
+      ]);
       setRows(data);
+      setCustomers(customerList);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat piutang.'));
     } finally {
@@ -89,6 +103,38 @@ export default function ReceivablesPage() {
       setError(mapApiError(err, 'Gagal mencatat pembayaran.'));
     } finally {
       setPaying(false);
+    }
+  }
+
+  async function handleCreate(e: FormEvent) {
+    e.preventDefault();
+    if (!createForm.customerId) {
+      setError('Pilih pelanggan terlebih dahulu.');
+      return;
+    }
+    const amount = parseCurrencyInput(createForm.amount);
+    if (!Number.isInteger(amount) || amount < 1) {
+      setError('Nominal piutang harus angka bulat minimal Rp 1.');
+      return;
+    }
+    setCreating(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await createReceivable({
+        customerId: createForm.customerId,
+        amount,
+        outletId: selectedOutletId ?? undefined,
+        dueDate: createForm.dueDate.trim() || undefined,
+        notes: createForm.notes.trim() || undefined,
+      });
+      setSuccess('Piutang manual berhasil dicatat.');
+      setCreateForm({ customerId: '', amount: '', dueDate: '', notes: '' });
+      await loadData();
+    } catch (err) {
+      setError(mapApiError(err, 'Gagal membuat piutang.'));
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -148,6 +194,53 @@ export default function ReceivablesPage() {
           <option value="OVERDUE">Jatuh tempo</option>
           <option value="PAID">Lunas</option>
         </select>
+      </SectionCard>
+
+      <SectionCard title="Tambah Piutang Manual">
+        <form onSubmit={(e) => void handleCreate(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
+          <label>
+            Pelanggan <span style={{ color: '#b91c1c' }}>*</span>
+            <select
+              required
+              value={createForm.customerId}
+              onChange={(e) => setCreateForm((p) => ({ ...p, customerId: e.target.value }))}
+              style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.5rem' }}
+            >
+              <option value="">— Pilih pelanggan —</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — {c.phone}
+                </option>
+              ))}
+            </select>
+          </label>
+          <CurrencyInput
+            label="Nominal piutang"
+            value={createForm.amount}
+            onChange={(v) => setCreateForm((p) => ({ ...p, amount: v }))}
+          />
+          <label>
+            Jatuh tempo (opsional)
+            <input
+              type="date"
+              value={createForm.dueDate}
+              onChange={(e) => setCreateForm((p) => ({ ...p, dueDate: e.target.value }))}
+              style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.5rem' }}
+            />
+          </label>
+          <label>
+            Catatan (opsional)
+            <input
+              type="text"
+              value={createForm.notes}
+              onChange={(e) => setCreateForm((p) => ({ ...p, notes: e.target.value }))}
+              style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.5rem' }}
+            />
+          </label>
+          <Button type="submit" disabled={creating || customers.length === 0}>
+            {creating ? 'Menyimpan…' : 'Catat Piutang'}
+          </Button>
+        </form>
       </SectionCard>
 
       <SectionCard title="Catat Pembayaran">

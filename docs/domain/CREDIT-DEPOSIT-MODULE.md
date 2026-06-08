@@ -116,7 +116,9 @@
 | `CREDIT_NOT_ALLOWED` | creditLimit = 0 |
 | `DEPOSIT_INSUFFICIENT_BALANCE` | Apply/refund melebihi saldo |
 | `DEPOSIT_ALREADY_APPLIED` | Double apply ke transaksi |
-| `FINANCE_CUSTOMER_REQUIRED` | CREDIT/DEPOSIT tanpa customer |
+| `CUSTOMER_REQUIRED_FOR_CREDIT` | Checkout tempo tanpa `customerId` terhubung |
+| `CUSTOMER_REQUIRED_FOR_DEPOSIT` | Checkout deposit tanpa `customerId` terhubung |
+| `FINANCE_CUSTOMER_REQUIRED` | *(deprecated alias)* — gunakan kode spesifik di atas |
 | `RECEIVABLE_NOT_OPEN` | Bayar piutang sudah lunas/void |
 | `PAYABLE_NOT_OPEN` | Bayar utang sudah lunas/void |
 

@@ -58,7 +58,13 @@ export class CustomersService {
         where: { id: dto.customerId.trim(), tenantId },
         select: { id: true },
       });
-      return linked?.id ?? null;
+      if (!linked) {
+        throw new NotFoundException({
+          code: ErrorCodes.NOT_FOUND,
+          message: 'Pelanggan tidak ditemukan.',
+        });
+      }
+      return linked.id;
     }
     const phone = dto.customerPhone?.trim();
     const name = dto.customerName?.trim();

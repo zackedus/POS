@@ -176,20 +176,43 @@ export default function CustomersPage() {
               <div style={{ color: tokens.muted }}>
                 Transaksi POS: {detail.stats.transactionCount} · Order online: {detail.stats.onlineOrderCount}
               </div>
-              {(detail.receivableOutstanding != null && detail.receivableOutstanding > 0) ||
-              (detail.depositBalance != null && detail.depositBalance > 0) ? (
-                <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: 8 }}>
-                  {detail.receivableOutstanding != null && detail.receivableOutstanding > 0 ? (
-                    <div>Piutang: {formatCurrencyIDR(detail.receivableOutstanding)}</div>
-                  ) : null}
-                  {detail.depositBalance != null && detail.depositBalance > 0 ? (
-                    <div>Deposit: {formatCurrencyIDR(detail.depositBalance)}</div>
-                  ) : null}
-                  {detail.creditLimit != null ? (
-                    <div>Limit kredit: {formatCurrencyIDR(detail.creditLimit)}</div>
-                  ) : null}
+              <div style={{ padding: '0.65rem', background: '#f8fafc', borderRadius: 8, display: 'grid', gap: '0.35rem' }}>
+                <div style={{ fontWeight: 600, color: '#1e40af' }}>Ringkasan Keuangan</div>
+                <div>
+                  Piutang:{' '}
+                  <strong>{formatCurrencyIDR(detail.receivableOutstanding ?? 0)}</strong>
                 </div>
-              ) : null}
+                <div>
+                  Deposit: <strong>{formatCurrencyIDR(detail.depositBalance ?? 0)}</strong>
+                </div>
+                <div>
+                  Limit kredit:{' '}
+                  <strong>
+                    {detail.creditLimit === 0
+                      ? 'Tidak diizinkan tempo'
+                      : detail.creditLimit != null
+                        ? formatCurrencyIDR(detail.creditLimit)
+                        : 'Unlimited'}
+                  </strong>
+                </div>
+                {detail.creditAvailable != null && detail.creditLimit !== 0 ? (
+                  <div style={{ color: '#166534' }}>
+                    Kredit tersedia: <strong>{formatCurrencyIDR(detail.creditAvailable)}</strong>
+                  </div>
+                ) : null}
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                  <Link href={`/dashboard/receivables?customerId=${detail.id}`}>
+                    <Button type="button" variant="secondary" style={{ fontSize: '0.8125rem' }}>
+                      Lihat Piutang
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard/deposits">
+                    <Button type="button" variant="secondary" style={{ fontSize: '0.8125rem' }}>
+                      Top-up Deposit
+                    </Button>
+                  </Link>
+                </div>
+              </div>
               <Link href={`/dashboard/receivables/statement/${detail.id}`}>
                 <Button type="button" variant="secondary" style={{ marginTop: '0.25rem' }}>
                   Cetak Statement
