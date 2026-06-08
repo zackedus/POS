@@ -20,7 +20,7 @@ import {
 
 type DeliveryTypeValue = PrismaDeliveryType | DeliveryType;
 import { PrismaService } from '../../common/database/prisma.service';
-import { resolveOutletId } from '../../common/utils/outlet.util';
+import { buildOutletWhere, resolveListOutletScope, resolveOutletId } from '../../common/utils/outlet.util';
 import { CustomersService } from '../customers/customers.service';
 import { toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
@@ -44,7 +44,7 @@ export class DeliveriesService {
   ) {}
 
   async list(user: AuthJwtPayload, query: DeliveryListQueryDto) {
-    const outletId = resolveOutletId(user, query.outletId);
+    const outletScope = resolveListOutletScope(user, query.outletId);
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -68,7 +68,7 @@ export class DeliveriesService {
 
     const where = {
       tenantId: user.tenantId,
-      outletId,
+      ...buildOutletWhere(outletScope),
       status: { in: statusFilter },
       ...(deliveryTypeFilter ? { deliveryType: deliveryTypeFilter } : {}),
       ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
@@ -374,12 +374,12 @@ export class DeliveriesService {
   }
 
   async queueSummary(user: AuthJwtPayload, query: DeliveryQueueSummaryQueryDto): Promise<DeliveryQueueSummary> {
-    const outletId = resolveOutletId(user, query.outletId);
+    const outletScope = resolveListOutletScope(user, query.outletId);
     const rows = await this.prisma.deliveryOrder.groupBy({
       by: ['status'],
       where: {
         tenantId: user.tenantId,
-        outletId,
+        ...buildOutletWhere(outletScope),
         status: { in: ['MENUNGGU', 'DISIAPKAN', 'DIKIRIM', 'SELESAI', 'BATAL'] },
       },
       _count: { _all: true },

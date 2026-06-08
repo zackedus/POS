@@ -22,10 +22,17 @@ export function useDeliveryBadge(enabled: boolean, outletId?: string | null): nu
       return;
     }
     void refresh();
+    const onDeliveryCreated = () => {
+      void refresh();
+    };
+    window.addEventListener('barokah:delivery-created', onDeliveryCreated);
     const timer = window.setInterval(() => {
       void refresh();
     }, DELIVERIES_POLL_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.removeEventListener('barokah:delivery-created', onDeliveryCreated);
+      window.clearInterval(timer);
+    };
   }, [enabled, refresh]);
 
   return count;

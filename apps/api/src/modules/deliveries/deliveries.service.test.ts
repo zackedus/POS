@@ -19,6 +19,10 @@ function managerUser(): AuthJwtPayload {
   return { ...cashierUser(), sub: 'manager-1', role: 'MANAGER' };
 }
 
+function ownerUser(): AuthJwtPayload {
+  return { ...cashierUser(), sub: 'owner-1', role: 'OWNER', outletIds: ['outlet-1', 'outlet-2'] };
+}
+
 function makeService(prisma: object, customersService: { resolveOptionalCustomerId: (...args: unknown[]) => Promise<string | null> } = {
   resolveOptionalCustomerId: async () => null,
 }) {
@@ -153,6 +157,160 @@ test('Deliveries: queueSummary aggregates counts', async () => {
   assert.equal(summary.MENUNGGU, 3);
   assert.equal(summary.DISIAPKAN, 2);
   assert.equal(summary.total, 5);
+});
+
+test('Deliveries: list without outletId returns tenant-wide rows for manager', async () => {
+  const prisma = {
+    deliveryOrder: {
+      findMany: async ({ where }: { where: { tenantId: string; outletId?: string } }) => {
+        assert.equal(where.tenantId, 'tenant-1');
+        assert.equal(where.outletId, undefined);
+        return [
+          {
+            id: 'delivery-1',
+            deliveryNo: 'DLV-20260609-0002',
+            deliveryType: 'STORE_DIRECT',
+            status: 'MENUNGGU',
+            createdAt: new Date('2026-06-09T11:00:00.000Z'),
+            scheduledAt: null,
+            driverName: null,
+            notes: null,
+            addressLine1: 'Jl. A',
+            addressLine2: null,
+            addressCity: 'Jakarta',
+            addressProvince: null,
+            customer: { id: 'cust-1', name: 'Budi', phone: '081234567890' },
+            outlet: { id: 'outlet-2', name: 'Cabang 2' },
+            onlineOrder: null,
+            transaction: {
+              id: 'trx-2',
+              receiptNo: 'TRX-02',
+              total: { toString: () => '50000' },
+              items: [{ id: 'item-1' }],
+            },
+          },
+        ];
+      },
+      count: async () => 1,
+    },
+  };
+
+  const service = makeService(prisma);
+  const result = await service.list(ownerUser(), {});
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0]?.outlet.id, 'outlet-2');
+});
+
+test('Deliveries: create then list includes new STORE_DIRECT order with default active filters', async () => {
+  const stored: Array<{ id: string; outletId: string; status: string; deliveryNo: string }> = [];
+  const prisma = {
+    transaction: {
+      findFirst: async () => ({
+        id: 'trx-pos-1',
+        customerId: 'cust-1',
+        outletId: 'outlet-1',
+        status: 'COMPLETED',
+      }),
+    },
+    deliveryOrder: {
+      findFirst: async (args: { where: { transactionId?: string } }) => {
+        if (args.where.transactionId) return null;
+        return null;
+      },
+      findMany: async ({ where }: { where: { status: { in: string[] }; outletId: string } }) =>
+        stored.filter(
+          (row) => row.outletId === where.outletId && where.status.in.includes(row.status),
+        ).map((row) => ({
+          id: row.id,
+          deliveryNo: row.deliveryNo,
+          deliveryType: 'STORE_DIRECT',
+          status: row.status,
+          createdAt: new Date('2026-06-09T12:00:00.000Z'),
+          scheduledAt: null,
+          driverName: null,
+          notes: null,
+          addressLine1: 'Jl. POS 1',
+          addressLine2: null,
+          addressCity: 'Jakarta',
+          addressProvince: null,
+          customer: { id: 'cust-1', name: 'Budi', phone: '081234567890' },
+          outlet: { id: 'outlet-1', name: 'Toko Utama' },
+          onlineOrder: null,
+          transaction: {
+            id: 'trx-pos-1',
+            receiptNo: 'TRX-POS-1',
+            total: { toString: () => '70000' },
+            items: [{ id: 'item-1' }],
+          },
+        })),
+      count: async ({ where }: { where: { status: { in: string[] }; outletId: string } }) =>
+        stored.filter(
+          (row) => row.outletId === where.outletId && where.status.in.includes(row.status),
+        ).length,
+    },
+    customer: {
+      findFirst: async () => ({ id: 'cust-1' }),
+    },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        deliveryOrderSequence: {
+          upsert: async () => ({ lastValue: 2 }),
+        },
+        deliveryOrder: {
+          create: async ({
+            data,
+          }: {
+            data: { outletId: string; deliveryNo: string; status: string };
+          }) => {
+            const row = {
+              id: 'delivery-pos-1',
+              outletId: data.outletId,
+              status: data.status,
+              deliveryNo: data.deliveryNo,
+            };
+            stored.push(row);
+            return {
+              ...row,
+              deliveryType: 'STORE_DIRECT',
+              createdAt: new Date('2026-06-09T12:00:00.000Z'),
+              scheduledAt: null,
+              driverName: null,
+              notes: null,
+              addressLine1: 'Jl. POS 1',
+              addressLine2: null,
+              addressCity: 'Jakarta',
+              addressProvince: null,
+              customer: { id: 'cust-1', name: 'Budi', phone: '081234567890' },
+              outlet: { id: 'outlet-1', name: 'Toko Utama' },
+              onlineOrder: null,
+              transaction: {
+                id: 'trx-pos-1',
+                receiptNo: 'TRX-POS-1',
+                total: { toString: () => '70000' },
+                items: [{ id: 'item-1' }],
+              },
+            };
+          },
+        },
+      }),
+  };
+
+  const service = makeService(prisma);
+  const created = await service.create(cashierUser(), {
+    transactionId: 'trx-pos-1',
+    customerId: 'cust-1',
+    outletId: 'outlet-1',
+    addressSnapshot: {
+      label: 'Proyek',
+      addressLine1: 'Jl. POS 1',
+      city: 'Jakarta',
+    },
+  });
+  assert.equal(created.deliveryNo, 'DLV-20260609-0002');
+
+  const listed = await service.list(cashierUser(), { status: 'MENUNGGU,DISIAPKAN,DIKIRIM' });
+  assert.equal(listed.items.length, 1);
+  assert.equal(listed.items[0]?.deliveryNo, 'DLV-20260609-0002');
 });
 
 test('Deliveries: create resolves walk-in customer from checkout snapshot when transaction has no customerId', async () => {

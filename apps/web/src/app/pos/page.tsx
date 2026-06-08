@@ -246,6 +246,9 @@ export default function PosPage() {
     creditLimit?: number | null;
     creditAvailable?: number | null;
   }) {
+    if (customerId !== customer.id) {
+      resetDeliveryState();
+    }
     setCustomerId(customer.id);
     setCustomerName(customer.name);
     setCustomerPhone(formatPhoneDisplay(customer.phone));
@@ -311,6 +314,10 @@ export default function PosPage() {
     if (!deliveryEnabled || !deliverySelection || !isDeliverySelectionValid(deliverySelection)) {
       return null;
     }
+    if (!activeOutletId) {
+      setError('Checkout berhasil, tetapi cabang aktif belum dipilih — pengiriman tidak dibuat.');
+      return null;
+    }
     try {
       const order = await createDeliveryOrder(
         buildDeliveryOrderPayload({
@@ -323,6 +330,13 @@ export default function PosPage() {
           notes: deliveryNotes,
         }),
       );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('barokah:delivery-created', {
+            detail: { deliveryNo: order.deliveryNo, outletId: activeOutletId },
+          }),
+        );
+      }
       return order.deliveryNo;
     } catch (err) {
       const message =

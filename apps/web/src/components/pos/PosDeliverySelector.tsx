@@ -81,6 +81,13 @@ export function PosDeliverySelector({
   const [manual, setManual] = useState<CustomerAddressView>(emptyManual);
 
   useEffect(() => {
+    setUseManual(isWalkIn);
+    if (!isWalkIn) {
+      setManual(emptyManual());
+    }
+  }, [customerId, isWalkIn]);
+
+  useEffect(() => {
     if (isWalkIn && enabled && !selection) {
       const nextManual = emptyManual();
       setManual(nextManual);

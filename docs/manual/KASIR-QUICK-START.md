@@ -99,6 +99,7 @@ Panduan singkat shift harian toko bahan bangunan.
 | Margin negatif | Warning kuning — transaksi tetap bisa |
 | Split payment | Cash + Transfer harus = total persis |
 | Offline | Transaksi antre; sync saat online kembali |
+| Checkout kirim sukses tapi antrian kosong di dashboard | Pastikan **Dashboard → Pengiriman** memakai filter **Semua cabang** (multi-outlet) dan tab **Semua aktif** — default hanya menampilkan Menunggu/Disiapkan/Dikirim. Pastikan cabang kasir POS sama dengan filter cabang. Jika muncul pesan error setelah checkout, buat pengiriman manual dari struk. |
 
 ## Bantuan
 

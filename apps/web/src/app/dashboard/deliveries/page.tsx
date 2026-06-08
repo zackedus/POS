@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { DELIVERIES_POLL_MS } from '@/hooks/useDeliveryBadge';
 import Link from 'next/link';
 import {
   DELIVERY_STATUS_LABELS,
@@ -53,7 +54,9 @@ function statusVariant(status: DeliveryStatus): 'neutral' | 'warning' | 'success
 }
 
 export default function DashboardDeliveriesPage() {
-  const { selectedOutletId } = useOutletSelection();
+  const { outlets, selectedOutletId } = useOutletSelection();
+  const multiOutlet = outlets.length > 1;
+  const [outletFilter, setOutletFilter] = useState<string>('ALL');
   const [activeTab, setActiveTab] = useState<DeliveryStatus | 'ALL'>('ALL');
   const [typeTab, setTypeTab] = useState<DeliveryType | 'ALL'>('ALL');
   const [dateFrom, setDateFrom] = useState('');
@@ -82,13 +85,26 @@ export default function DashboardDeliveriesPage() {
     return activeTab;
   }, [activeTab]);
 
+  const queryOutletId = useMemo(() => {
+    if (outletFilter === 'ALL') return undefined;
+    return outletFilter;
+  }, [outletFilter]);
+
+  const detailOutletId = queryOutletId ?? selectedOutletId ?? undefined;
+
+  useEffect(() => {
+    if (!multiOutlet && selectedOutletId) {
+      setOutletFilter(selectedOutletId);
+    }
+  }, [multiOutlet, selectedOutletId]);
+
   const loadOrders = useCallback(
     async (page = 1) => {
       setLoading(true);
       setError(null);
       try {
         const result = await fetchDeliveries({
-          outletId: selectedOutletId ?? undefined,
+          outletId: queryOutletId,
           deliveryType: typeTab === 'ALL' ? undefined : typeTab,
           status: statusFilter,
           dateFrom: dateFrom || undefined,
@@ -105,7 +121,7 @@ export default function DashboardDeliveriesPage() {
         setLoading(false);
       }
     },
-    [selectedOutletId, statusFilter, typeTab, dateFrom, dateTo, search],
+    [queryOutletId, statusFilter, typeTab, dateFrom, dateTo, search],
   );
 
   const loadDetail = useCallback(
@@ -113,7 +129,7 @@ export default function DashboardDeliveriesPage() {
       setDetailLoading(true);
       setError(null);
       try {
-        const data = await fetchDeliveryDetail(id, selectedOutletId ?? undefined);
+        const data = await fetchDeliveryDetail(id, detailOutletId);
         setDetail(data);
         setDriverName(data.driverName ?? '');
       } catch (err) {
@@ -123,12 +139,26 @@ export default function DashboardDeliveriesPage() {
         setDetailLoading(false);
       }
     },
-    [selectedOutletId],
+    [detailOutletId],
   );
 
   useEffect(() => {
     void loadOrders(1);
   }, [loadOrders]);
+
+  useEffect(() => {
+    const onDeliveryCreated = () => {
+      void loadOrders(meta.page);
+    };
+    window.addEventListener('barokah:delivery-created', onDeliveryCreated);
+    const timer = window.setInterval(() => {
+      void loadOrders(meta.page);
+    }, DELIVERIES_POLL_MS);
+    return () => {
+      window.removeEventListener('barokah:delivery-created', onDeliveryCreated);
+      window.clearInterval(timer);
+    };
+  }, [loadOrders, meta.page]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -153,7 +183,7 @@ export default function DashboardDeliveriesPage() {
           driverName: driverName.trim() || undefined,
           cancelReason: nextStatus === 'BATAL' ? cancelReason.trim() : undefined,
         },
-        selectedOutletId ?? undefined,
+        detailOutletId,
       );
       setCancelReason('');
       await loadOrders(meta.page);
@@ -170,7 +200,7 @@ export default function DashboardDeliveriesPage() {
   async function handlePrintLabel(onlineOrderId: string) {
     setPrintingLabel(true);
     try {
-      const data = await fetchShippingLabel(onlineOrderId, selectedOutletId ?? undefined);
+      const data = await fetchShippingLabel(onlineOrderId, detailOutletId);
       setLabelData(data);
       window.setTimeout(() => printShippingLabel(), 150);
     } catch (err) {
@@ -192,6 +222,30 @@ export default function DashboardDeliveriesPage() {
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
 
       <SectionCard title="Filter">
+        {multiOutlet ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+            <label style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>Cabang</label>
+            <select
+              value={outletFilter}
+              onChange={(event) => setOutletFilter(event.target.value)}
+              aria-label="Filter cabang pengiriman"
+              style={{
+                minHeight: 44,
+                padding: '0.5rem 0.75rem',
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
+                minWidth: 200,
+              }}
+            >
+              <option value="ALL">Semua cabang</option>
+              {outlets.map((outlet) => (
+                <option key={outlet.id} value={outlet.id}>
+                  {outlet.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {TYPE_TABS.map((tab) => (
             <Button
@@ -241,7 +295,14 @@ export default function DashboardDeliveriesPage() {
         {loading ? (
           <LoadingSkeleton rows={6} />
         ) : orders.length === 0 ? (
-          <EmptyState title="Belum ada pengiriman" description="Pengiriman dari POS akan muncul di sini." />
+          <EmptyState
+            title="Belum ada pengiriman"
+            description={
+              multiOutlet && outletFilter !== 'ALL'
+                ? 'Tidak ada pengiriman aktif untuk cabang ini. Coba filter Semua cabang atau pastikan cabang sesuai kasir POS.'
+                : 'Pengiriman dari POS akan muncul di sini. Tab Semua aktif menampilkan Menunggu, Disiapkan, dan Dikirim.'
+            }
+          />
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
             {orders.map((order) => {
@@ -253,6 +314,9 @@ export default function DashboardDeliveriesPage() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                       <StatusBadge label={order.statusLabel} variant={statusVariant(order.status)} />
                       <StatusBadge label={order.deliveryTypeLabel} variant="neutral" />
+                      {multiOutlet ? (
+                        <span style={{ color: '#64748b', fontSize: 13 }}>{order.outlet.name}</span>
+                      ) : null}
                       <span style={{ color: '#64748b', fontSize: 13 }}>
                         {new Date(order.createdAt).toLocaleString('id-ID')}
                       </span>

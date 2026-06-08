@@ -33,3 +33,43 @@ export function resolveOutletId(user: AuthJwtPayload, outletId?: string): string
     message: 'Parameter outletId wajib diisi.',
   });
 }
+
+/** Scope for list/summary endpoints — managers may omit outletId to see all tenant outlets. */
+export type ListOutletScope =
+  | { mode: 'single'; outletId: string }
+  | { mode: 'scoped'; outletIds: string[] }
+  | { mode: 'tenant' };
+
+export function resolveListOutletScope(user: AuthJwtPayload, outletId?: string): ListOutletScope {
+  if (outletId) {
+    assertOutletAccess(user, outletId);
+    return { mode: 'single', outletId };
+  }
+
+  if (canAccessAnyTenantOutlet(user)) {
+    return { mode: 'tenant' };
+  }
+
+  if (user.outletIds.length === 1) {
+    return { mode: 'single', outletId: user.outletIds[0] };
+  }
+
+  if (user.outletIds.length > 1) {
+    return { mode: 'scoped', outletIds: user.outletIds };
+  }
+
+  throw new BadRequestException({
+    code: ErrorCodes.INVALID_INPUT,
+    message: 'Parameter outletId wajib diisi.',
+  });
+}
+
+export function buildOutletWhere(scope: ListOutletScope): { outletId?: string | { in: string[] } } {
+  if (scope.mode === 'single') {
+    return { outletId: scope.outletId };
+  }
+  if (scope.mode === 'scoped') {
+    return { outletId: { in: scope.outletIds } };
+  }
+  return {};
+}
