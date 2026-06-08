@@ -1,8 +1,8 @@
 {
   "version": "1.0.0",
   "maintainer": "Fitri Nugroho",
-  "lastUpdated": "2026-06-07",
-  "notes": "E2E verification 13/13 PASS; Fase 1 98%, Fase 2 95%; Pilot go-live checklist; CHANGELOG v1.0.0",
+  "lastUpdated": "2026-06-09",
+  "notes": "Finance AR/AP unified hub integration; Pilot go-live checklist; CHANGELOG v1.0.0",
   "teamSize": 11,
   "indexPath": "docs/INDEX.md",
   "documents": [
@@ -85,6 +85,14 @@
       "audience": ["Rina", "Dewi", "Budi", "Eko"],
       "tags": ["domain", "finance", "mvp"],
       "lastUpdated": "2026-06-01"
+    },
+    {
+      "title": "Integrasi Piutang (AR) & Utang (AP)",
+      "path": "docs/domain/FINANCE-AR-AP-INTEGRATION.md",
+      "category": "domain",
+      "audience": ["Rina", "Eko", "Fajar", "Dimas", "Citra"],
+      "tags": ["domain", "finance", "fase2", "piutang", "utang", "integration"],
+      "lastUpdated": "2026-06-09"
     },
     {
       "title": "Business Logic Audit Fase 1–4",

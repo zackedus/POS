@@ -1,6 +1,6 @@
 # Indeks Dokumentasi — Barokah Core POS
 
-> 📚 **Indeks master** · Maintainer: **Fitri Nugroho** · Terakhir diperbarui: **7 Juni 2026** (E2E verification 13/13 PASS · Pilot go-live · v1.0.0)
+> 📚 **Indeks master** · Maintainer: **Fitri Nugroho** · Terakhir diperbarui: **9 Juni 2026** (Finance AR/AP unified hub · Pilot go-live · v1.0.0)
 
 ---
 
@@ -110,6 +110,7 @@ Halo Pak Zaki, indeks ini supaya tim tidak bingung dan bisa saling bantu cari re
 |-------|------|-----------|----------|--------|------|
 | Keuangan & Ekonomi POS | [domain/FINANCE-ECONOMICS-POS.md](./domain/FINANCE-ECONOMICS-POS.md) | Domain keuangan retail SMB Indonesia: margin, arus kas, KPI, pajak bisnis | Rina, Dewi, Budi, Eko | 2026-06-01 | `#domain` `#finance` `#mvp` |
 | Modul Piutang, Utang & Deposit | [domain/CREDIT-DEPOSIT-MODULE.md](./domain/CREDIT-DEPOSIT-MODULE.md) | Spec AR/AP/deposit Fase 2: tempo, utang PO, deposit pelanggan, POS integration | Rina, Eko, Fajar, Dimas, Citra | 2026-06-09 | `#domain` `#finance` `#fase2` `#piutang` `#deposit` |
+| Integrasi Piutang (AR) & Utang (AP) | [domain/FINANCE-AR-AP-INTEGRATION.md](./domain/FINANCE-AR-AP-INTEGRATION.md) | Hub keuangan terpadu `/dashboard/finance`: cross-link AR↔CRM, AP↔PO, POS tempo, sidebar Keuangan | Rina, Eko, Fajar, Dimas, Citra | 2026-06-09 | `#domain` `#finance` `#fase2` `#piutang` `#utang` `#integration` |
 | Business Logic Audit Fase 1–4 | [domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md](./domain/BUSINESS-LOGIC-AUDIT-FASE1-4-2026-06.md) | Audit komprehensif Fase 1 **98%**, Fase 2 **95%**, Fase 3 defer, Web Completion 100% | Pak Zaki, Rina, Eko, Citra, Budi | 2026-06-07 | `#domain` `#audit` `#mvp` `#fase2` `#roadmap` |
 | Business Logic E2E Verification | [domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md](./domain/BUSINESS-LOGIC-E2E-VERIFICATION-2026-06.md) | Verifikasi 13 alur bisnis harian toko bahan bangunan — **13/13 PASS** | Pak Zaki, Rina, Eko, Citra | 2026-06-07 | `#domain` `#audit` `#e2e` `#mvp` `#fase2` |
 | Outlet Data Integrity Audit | [domain/OUTLET-DATA-INTEGRITY-AUDIT-2026-06.md](./domain/OUTLET-DATA-INTEGRITY-AUDIT-2026-06.md) | Audit isolasi data per cabang (`outletId`): PO guard, POS picker, shift scoped, transfer — UAT di [PILOT-GO-LIVE-CHECKLIST Skenario J](./manual/PILOT-GO-LIVE-CHECKLIST.md) | Pak Zaki, Rina, Fajar, Citra | 2026-06-09 | `#domain` `#audit` `#outlet` `#multi-outlet` |
@@ -283,4 +284,4 @@ Urutan baca untuk anggota tim baru atau agent yang baru join proyek:
 | **Artefak** | `docs/INDEX.md`, `docs/INDEX.json`, header cross-link di setiap doc |
 | **Workflow** | Lihat `.cursor/skills/pos-documentation/SKILL.md` → section *Indexing & Navigasi Dokumen* |
 
-**Total dokumen terindeks:** 39 file di `docs/` (37 konten + 2 meta) + 3 referensi root = **42 entri** (termasuk Wireframes Storefront Epic J, Sprint 12 CLOSED).
+**Total dokumen terindeks:** 40 file di `docs/` (38 konten + 2 meta) + 3 referensi root = **43 entri** (termasuk Finance AR/AP integration, Pilot go-live).

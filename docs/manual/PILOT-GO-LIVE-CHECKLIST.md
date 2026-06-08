@@ -260,6 +260,8 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 
 ## 6. Payment
 
+> **Referensi integrasi AR/AP:** [FINANCE-AR-AP-INTEGRATION](../domain/FINANCE-AR-AP-INTEGRATION.md) — Finance Hub `/dashboard/finance`, cross-link piutang↔pelanggan & utang↔PO, sidebar Keuangan.
+
 - [ ] Tunai, transfer manual, split cash+transfer: PASS
 - [ ] **Piutang (tempo):** checkout CREDIT dengan pelanggan + limit kredit — piutang tercatat di `/dashboard/receivables`
 - [ ] **Deposit:** top-up di `/dashboard/deposits` → checkout DEPOSIT di kasir — saldo berkurang, ledger APPLY
