@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned, computePosTax, previewLoyaltyRedeemDiscount, parseMemberQrPayload } from '@barokah/shared';
+import { formatCurrencyIDR, formatEmptyStockMessage, formatPhoneDisplay, isValidIndonesianMobilePhone, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned, computePosTax, previewLoyaltyRedeemDiscount, parseMemberQrPayload } from '@barokah/shared';
 import { PosCartPanel } from '@/components/pos/PosCartPanel';
 import { PosProductGrid } from '@/components/pos/PosProductGrid';
 import { PosShiftBar } from '@/components/pos/PosShiftBar';
@@ -248,7 +248,7 @@ export default function PosPage() {
   }) {
     setCustomerId(customer.id);
     setCustomerName(customer.name);
-    setCustomerPhone(customer.phone);
+    setCustomerPhone(formatPhoneDisplay(customer.phone));
     setCustomerMemberCode(customer.memberCode ?? '');
     setCustomerPointsBalance(customer.points ?? 0);
     setCustomerReceivableOutstanding(customer.receivableOutstanding ?? 0);
@@ -335,8 +335,8 @@ export default function PosPage() {
 
   useEffect(() => {
     const phone = customerPhone.trim();
-    if (!/^08\d{8,11}$/.test(phone)) {
-      if (!memberScanInput.trim()) {
+    if (!isValidIndonesianMobilePhone(phone)) {
+      if (!memberScanInput.trim() && !customerId) {
         clearCustomerLookup();
       }
       return;
@@ -416,7 +416,7 @@ export default function PosPage() {
     if (customerId) {
       payload.customerId = customerId;
     }
-    if (name.length >= 2 && /^08\d{8,11}$/.test(phone)) {
+    if (name.length >= 2 && isValidIndonesianMobilePhone(phone)) {
       payload.customerName = name;
       payload.customerPhone = phone;
     }

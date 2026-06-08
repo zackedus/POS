@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatCurrencyIDR, CREDIT_TERMS_DAYS_OPTIONS } from '@barokah/shared';
+import { formatCurrencyIDR, CREDIT_TERMS_DAYS_OPTIONS, isValidIndonesianMobilePhone } from '@barokah/shared';
 import { Button, CurrencyInput } from '@barokah/ui';
 import type { PaymentMode } from './pos-types';
 import {
@@ -348,9 +348,10 @@ export function PosCheckoutContextPanel(props: PosCheckoutContextPanelProps) {
           }}
         />
 
-        {ctx.isWalkIn && customerPhone.trim().length >= 8 ? (
-          <p role="status" style={{ margin: 0, fontSize: '0.8125rem', color: '#b45309' }}>
-            No. HP belum terdaftar — pilih dari daftar untuk tempo/deposit/pengiriman.
+        {ctx.isWalkIn && isValidIndonesianMobilePhone(customerPhone) ? (
+          <p role="status" style={{ margin: 0, fontSize: '0.8125rem', color: '#475569' }}>
+            No. HP belum terdaftar. Checkout tunai/transfer/QRIS tetap bisa — pilih pelanggan dari daftar
+            untuk tempo, deposit, atau pengiriman.
           </p>
         ) : null}
 

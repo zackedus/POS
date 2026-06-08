@@ -871,5 +871,56 @@ describe('PosPage', () => {
     expect(screen.getByText(/Walk-in — ambil di toko/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Kirim ke alamat' })).not.toBeInTheDocument();
   });
+
+  it('keeps registered customer after picker when API stores 62-prefixed phone', async () => {
+    const customerStored62 = {
+      ...sampleCustomer,
+      phone: '6281234567890',
+    };
+    fetchCustomersMock.mockResolvedValue([customerStored62]);
+    lookupCustomerByPhoneMock.mockResolvedValue(customerStored62);
+    setCatalogState([
+      { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
+    ]);
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pilih Pelanggan' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Pak Budi/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Terdaftar')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/No\. HP belum terdaftar/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('No. HP pelanggan')).toHaveValue('081234567890');
+  });
+
+  it('shows walk-in phone hint only for valid unregistered mobile numbers', async () => {
+    lookupCustomerByPhoneMock.mockResolvedValue(null);
+    setCatalogState([
+      { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
+    ]);
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
+    fireEvent.change(screen.getByLabelText('No. HP pelanggan'), {
+      target: { value: '62987383787334' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Walk-in')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/No\. HP belum terdaftar/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('No. HP pelanggan'), {
+      target: { value: '0812987654321' },
+    });
+
+    expect(
+      await screen.findByText(/Checkout tunai\/transfer\/QRIS tetap bisa/i),
+    ).toBeInTheDocument();
+  });
 });
 

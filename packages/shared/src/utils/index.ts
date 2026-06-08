@@ -17,3 +17,4 @@ export * from './member-code';
 export * from './product-csv-import';
 export * from './payment-receipt';
 export * from './credit-due-date';
+export * from './phone';
