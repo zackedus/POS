@@ -1,5 +1,6 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import type { PaymentReceiptView } from '@barokah/shared';
 
 export interface DepositSummaryRow {
   id: string;
@@ -24,6 +25,7 @@ export interface DepositDetail {
     type: 'TOP_UP' | 'APPLY' | 'REFUND';
     amount: number;
     balanceAfter: number;
+    receiptNumber: string | null;
     referenceType: string | null;
     referenceId: string | null;
     notes: string | null;
@@ -63,13 +65,13 @@ export async function topUpDeposit(body: {
   customerId: string;
   amount: number;
   notes?: string;
-}): Promise<DepositDetail> {
+}): Promise<DepositDetail & { receipt: PaymentReceiptView }> {
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/deposits/top-up`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as ApiEnvelope<DepositDetail>;
+  const json = (await res.json()) as ApiEnvelope<DepositDetail & { receipt: PaymentReceiptView }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal top-up deposit.');
   }

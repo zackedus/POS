@@ -44,7 +44,7 @@ Panduan singkat shift harian toko bahan bangunan.
 2. Klik **Terima Pembayaran Piutang** di panel pelanggan
 3. Pilih metode: **Tunai** / **Transfer** / **Deposit** / **QRIS**
 4. Isi nominal, no. referensi TF (wajib untuk transfer), bank, URL bukti (opsional)
-5. Simpan — riwayat tampil di modal; bisa **Cetak bukti pembayaran**
+5. Simpan — muncul modal **Cetak Bukti** + **Tutup**; riwayat juga bisa dicetak ulang dari tabel
 6. Pembayaran tunai terhubung **shift aktif** untuk rekonsiliasi kas
 
 > Manager/owner juga bisa catat pelunasan di **Dashboard → Piutang** atau tab **Piutang** di detail pelanggan.

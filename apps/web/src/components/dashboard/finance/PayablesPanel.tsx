@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
+import { formatCurrencyIDR, parseCurrencyInput, type PaymentReceiptView } from '@barokah/shared';
 import { Button, CurrencyInput } from '@barokah/ui';
 import {
   AlertBanner,
@@ -14,6 +14,7 @@ import {
   StatusBadge,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { PaymentSuccessModal } from '@/components/finance/PaymentSuccessModal';
 import { mapApiError } from '@/lib/api-client';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
@@ -35,6 +36,7 @@ export function PayablesPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [successReceipt, setSuccessReceipt] = useState<PaymentReceiptView | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus ?? '');
   const [payForm, setPayForm] = useState<{ payableId: string; amount: string; method: string }>({
     payableId: '',
@@ -82,8 +84,9 @@ export function PayablesPanel({
     setError(null);
     setSuccess(null);
     try {
-      await recordPayablePayment(payForm.payableId, { amount, method: payForm.method });
+      const result = await recordPayablePayment(payForm.payableId, { amount, method: payForm.method });
       setSuccess('Pembayaran utang supplier berhasil dicatat.');
+      setSuccessReceipt(result.receipt);
       setPayForm({ payableId: '', amount: '', method: 'TRANSFER' });
       await loadData();
     } catch (err) {
@@ -98,6 +101,15 @@ export function PayablesPanel({
 
   return (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
+      <PaymentSuccessModal
+        open={Boolean(successReceipt)}
+        message={success ?? 'Pembayaran utang berhasil dicatat.'}
+        receipt={successReceipt}
+        onClose={() => {
+          setSuccessReceipt(null);
+          setSuccess(null);
+        }}
+      />
       {!embedded ? (
         <PageHeader
           title="Utang Supplier"

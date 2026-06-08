@@ -2,6 +2,7 @@ import type {
   CustomerReceivablePaymentHistory,
   CustomerStatement,
   ReceivableAgingReport,
+  PaymentReceiptView,
   ReceivablePaymentView,
 } from '@barokah/shared';
 export type { ReceivableAgingReport } from '@barokah/shared';
@@ -214,13 +215,13 @@ export type RecordReceivablePaymentBody = {
 export async function recordReceivablePayment(
   receivableId: string,
   body: RecordReceivablePaymentBody,
-): Promise<ReceivableRow> {
+): Promise<ReceivableRow & { receipt: PaymentReceiptView }> {
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/${receivableId}/payments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as ApiEnvelope<ReceivableRow>;
+  const json = (await res.json()) as ApiEnvelope<ReceivableRow & { receipt: PaymentReceiptView }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal mencatat pembayaran piutang.');
   }
@@ -230,7 +231,7 @@ export async function recordReceivablePayment(
 export async function recordCustomerReceivablePayment(
   customerId: string,
   body: RecordReceivablePaymentBody,
-): Promise<CustomerReceivablePaymentHistory> {
+): Promise<CustomerReceivablePaymentHistory & { receipt: PaymentReceiptView }> {
   const res = await authFetch(
     `${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/customers/${customerId}/payments`,
     {
@@ -239,7 +240,9 @@ export async function recordCustomerReceivablePayment(
       body: JSON.stringify(body),
     },
   );
-  const json = (await res.json()) as ApiEnvelope<CustomerReceivablePaymentHistory>;
+  const json = (await res.json()) as ApiEnvelope<
+    CustomerReceivablePaymentHistory & { receipt: PaymentReceiptView }
+  >;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal mencatat pembayaran piutang pelanggan.');
   }

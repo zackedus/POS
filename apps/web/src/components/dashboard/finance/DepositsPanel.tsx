@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
+import { formatCurrencyIDR, parseCurrencyInput, type PaymentReceiptView } from '@barokah/shared';
 import { Button, CurrencyInput, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -12,6 +12,7 @@ import {
   SectionCard,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { PaymentSuccessModal } from '@/components/finance/PaymentSuccessModal';
 import { mapApiError } from '@/lib/api-client';
 import { fetchCustomers, type CustomerListItem } from '@/lib/customers-api';
 import {
@@ -27,6 +28,7 @@ export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [successReceipt, setSuccessReceipt] = useState<PaymentReceiptView | null>(null);
   const [form, setForm] = useState({ customerId: '', amount: '', notes: '' });
   const [saving, setSaving] = useState(false);
 
@@ -63,12 +65,13 @@ export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
     setError(null);
     setSuccess(null);
     try {
-      await topUpDeposit({
+      const result = await topUpDeposit({
         customerId: form.customerId,
         amount,
         notes: form.notes.trim() || undefined,
       });
       setSuccess('Top-up deposit berhasil.');
+      setSuccessReceipt(result.receipt);
       setForm({ customerId: '', amount: '', notes: '' });
       await loadData();
     } catch (err) {
@@ -82,6 +85,15 @@ export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
+      <PaymentSuccessModal
+        open={Boolean(successReceipt)}
+        message={success ?? 'Top-up deposit berhasil.'}
+        receipt={successReceipt}
+        onClose={() => {
+          setSuccessReceipt(null);
+          setSuccess(null);
+        }}
+      />
       {!embedded ? (
         <PageHeader title="Deposit Pelanggan" description="Uang muka pelanggan — top-up, pakai di kasir, atau refund." />
       ) : null}

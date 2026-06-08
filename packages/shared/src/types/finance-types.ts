@@ -100,6 +100,7 @@ export interface ReceivablePaymentView {
   receivableId: string;
   amount: number;
   method: string;
+  receiptNumber: string | null;
   transferReference: string | null;
   bankName: string | null;
   proofUrl: string | null;
@@ -119,6 +120,13 @@ export interface ReceivablePaymentView {
     transactionReceiptNo: string | null;
   };
 }
+
+export type { PaymentReceiptView, PaymentReceiptKind, PaymentReceiptCode } from '../utils/payment-receipt';
+export {
+  PAYMENT_RECEIPT_KIND_TITLES,
+  PAYMENT_RECEIPT_CODE_BY_KIND,
+  buildPaymentReceiptNumber,
+} from '../utils/payment-receipt';
 
 export interface CustomerReceivablePaymentHistory {
   customer: {

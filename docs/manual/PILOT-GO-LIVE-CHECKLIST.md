@@ -267,7 +267,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **Deposit:** top-up di `/dashboard/finance?tab=deposit` → checkout DEPOSIT di kasir — saldo berkurang, ledger APPLY
 - [ ] Pelunasan piutang partial → full di dashboard — status OPEN → PARTIAL → PAID
 - [ ] **Pembayaran piutang multi-metode:** tunai / transfer (no ref TF + bank) / deposit / QRIS
-- [ ] **Bukti pembayaran:** URL bukti tersimpan; cetak HTML dari riwayat pembayaran
+- [ ] **Bukti pembayaran:** nomor bukti otomatis (`BKT-REC-…` / `BKT-PAY-…` / `BKT-DEP-…`); modal **Cetak Bukti** setelah top-up/pelunasan/utang; cetak ulang dari riwayat
 - [ ] **Riwayat pembayaran piutang:** dashboard piutang (filter pelanggan) + tab Piutang pelanggan + POS
 - [ ] **Export CSV** riwayat pembayaran piutang dari dashboard
 - [ ] **POS terima pembayaran piutang:** modal kasir dengan link shift aktif
@@ -288,6 +288,10 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **Picker pelanggan POS:** tombol "Pilih dari Daftar" — search nama/HP/kode member
 - [ ] **Over-limit approval:** tempo melebihi limit → Minta Persetujuan Manager → checkout sukses + audit log
 - [ ] **Auto limit increase:** setelah piutang lunas kumulatif ≥ Rp 10 jt (zero overdue) limit naik +Rp 500 rb
+- [ ] **Jatuh tempo tempo:** checkout CREDIT menyimpan `dueDate` (default tenant 7/14/30 hari; override kasir)
+- [ ] **Rekonsiliasi shift:** tutup shift — kas diharapkan termasuk pelunasan piutang tunai & kurangi pengeluaran kas
+- [ ] **Refund transaksi kredit:** piutang terkait dikurangi atau VOID sesuai nominal refund
+- [ ] **Loyalty tempo:** poin dihitung saat checkout selesai (bukan saat pelunasan) — lihat [PIUTANG-BUSINESS-FLOW-E2E](../domain/PIUTANG-BUSINESS-FLOW-E2E.md)
 - [ ] **Riwayat limit:** tab "Riwayat Limit & Persetujuan" di detail pelanggan dashboard
 - [ ] **Filter outlet:** piutang & utang (via PO) filter per cabang
 - [ ] QRIS mock/sandbox: PASS di staging (perbaikan commit `750d4f5`: mock checkout tidak stuck polling — regresi TC005/QRIS UAT)

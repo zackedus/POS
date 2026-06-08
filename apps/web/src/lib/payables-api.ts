@@ -1,5 +1,6 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import type { PaymentReceiptView } from '@barokah/shared';
 
 export type PayableStatus = 'OPEN' | 'PARTIAL' | 'PAID' | 'VOID';
 
@@ -46,13 +47,13 @@ export async function fetchPayables(params?: {
 export async function recordPayablePayment(
   payableId: string,
   body: { amount: number; method: string; reference?: string },
-): Promise<PayableRow> {
+): Promise<PayableRow & { receipt: PaymentReceiptView }> {
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/payables/${payableId}/payments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as ApiEnvelope<PayableRow>;
+  const json = (await res.json()) as ApiEnvelope<PayableRow & { receipt: PaymentReceiptView }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal mencatat pembayaran utang.');
   }

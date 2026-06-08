@@ -5,6 +5,19 @@ import { ErrorCodes, PaymentMethod } from '@barokah/shared';
 import { computeOutstanding, computePayableStatus, computeReceivableStatus, computeAgingBucket, computeDaysOverdue, emptyAgingTotals, AGING_BUCKET_ORDER } from './finance.util';
 import { FinanceCheckoutService } from './finance-checkout.service';
 import { FinanceSummaryService } from './finance-summary.service';
+import { PaymentReceiptService } from './payment-receipt.service';
+
+function mockPaymentReceiptService(): PaymentReceiptService {
+  return {
+    nextReceiptNumber: async () => 'BKT-REC-20260609-001',
+    getTenantName: async () => 'Toko Test',
+    buildReceiptView: (params: unknown) => params,
+  } as unknown as PaymentReceiptService;
+}
+
+function checkoutService(prisma: unknown): FinanceCheckoutService {
+  return new FinanceCheckoutService(prisma as never, mockPaymentReceiptService());
+}
 
 test('Finance util: receivable status transitions', () => {
   assert.equal(computeReceivableStatus(100_000, 0), 'OPEN');
@@ -23,7 +36,7 @@ test('Finance util: outstanding never negative', () => {
 });
 
 test('Finance checkout: blocks credit without customer', () => {
-  const service = new FinanceCheckoutService({} as never);
+  const service = checkoutService({});
   assert.throws(
     () =>
       service.assertCheckoutFinancePayments({
@@ -41,7 +54,7 @@ test('Finance checkout: blocks credit without customer', () => {
 });
 
 test('Finance checkout: blocks deposit without customer', () => {
-  const service = new FinanceCheckoutService({} as never);
+  const service = checkoutService({});
   assert.throws(
     () =>
       service.assertCheckoutFinancePayments({
@@ -59,7 +72,7 @@ test('Finance checkout: blocks deposit without customer', () => {
 });
 
 test('Finance checkout: blocks credit over limit without approval', () => {
-  const service = new FinanceCheckoutService({} as never);
+  const service = checkoutService({});
   assert.throws(
     () =>
       service.assertCheckoutFinancePayments({
@@ -77,7 +90,7 @@ test('Finance checkout: blocks credit over limit without approval', () => {
 });
 
 test('Finance checkout: allows credit over limit with manager approval flag', () => {
-  const service = new FinanceCheckoutService({} as never);
+  const service = checkoutService({});
   assert.doesNotThrow(() =>
     service.assertCheckoutFinancePayments({
       payments: [{ method: PaymentMethod.CREDIT, amount: 50_000 }],
@@ -92,7 +105,7 @@ test('Finance checkout: allows credit over limit with manager approval flag', ()
 });
 
 test('Finance checkout: blocks deposit over balance', () => {
-  const service = new FinanceCheckoutService({} as never);
+  const service = checkoutService({});
   assert.throws(
     () =>
       service.assertCheckoutFinancePayments({
@@ -127,10 +140,10 @@ test('Finance checkout: partial receivable payment updates status', async () => 
       },
     },
     receivablePayment: {
-      create: async () => ({ id: 'pay-1' }),
+      create: async () => ({ id: 'pay-1', createdAt: new Date('2026-06-09T10:00:00.000Z') }),
     },
   };
-  const service = new FinanceCheckoutService(prisma as never);
+  const service = checkoutService(prisma);
   await service.recordReceivablePayment(prisma as never, {
     tenantId: 'tenant-1',
     receivableId: 'recv-1',
@@ -159,10 +172,10 @@ test('Finance checkout: full receivable payment marks PAID', async () => {
       },
     },
     receivablePayment: {
-      create: async () => ({ id: 'pay-2' }),
+      create: async () => ({ id: 'pay-2', createdAt: new Date('2026-06-09T10:00:00.000Z') }),
     },
   };
-  const service = new FinanceCheckoutService(prisma as never);
+  const service = checkoutService(prisma);
   await service.recordReceivablePayment(prisma as never, {
     tenantId: 'tenant-1',
     receivableId: 'recv-1',
@@ -317,6 +330,7 @@ test('Finance summary: customer statement opening balance', async () => {
     prisma as never,
     { getCustomerFinanceSummary: async () => null, getCustomerOutstandingReceivableIdr: async () => 0 } as never,
     { recalculateAutoLimit: async () => false, setCreditLimit: async () => ({}) } as never,
+    mockPaymentReceiptService(),
   );
   const statement = await service.getCustomerStatement(
     { tenantId: 'tenant-1', sub: 'user-1', role: 'OWNER', outletIds: [] } as never,
@@ -345,7 +359,7 @@ test('Finance checkout: deposit receivable payment deducts deposit balance', asy
       }),
       update: async () => ({}),
     },
-    receivablePayment: { create: async () => ({ id: 'pay-dep' }) },
+    receivablePayment: { create: async () => ({ id: 'pay-dep', createdAt: new Date('2026-06-09T10:00:00.000Z') }) },
     customerDeposit: {
       findUnique: async () => ({
         id: 'dep-1',
@@ -363,7 +377,7 @@ test('Finance checkout: deposit receivable payment deducts deposit balance', asy
       create: async () => ({ id: 'dtx-1' }),
     },
   };
-  const service = new FinanceCheckoutService(prisma as never);
+  const service = checkoutService(prisma);
   await service.recordReceivablePayment(prisma as never, {
     tenantId: 'tenant-1',
     receivableId: 'recv-1',
@@ -396,7 +410,7 @@ test('Finance checkout: deposit payment blocked when balance insufficient', asyn
       }),
     },
   };
-  const service = new FinanceCheckoutService(prisma as never);
+  const service = checkoutService(prisma);
   await assert.rejects(
     () =>
       service.recordReceivablePayment(prisma as never, {
@@ -450,6 +464,7 @@ test('Receivables: customer payment history lists payments with transfer proof',
     prisma as never,
     { getCustomerFinanceSummary: async () => null, getCustomerOutstandingReceivableIdr: async () => 0 } as never,
     { recalculateAutoLimit: async () => false, setCreditLimit: async () => ({}) } as never,
+    mockPaymentReceiptService(),
   );
   const history = await service.getCustomerPaymentHistory(
     { tenantId: 'tenant-1', sub: 'user-1', role: 'CASHIER', outletIds: [] } as never,
@@ -460,4 +475,86 @@ test('Receivables: customer payment history lists payments with transfer proof',
   assert.equal(history.payments[0]?.bankName, 'BCA');
   assert.equal(history.payments[0]?.proofUrl, 'https://example.com/bukti.jpg');
   assert.equal(history.totalPaid, 50_000);
+});
+
+test('Finance checkout: applyCheckoutFinance stores dueDate on credit receivable', async () => {
+  let createdDueDate: Date | null = null;
+  const prisma = {
+    receivable: {
+      findUnique: async () => null,
+      create: async (args: { data: { dueDate: Date | null } }) => {
+        createdDueDate = args.data.dueDate;
+        return { id: 'recv-1' };
+      },
+    },
+  };
+  const service = checkoutService(prisma);
+  await service.applyCheckoutFinanceInTransaction(prisma as never, {
+    tenantId: 'tenant-1',
+    customerId: 'cust-1',
+    outletId: 'outlet-1',
+    transactionId: 'txn-1',
+    recordedById: 'user-1',
+    payments: [{ method: PaymentMethod.CREDIT, amount: 100_000 }],
+    dueDate: '2026-06-16',
+  });
+  assert.ok(createdDueDate instanceof Date);
+  assert.equal(createdDueDate?.toISOString().slice(0, 10), '2026-06-16');
+});
+
+test('Finance checkout: reverseFinanceForRefund voids unpaid receivable on full refund', async () => {
+  let statusUpdate: string | undefined;
+  const prisma = {
+    receivable: {
+      findUnique: async () => ({
+        id: 'recv-1',
+        status: 'OPEN',
+        amount: { toString: () => '100000' },
+        paidAmount: { toString: () => '0' },
+        notes: null,
+      }),
+      update: async (args: { data: { status?: string } }) => {
+        statusUpdate = args.data.status;
+        return {};
+      },
+    },
+    depositTransaction: { findFirst: async () => null },
+  };
+  const service = checkoutService(prisma);
+  await service.reverseFinanceForRefund(prisma as never, {
+    tenantId: 'tenant-1',
+    transactionId: 'txn-1',
+    recordedById: 'user-1',
+    refundAmountIdr: 100_000,
+    isFullRefund: true,
+  });
+  assert.equal(statusUpdate, 'VOID');
+});
+
+test('Finance checkout: reverseFinanceForRefund reduces receivable on partial refund', async () => {
+  let updatedAmount: number | undefined;
+  const prisma = {
+    receivable: {
+      findUnique: async () => ({
+        id: 'recv-1',
+        status: 'OPEN',
+        amount: { toString: () => '100000' },
+        paidAmount: { toString: () => '0' },
+        notes: null,
+      }),
+      update: async (args: { data: { amount: { toString(): string }; status: string } }) => {
+        updatedAmount = Number(args.data.amount.toString());
+        return {};
+      },
+    },
+  };
+  const service = checkoutService(prisma);
+  await service.reverseFinanceForRefund(prisma as never, {
+    tenantId: 'tenant-1',
+    transactionId: 'txn-1',
+    recordedById: 'user-1',
+    refundAmountIdr: 30_000,
+    isFullRefund: false,
+  });
+  assert.equal(updatedAmount, 70_000);
 });

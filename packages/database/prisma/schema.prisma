@@ -48,6 +48,7 @@ model Tenant {
   customerCreditAuditLogs      CustomerCreditAuditLog[]
   deliveryOrders               DeliveryOrder[]
   deliveryOrderSequences       DeliveryOrderSequence[]
+  paymentReceiptSequences      PaymentReceiptSequence[]
 
   @@map("tenants")
 }
@@ -66,6 +67,7 @@ model TenantSettings {
   loyaltyRedeemEnabled        Boolean  @default(true) @map("loyalty_redeem_enabled")
   loyaltyRedeemValueIdr       Int      @default(1000) @map("loyalty_redeem_value_idr")
   loyaltyRedeemMaxPercent     Int      @default(50) @map("loyalty_redeem_max_percent")
+  defaultCreditTermsDays      Int      @default(30) @map("default_credit_terms_days")
   createdAt                   DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
@@ -1209,6 +1211,7 @@ model ReceivablePayment {
   amount               Decimal       @db.Decimal(15, 2)
   method               PaymentMethod
   reference            String?
+  receiptNumber        String?       @map("receipt_number")
   transferReference    String?       @map("transfer_reference")
   bankName             String?       @map("bank_name")
   proofUrl             String?       @map("proof_url")
@@ -1225,6 +1228,7 @@ model ReceivablePayment {
 
   @@index([receivableId, createdAt])
   @@index([shiftId])
+  @@index([receiptNumber])
   @@map("receivable_payments")
 }
 
@@ -1253,13 +1257,14 @@ model Payable {
 }
 
 model PayablePayment {
-  id           String        @id @default(uuid())
-  payableId    String        @map("payable_id")
-  amount       Decimal       @db.Decimal(15, 2)
-  method       PaymentMethod
-  reference    String?
-  recordedById String        @map("recorded_by_id")
-  createdAt    DateTime      @default(now()) @map("created_at")
+  id            String        @id @default(uuid())
+  payableId     String        @map("payable_id")
+  amount        Decimal       @db.Decimal(15, 2)
+  method        PaymentMethod
+  reference     String?
+  receiptNumber String?       @unique @map("receipt_number")
+  recordedById  String        @map("recorded_by_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
 
   payable    Payable @relation(fields: [payableId], references: [id], onDelete: Restrict)
   recordedBy User    @relation("PayablePaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
@@ -1291,6 +1296,7 @@ model DepositTransaction {
   type          DepositTransactionType
   amount        Decimal                @db.Decimal(15, 2)
   balanceAfter  Decimal                @map("balance_after") @db.Decimal(15, 2)
+  receiptNumber String?                @unique @map("receipt_number")
   referenceType String?                @map("reference_type")
   referenceId   String?                @map("reference_id")
   notes         String?
@@ -1304,6 +1310,19 @@ model DepositTransaction {
   @@index([depositId, createdAt])
   @@index([referenceType, referenceId])
   @@map("deposit_transactions")
+}
+
+model PaymentReceiptSequence {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  receiptType  String   @map("receipt_type")
+  sequenceDate DateTime @map("sequence_date") @db.Date
+  lastValue    Int      @default(0) @map("last_value")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, receiptType, sequenceDate])
+  @@map("payment_receipt_sequences")
 }
 
 // ─── Delivery Management (POS shipment queue) ────────────

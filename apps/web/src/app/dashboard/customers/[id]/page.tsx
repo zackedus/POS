@@ -40,7 +40,8 @@ import { topUpDeposit } from '@/lib/deposits-api';
 import { fetchCustomerCreditAuditLog, type CustomerCreditAuditEntry } from '@/lib/finance-api';
 import { CUSTOMER_CREDIT_AUDIT_ACTION_LABELS, DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR } from '@barokah/shared';
 import { canManageCustomers } from '@/lib/rbac';
-import type { CustomerAddressView, LoyaltyPointLedgerEntry, MemberCardView } from '@barokah/shared';
+import type { CustomerAddressView, LoyaltyPointLedgerEntry, MemberCardView, PaymentReceiptView } from '@barokah/shared';
+import { PaymentSuccessModal } from '@/components/finance/PaymentSuccessModal';
 import type { CustomerFinanceSummary } from '@/lib/receivables-api';
 
 type TabId = 'profil' | 'alamat' | 'poin' | 'piutang' | 'deposit' | 'kartu' | 'riwayat-kredit';
@@ -723,6 +724,7 @@ function DepositTab({
   const [summary, setSummary] = useState<CustomerFinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [topUpAmount, setTopUpAmount] = useState('');
+  const [successReceipt, setSuccessReceipt] = useState<PaymentReceiptView | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -744,8 +746,9 @@ function DepositTab({
     const amount = parseCurrencyInput(topUpAmount);
     if (amount <= 0) return;
     try {
-      await topUpDeposit({ customerId, amount, notes: 'Top-up dari dashboard pelanggan' });
+      const result = await topUpDeposit({ customerId, amount, notes: 'Top-up dari dashboard pelanggan' });
       onMessage('Top-up deposit berhasil.');
+      setSuccessReceipt(result.receipt);
       setTopUpAmount('');
       await load();
     } catch (err) {
@@ -755,6 +758,12 @@ function DepositTab({
 
   return (
     <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
+      <PaymentSuccessModal
+        open={Boolean(successReceipt)}
+        message="Top-up deposit berhasil."
+        receipt={successReceipt}
+        onClose={() => setSuccessReceipt(null)}
+      />
       {loading ? (
         <LoadingSkeleton rows={4} />
       ) : summary ? (

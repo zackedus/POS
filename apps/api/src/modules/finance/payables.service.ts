@@ -12,6 +12,7 @@ import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import { resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { computeOutstanding, computePayableStatus } from './finance.util';
+import { PaymentReceiptService } from './payment-receipt.service';
 import type {
   CreatePayableDto,
   CreatePayableFromPoDto,
@@ -21,7 +22,10 @@ import type {
 
 @Injectable()
 export class PayablesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentReceipt: PaymentReceiptService,
+  ) {}
 
   async list(user: AuthJwtPayload, query: ListPayablesQueryDto) {
     const today = new Date();
@@ -187,6 +191,10 @@ export class PayablesService {
   async recordPayment(user: AuthJwtPayload, payableId: string, dto: RecordPayablePaymentDto) {
     const payable = await this.prisma.payable.findFirst({
       where: { id: payableId, tenantId: user.tenantId },
+      include: {
+        supplier: { select: { id: true, name: true, phone: true } },
+        purchaseOrder: { select: { orderNo: true, outlet: { select: { name: true } } } },
+      },
     });
     if (!payable) {
       throw new NotFoundException({
@@ -203,25 +211,33 @@ export class PayablesService {
 
     const amountIdr = toIdrInteger(payable.amount);
     const paidSoFar = toIdrInteger(payable.paidAmount);
-    const outstanding = amountIdr - paidSoFar;
-    if (dto.amount <= 0 || dto.amount > outstanding) {
+    const outstandingBefore = amountIdr - paidSoFar;
+    if (dto.amount <= 0 || dto.amount > outstandingBefore) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.INVALID_INPUT,
-        message: `Nominal pembayaran tidak valid. Sisa utang: ${outstanding}.`,
+        message: `Nominal pembayaran tidak valid. Sisa utang: ${outstandingBefore}.`,
       });
     }
 
     const newPaid = paidSoFar + dto.amount;
+    let paymentId = '';
+    let receiptNumber = '';
+    let createdAt = new Date();
+
     await this.prisma.$transaction(async (tx) => {
-      await tx.payablePayment.create({
+      receiptNumber = await this.paymentReceipt.nextReceiptNumber(tx, user.tenantId, 'PAY');
+      const payment = await tx.payablePayment.create({
         data: {
           payableId,
           amount: idrToDecimal(dto.amount),
           method: dto.method,
           reference: dto.reference?.trim() || null,
+          receiptNumber,
           recordedById: user.sub,
         },
       });
+      paymentId = payment.id;
+      createdAt = payment.createdAt;
       await tx.payable.update({
         where: { id: payableId },
         data: {
@@ -231,7 +247,32 @@ export class PayablesService {
       });
     });
 
-    return this.getById(user, payableId);
+    const [payableRow, storeName, recorder] = await Promise.all([
+      this.getById(user, payableId),
+      this.paymentReceipt.getTenantName(user.tenantId),
+      this.prisma.user.findUnique({ where: { id: user.sub }, select: { fullName: true } }),
+    ]);
+
+    const receipt = this.paymentReceipt.buildReceiptView({
+      kind: 'PAYABLE_PAYMENT',
+      receiptNumber,
+      amount: dto.amount,
+      method: dto.method,
+      createdAt,
+      recordedByName: recorder?.fullName ?? 'Petugas',
+      counterpartyName: payable.supplier.name,
+      counterpartyPhone: payable.supplier.phone,
+      storeName,
+      outletName: payable.purchaseOrder?.outlet?.name ?? null,
+      outstandingBefore,
+      outstandingAfter: outstandingBefore - dto.amount,
+      transferReference: dto.reference ?? null,
+      notes: null,
+      referenceLabel: payable.purchaseOrder?.orderNo ?? null,
+      paymentId,
+    });
+
+    return { ...payableRow, receipt };
   }
 
   async listOverdue(user: AuthJwtPayload) {
@@ -300,6 +341,7 @@ export class PayablesService {
               amount: toIdrInteger(p.amount),
               method: p.method,
               reference: p.reference,
+              receiptNumber: (p as { receiptNumber?: string | null }).receiptNumber ?? null,
               recordedBy: p.recordedBy,
               createdAt: p.createdAt.toISOString(),
             }))

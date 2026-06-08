@@ -9,10 +9,14 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { ListDepositsQueryDto, RefundDepositDto, TopUpDepositDto } from './dto/deposit.dto';
+import { PaymentReceiptService } from './payment-receipt.service';
 
 @Injectable()
 export class DepositsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentReceipt: PaymentReceiptService,
+  ) {}
 
   async list(user: AuthJwtPayload, query: ListDepositsQueryDto) {
     const where: { tenantId: string; customerId?: string } = { tenantId: user.tenantId };
@@ -71,7 +75,22 @@ export class DepositsService {
   }
 
   async topUp(user: AuthJwtPayload, dto: TopUpDepositDto) {
-    await this.ensureCustomer(user.tenantId, dto.customerId);
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: dto.customerId, tenantId: user.tenantId },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!customer) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Pelanggan tidak ditemukan.',
+      });
+    }
+
+    let balanceBefore = 0;
+    let balanceAfter = 0;
+    let paymentId = '';
+    let receiptNumber = '';
+    let createdAt = new Date();
 
     await this.prisma.$transaction(async (tx) => {
       let deposit = await tx.customerDeposit.findUnique({ where: { customerId: dto.customerId } });
@@ -91,25 +110,52 @@ export class DepositsService {
           message: 'Akun deposit tidak aktif.',
         });
       }
-      const newBalance = toIdrInteger(deposit.balance) + dto.amount;
+      balanceBefore = toIdrInteger(deposit.balance);
+      balanceAfter = balanceBefore + dto.amount;
+      receiptNumber = await this.paymentReceipt.nextReceiptNumber(tx, user.tenantId, 'DEP');
       await tx.customerDeposit.update({
         where: { id: deposit.id },
-        data: { balance: idrToDecimal(newBalance) },
+        data: { balance: idrToDecimal(balanceAfter) },
       });
-      await tx.depositTransaction.create({
+      const ledgerEntry = await tx.depositTransaction.create({
         data: {
           depositId: deposit.id,
           type: 'TOP_UP',
           amount: idrToDecimal(dto.amount),
-          balanceAfter: idrToDecimal(newBalance),
+          balanceAfter: idrToDecimal(balanceAfter),
+          receiptNumber,
           referenceType: 'manual',
           notes: dto.notes?.trim() || 'Top-up deposit pelanggan',
           recordedById: user.sub,
         },
       });
+      paymentId = ledgerEntry.id;
+      createdAt = ledgerEntry.createdAt;
     });
 
-    return this.getByCustomerId(user, dto.customerId);
+    const [detail, storeName, recorder] = await Promise.all([
+      this.getByCustomerId(user, dto.customerId),
+      this.paymentReceipt.getTenantName(user.tenantId),
+      this.prisma.user.findUnique({ where: { id: user.sub }, select: { fullName: true } }),
+    ]);
+
+    const receipt = this.paymentReceipt.buildReceiptView({
+      kind: 'DEPOSIT_TOP_UP',
+      receiptNumber,
+      amount: dto.amount,
+      method: 'CASH',
+      createdAt,
+      recordedByName: recorder?.fullName ?? 'Petugas',
+      counterpartyName: customer.name,
+      counterpartyPhone: customer.phone,
+      storeName,
+      balanceBefore,
+      balanceAfter,
+      notes: dto.notes ?? null,
+      paymentId,
+    });
+
+    return { ...detail, receipt };
   }
 
   async refund(user: AuthJwtPayload, customerId: string, dto: RefundDepositDto) {
@@ -223,6 +269,7 @@ export class DepositsService {
         type: entry.type,
         amount: toIdrInteger(entry.amount),
         balanceAfter: toIdrInteger(entry.balanceAfter),
+        receiptNumber: (entry as { receiptNumber?: string | null }).receiptNumber ?? null,
         referenceType: entry.referenceType,
         referenceId: entry.referenceId,
         notes: entry.notes,

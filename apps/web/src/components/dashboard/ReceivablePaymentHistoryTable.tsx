@@ -48,6 +48,7 @@ export function ReceivablePaymentHistoryTable({
           <thead>
             <tr>
               <th style={tableStyles.th}>Tanggal</th>
+              <th style={tableStyles.th}>No. Bukti</th>
               <th style={tableStyles.th}>Metode</th>
               <th style={tableStyles.th}>Nominal</th>
               <th style={tableStyles.th}>Ref TF</th>
@@ -61,6 +62,7 @@ export function ReceivablePaymentHistoryTable({
             {payments.map((p) => (
               <tr key={p.id}>
                 <td style={tableStyles.td}>{new Date(p.createdAt).toLocaleString('id-ID')}</td>
+                <td style={tableStyles.td}>{p.receiptNumber ?? '—'}</td>
                 <td style={tableStyles.td}>
                   {RECEIVABLE_PAYMENT_METHOD_LABELS[p.method] ?? p.method}
                 </td>

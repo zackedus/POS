@@ -1,63 +1,48 @@
-import { formatCurrencyIDR, RECEIVABLE_PAYMENT_METHOD_LABELS } from '@barokah/shared';
-import type { ReceivablePaymentView } from '@barokah/shared';
+import type { PaymentReceiptView, ReceivablePaymentView } from '@barokah/shared';
+import { RECEIVABLE_PAYMENT_METHOD_LABELS } from '@barokah/shared';
+import { printPaymentReceipt } from './payment-receipt-print';
+
+export function receivablePaymentToReceipt(params: {
+  payment: ReceivablePaymentView;
+  customerName: string;
+  customerPhone?: string;
+  storeName?: string;
+  outletName?: string | null;
+}): PaymentReceiptView {
+  const { payment, customerName, customerPhone, storeName = 'Barokah Core POS', outletName } = params;
+  const outstandingAfter = payment.receivable?.outstanding ?? null;
+  const outstandingBefore =
+    outstandingAfter != null ? outstandingAfter + payment.amount : null;
+
+  return {
+    receiptNumber: payment.receiptNumber ?? `BKT-REC-${payment.id.slice(0, 8).toUpperCase()}`,
+    kind: 'RECEIVABLE_PAYMENT',
+    amount: payment.amount,
+    method: payment.method,
+    createdAt: payment.createdAt,
+    recordedByName: payment.recordedBy.fullName,
+    counterpartyName: customerName,
+    counterpartyPhone: customerPhone ?? null,
+    storeName,
+    outletName: outletName ?? null,
+    outstandingBefore,
+    outstandingAfter,
+    transferReference: payment.transferReference,
+    bankName: payment.bankName,
+    notes: payment.notes,
+    referenceLabel: payment.receivable?.transactionReceiptNo ?? payment.receivableId.slice(0, 8),
+    paymentId: payment.id,
+  };
+}
 
 export function printReceivablePaymentReceipt(params: {
   payment: ReceivablePaymentView;
   customerName: string;
   customerPhone?: string;
   storeName?: string;
+  outletName?: string | null;
 }): void {
-  const { payment, customerName, customerPhone, storeName = 'Barokah Core POS' } = params;
-  const methodLabel = RECEIVABLE_PAYMENT_METHOD_LABELS[payment.method] ?? payment.method;
-  const ref = payment.receivable?.transactionReceiptNo ?? payment.receivableId.slice(0, 8);
-  const html = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="utf-8" />
-  <title>Bukti Pembayaran Piutang</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 320px; margin: 1rem auto; color: #111; }
-    h1 { font-size: 1rem; margin: 0 0 0.25rem; text-align: center; }
-    .muted { color: #64748b; font-size: 0.75rem; text-align: center; margin-bottom: 1rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
-    td { padding: 0.35rem 0; vertical-align: top; }
-    td:last-child { text-align: right; font-weight: 600; }
-    .total td { border-top: 1px dashed #cbd5e1; padding-top: 0.5rem; font-size: 1rem; }
-    .footer { margin-top: 1rem; font-size: 0.7rem; color: #64748b; text-align: center; }
-  </style>
-</head>
-<body>
-  <h1>${storeName}</h1>
-  <p class="muted">Bukti Pembayaran Piutang</p>
-  <table>
-    <tr><td>Tanggal</td><td>${new Date(payment.createdAt).toLocaleString('id-ID')}</td></tr>
-    <tr><td>Pelanggan</td><td>${escapeHtml(customerName)}</td></tr>
-    ${customerPhone ? `<tr><td>Telepon</td><td>${escapeHtml(customerPhone)}</td></tr>` : ''}
-    <tr><td>Ref Piutang</td><td>${escapeHtml(ref)}</td></tr>
-    <tr><td>Metode</td><td>${escapeHtml(methodLabel)}</td></tr>
-    ${payment.transferReference ? `<tr><td>No. Ref TF</td><td>${escapeHtml(payment.transferReference)}</td></tr>` : ''}
-    ${payment.bankName ? `<tr><td>Bank</td><td>${escapeHtml(payment.bankName)}</td></tr>` : ''}
-    <tr class="total"><td>Nominal</td><td>${formatCurrencyIDR(payment.amount)}</td></tr>
-    <tr><td>Petugas</td><td>${escapeHtml(payment.recordedBy.fullName)}</td></tr>
-    ${payment.notes ? `<tr><td>Catatan</td><td>${escapeHtml(payment.notes)}</td></tr>` : ''}
-  </table>
-  <p class="footer">Dokumen ini dicetak otomatis — tidak perlu tanda tangan.</p>
-  <script>window.onload = () => { window.print(); };</script>
-</body>
-</html>`;
-
-  const win = window.open('', '_blank', 'width=400,height=600');
-  if (!win) return;
-  win.document.write(html);
-  win.document.close();
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  printPaymentReceipt(receivablePaymentToReceipt(params));
 }
 
 export function exportPaymentHistoryCsv(
@@ -65,12 +50,13 @@ export function exportPaymentHistoryCsv(
   filenamePrefix = 'riwayat-pembayaran-piutang',
 ): void {
   const lines = [
-    'Tanggal,Metode,Nominal,Ref TF,Bank,Bukti URL,Petugas,Ref Piutang,Catatan',
+    'Tanggal,Nomor Bukti,Metode,Nominal,Ref TF,Bank,Bukti URL,Petugas,Ref Piutang,Catatan',
   ];
   for (const p of payments) {
     lines.push(
       [
         new Date(p.createdAt).toLocaleString('id-ID'),
+        p.receiptNumber ?? '',
         RECEIVABLE_PAYMENT_METHOD_LABELS[p.method] ?? p.method,
         p.amount,
         `"${(p.transferReference ?? '').replace(/"/g, '""')}"`,

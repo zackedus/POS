@@ -12,6 +12,7 @@ import { resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { FinanceCheckoutService } from './finance-checkout.service';
 import { CreditLimitService } from './credit-limit.service';
+import { PaymentReceiptService } from './payment-receipt.service';
 import { computeOutstanding, computeReceivableStatus, computeAgingBucket, computeDaysOverdue, emptyAgingTotals, AGING_BUCKET_ORDER } from './finance.util';
 import type {
   AgingReportQueryDto,
@@ -22,6 +23,7 @@ import type {
   RecordReceivablePaymentDto,
   UpdateCustomerCreditLimitDto,
 } from './dto/receivable.dto';
+import type { PaymentReceiptView } from '@barokah/shared';
 
 @Injectable()
 export class ReceivablesService {
@@ -29,6 +31,7 @@ export class ReceivablesService {
     private readonly prisma: PrismaService,
     private readonly financeCheckout: FinanceCheckoutService,
     private readonly creditLimitService: CreditLimitService,
+    private readonly paymentReceipt: PaymentReceiptService,
   ) {}
 
   async list(user: AuthJwtPayload, query: ListReceivablesQueryDto) {
@@ -138,7 +141,11 @@ export class ReceivablesService {
   async recordPayment(user: AuthJwtPayload, receivableId: string, dto: RecordReceivablePaymentDto) {
     const receivable = await this.prisma.receivable.findFirst({
       where: { id: receivableId, tenantId: user.tenantId },
-      select: { id: true, customerId: true },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        outlet: { select: { name: true } },
+        transaction: { select: { receiptNo: true } },
+      },
     });
     if (!receivable) {
       throw new NotFoundException({
@@ -147,8 +154,23 @@ export class ReceivablesService {
       });
     }
 
+    const customerOutstandingBefore =
+      await this.financeCheckout.getCustomerOutstandingReceivableIdr(
+        user.tenantId,
+        receivable.customerId,
+      );
+
+    let paymentResult: {
+      paymentId: string;
+      receiptNumber: string;
+      amountIdr: number;
+      outstandingBefore: number;
+      outstandingAfter: number;
+      createdAt: Date;
+    } | null = null;
+
     await this.prisma.$transaction(async (tx) => {
-      await this.financeCheckout.recordReceivablePayment(tx, {
+      paymentResult = await this.financeCheckout.recordReceivablePayment(tx, {
         tenantId: user.tenantId,
         receivableId,
         amountIdr: dto.amount,
@@ -165,7 +187,42 @@ export class ReceivablesService {
 
     await this.creditLimitService.recalculateAutoLimit(user.tenantId, receivable.customerId);
 
-    return this.getById(user, receivableId);
+    const [receivableRow, storeName, recorder] = await Promise.all([
+      this.getById(user, receivableId),
+      this.paymentReceipt.getTenantName(user.tenantId),
+      this.prisma.user.findUnique({
+        where: { id: user.sub },
+        select: { fullName: true },
+      }),
+    ]);
+
+    const customerOutstandingAfter =
+      await this.financeCheckout.getCustomerOutstandingReceivableIdr(
+        user.tenantId,
+        receivable.customerId,
+      );
+
+    const receipt = this.paymentReceipt.buildReceiptView({
+      kind: 'RECEIVABLE_PAYMENT',
+      receiptNumber: paymentResult!.receiptNumber,
+      amount: dto.amount,
+      method: dto.method,
+      createdAt: paymentResult!.createdAt,
+      recordedByName: recorder?.fullName ?? 'Petugas',
+      counterpartyName: receivable.customer.name,
+      counterpartyPhone: receivable.customer.phone,
+      storeName,
+      outletName: receivable.outlet?.name ?? null,
+      outstandingBefore: customerOutstandingBefore,
+      outstandingAfter: customerOutstandingAfter,
+      transferReference: dto.transferReference ?? null,
+      bankName: dto.bankName ?? null,
+      notes: dto.notes ?? null,
+      referenceLabel: receivable.transaction?.receiptNo ?? receivableId.slice(0, 8),
+      paymentId: paymentResult!.paymentId,
+    });
+
+    return { ...receivableRow, receipt };
   }
 
   async recordCustomerPayment(
@@ -173,7 +230,7 @@ export class ReceivablesService {
     customerId: string,
     dto: RecordCustomerReceivablePaymentDto,
   ) {
-    await this.ensureCustomer(user.tenantId, customerId);
+    const customer = await this.ensureCustomer(user.tenantId, customerId);
 
     const openReceivables = await this.prisma.receivable.findMany({
       where: {
@@ -193,9 +250,16 @@ export class ReceivablesService {
       });
     }
 
+    const customerOutstandingBefore =
+      await this.financeCheckout.getCustomerOutstandingReceivableIdr(user.tenantId, customerId);
+
     let remaining = dto.amount;
+    let batchReceiptNumber = '';
+    let firstPaymentId = '';
+    let firstPaymentCreatedAt = new Date();
 
     await this.prisma.$transaction(async (tx) => {
+      batchReceiptNumber = await this.paymentReceipt.nextReceiptNumber(tx, user.tenantId, 'REC');
       for (const row of openReceivables) {
         if (remaining <= 0) break;
         const outstanding = Math.max(
@@ -204,7 +268,7 @@ export class ReceivablesService {
         );
         if (outstanding <= 0) continue;
         const payAmount = Math.min(remaining, outstanding);
-        await this.financeCheckout.recordReceivablePayment(tx, {
+        const result = await this.financeCheckout.recordReceivablePayment(tx, {
           tenantId: user.tenantId,
           receivableId: row.id,
           amountIdr: payAmount,
@@ -216,7 +280,12 @@ export class ReceivablesService {
           notes: dto.notes,
           shiftId: dto.shiftId,
           recordedById: user.sub,
+          receiptNumber: batchReceiptNumber,
         });
+        if (!firstPaymentId) {
+          firstPaymentId = result.paymentId;
+          firstPaymentCreatedAt = result.createdAt;
+        }
         remaining -= payAmount;
       }
       if (remaining > 0) {
@@ -229,7 +298,33 @@ export class ReceivablesService {
 
     await this.creditLimitService.recalculateAutoLimit(user.tenantId, customerId);
 
-    return this.getCustomerPaymentHistory(user, customerId);
+    const history = await this.getCustomerPaymentHistory(user, customerId);
+    const customerOutstandingAfter =
+      await this.financeCheckout.getCustomerOutstandingReceivableIdr(user.tenantId, customerId);
+    const [storeName, recorder] = await Promise.all([
+      this.paymentReceipt.getTenantName(user.tenantId),
+      this.prisma.user.findUnique({ where: { id: user.sub }, select: { fullName: true } }),
+    ]);
+
+    const receipt: PaymentReceiptView = this.paymentReceipt.buildReceiptView({
+      kind: 'RECEIVABLE_PAYMENT',
+      receiptNumber: batchReceiptNumber,
+      amount: dto.amount,
+      method: dto.method,
+      createdAt: firstPaymentCreatedAt,
+      recordedByName: recorder?.fullName ?? 'Petugas',
+      counterpartyName: customer.name,
+      counterpartyPhone: customer.phone,
+      storeName,
+      outstandingBefore: customerOutstandingBefore,
+      outstandingAfter: customerOutstandingAfter,
+      transferReference: dto.transferReference ?? null,
+      bankName: dto.bankName ?? null,
+      notes: dto.notes ?? null,
+      paymentId: firstPaymentId || undefined,
+    });
+
+    return { ...history, receipt };
   }
 
   async listPayments(user: AuthJwtPayload, receivableId: string) {
@@ -692,6 +787,7 @@ export class ReceivablesService {
     amount: { toString(): string } | Decimal;
     method: string;
     reference: string | null;
+    receiptNumber?: string | null;
     transferReference?: string | null;
     bankName?: string | null;
     proofUrl?: string | null;
@@ -715,6 +811,7 @@ export class ReceivablesService {
       receivableId: payment.receivableId,
       amount: toIdrInteger(payment.amount),
       method: payment.method,
+      receiptNumber: payment.receiptNumber ?? null,
       transferReference: payment.transferReference ?? payment.reference,
       bankName: payment.bankName ?? null,
       proofUrl: payment.proofUrl ?? null,

@@ -9,6 +9,7 @@ import { ErrorCodes, PaymentMethod } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import { computeReceivableStatus } from './finance.util';
+import { PaymentReceiptService } from './payment-receipt.service';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -19,7 +20,10 @@ export interface CheckoutFinancePayment {
 
 @Injectable()
 export class FinanceCheckoutService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentReceipt: PaymentReceiptService,
+  ) {}
 
   async getCustomerOutstandingReceivableIdr(tenantId: string, customerId: string): Promise<number> {
     const rows = await this.prisma.receivable.findMany({
@@ -234,8 +238,69 @@ export class FinanceCheckoutService {
     transactionId: string;
     recordedById: string;
   }) {
+    await this.voidLinkedReceivable(tx, params.transactionId);
+    await this.restoreDepositApplyForTransaction(tx, params);
+  }
+
+  async reverseFinanceForRefund(
+    tx: TxClient,
+    params: {
+      tenantId: string;
+      transactionId: string;
+      recordedById: string;
+      refundAmountIdr: number;
+      isFullRefund: boolean;
+    },
+  ) {
     const receivable = await tx.receivable.findUnique({
       where: { transactionId: params.transactionId },
+    });
+    if (receivable && receivable.status !== 'VOID') {
+      const amountIdr = toIdrInteger(receivable.amount);
+      const paidIdr = toIdrInteger(receivable.paidAmount);
+
+      if (params.isFullRefund) {
+        if (paidIdr === 0) {
+          await tx.receivable.update({
+            where: { id: receivable.id },
+            data: { status: 'VOID' },
+          });
+        } else {
+          await tx.receivable.update({
+            where: { id: receivable.id },
+            data: {
+              amount: idrToDecimal(paidIdr),
+              status: 'PAID',
+              notes: receivable.notes
+                ? `${receivable.notes} | Ditutup karena refund penuh transaksi`
+                : 'Ditutup karena refund penuh transaksi',
+            },
+          });
+        }
+      } else {
+        const newAmount = Math.max(paidIdr, amountIdr - params.refundAmountIdr);
+        await tx.receivable.update({
+          where: { id: receivable.id },
+          data: {
+            amount: idrToDecimal(newAmount),
+            status: computeReceivableStatus(newAmount, paidIdr),
+          },
+        });
+      }
+    }
+
+    if (params.isFullRefund) {
+      await this.restoreDepositApplyForTransaction(tx, {
+        tenantId: params.tenantId,
+        transactionId: params.transactionId,
+        recordedById: params.recordedById,
+      });
+    }
+  }
+
+  private async voidLinkedReceivable(tx: TxClient, transactionId: string) {
+    const receivable = await tx.receivable.findUnique({
+      where: { transactionId },
     });
     if (receivable && receivable.status !== 'VOID') {
       await tx.receivable.update({
@@ -243,7 +308,16 @@ export class FinanceCheckoutService {
         data: { status: 'VOID' },
       });
     }
+  }
 
+  private async restoreDepositApplyForTransaction(
+    tx: TxClient,
+    params: {
+      tenantId: string;
+      transactionId: string;
+      recordedById: string;
+    },
+  ) {
     const depositApply = await tx.depositTransaction.findFirst({
       where: {
         referenceType: 'transaction',
@@ -288,6 +362,7 @@ export class FinanceCheckoutService {
       notes?: string | null;
       recordedById: string;
       shiftId?: string | null;
+      receiptNumber?: string | null;
     },
   ) {
     const receivable = await tx.receivable.findUnique({
@@ -314,11 +389,11 @@ export class FinanceCheckoutService {
     }
     const amountIdr = toIdrInteger(receivable.amount);
     const paidSoFar = toIdrInteger(receivable.paidAmount);
-    const outstanding = amountIdr - paidSoFar;
-    if (params.amountIdr <= 0 || params.amountIdr > outstanding) {
+    const outstandingBefore = amountIdr - paidSoFar;
+    if (params.amountIdr <= 0 || params.amountIdr > outstandingBefore) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.INVALID_INPUT,
-        message: `Nominal pembayaran tidak valid. Sisa piutang: ${outstanding}.`,
+        message: `Nominal pembayaran tidak valid. Sisa piutang: ${outstandingBefore}.`,
       });
     }
 
@@ -372,13 +447,17 @@ export class FinanceCheckoutService {
 
     const transferRef = params.transferReference?.trim() || null;
     const legacyRef = params.reference?.trim() || null;
+    const receiptNumber =
+      params.receiptNumber ??
+      (await this.paymentReceipt.nextReceiptNumber(tx, params.tenantId, 'REC'));
 
-    await tx.receivablePayment.create({
+    const payment = await tx.receivablePayment.create({
       data: {
         receivableId: params.receivableId,
         amount: idrToDecimal(params.amountIdr),
         method: params.method,
         reference: legacyRef ?? transferRef,
+        receiptNumber,
         transferReference: transferRef,
         bankName: params.bankName?.trim() || null,
         proofUrl: params.proofUrl?.trim() || null,
@@ -396,5 +475,14 @@ export class FinanceCheckoutService {
         status: computeReceivableStatus(amountIdr, newPaid),
       },
     });
+
+    return {
+      paymentId: payment.id,
+      receiptNumber,
+      amountIdr: params.amountIdr,
+      outstandingBefore,
+      outstandingAfter: outstandingBefore - params.amountIdr,
+      createdAt: payment.createdAt,
+    };
   }
 }

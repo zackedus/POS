@@ -6,8 +6,10 @@ import {
   parseCurrencyInput,
   RECEIVABLE_PAYMENT_METHOD_LABELS,
   RECEIVABLE_SETTLEMENT_METHODS,
+  type PaymentReceiptView,
 } from '@barokah/shared';
 import { Button, CurrencyInput } from '@barokah/ui';
+import { PaymentSuccessModal } from '@/components/finance/PaymentSuccessModal';
 import { mapApiError } from '@/lib/api-client';
 import {
   recordCustomerReceivablePayment,
@@ -50,6 +52,8 @@ export function ReceivablePaymentModal({
   const [fifoMode, setFifoMode] = useState(Boolean(customerId));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successReceipt, setSuccessReceipt] = useState<PaymentReceiptView | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const openRowsKey = useMemo(
     () => openRows.map((r) => `${r.id}:${r.outstanding}`).join('|'),
@@ -67,8 +71,6 @@ export function ReceivablePaymentModal({
       setAmount('');
     }
   }, [open, openRowsKey, openRows]);
-
-  if (!open) return null;
 
   const selected = openRows.find((r) => r.id === receivableId);
   const maxAmount = fifoMode
@@ -113,18 +115,24 @@ export function ReceivablePaymentModal({
       };
 
       if (customerId && fifoMode) {
-        await recordCustomerReceivablePayment(customerId, {
+        const result = await recordCustomerReceivablePayment(customerId, {
           ...body,
           receivableId: receivableId || undefined,
         });
+        setSuccessReceipt(result.receipt);
+        setSuccessMessage('Pembayaran piutang berhasil dicatat.');
+        onSuccess('Pembayaran piutang berhasil dicatat.');
+        onClose();
       } else if (receivableId) {
-        await recordReceivablePayment(receivableId, body);
+        const result = await recordReceivablePayment(receivableId, body);
+        setSuccessReceipt(result.receipt);
+        setSuccessMessage('Pembayaran piutang berhasil dicatat.');
+        onSuccess('Pembayaran piutang berhasil dicatat.');
+        onClose();
       } else {
         setError('Data piutang tidak lengkap.');
         return;
       }
-      onSuccess('Pembayaran piutang berhasil dicatat.');
-      onClose();
     } catch (err) {
       setError(mapApiError(err, 'Gagal mencatat pembayaran.'));
     } finally {
@@ -142,7 +150,18 @@ export function ReceivablePaymentModal({
   };
 
   return (
-    <div
+    <>
+      <PaymentSuccessModal
+        open={Boolean(successReceipt && successMessage)}
+        message={successMessage ?? ''}
+        receipt={successReceipt}
+        onClose={() => {
+          setSuccessReceipt(null);
+          setSuccessMessage(null);
+        }}
+      />
+      {open ? (
+      <div
       role="dialog"
       aria-modal="true"
       style={{
@@ -284,5 +303,7 @@ export function ReceivablePaymentModal({
         </form>
       </div>
     </div>
+      ) : null}
+    </>
   );
 }
