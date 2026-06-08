@@ -29,6 +29,7 @@ import type { AuthJwtPayload } from '../auth/auth.types';
 import { PromoService } from '../promo/promo.service';
 import { CustomersService } from '../customers/customers.service';
 import { FinanceCheckoutService } from '../finance/finance-checkout.service';
+import { CreditLimitService } from '../finance/credit-limit.service';
 import type { PromoCartLine } from '@barokah/shared';
 import { CheckoutCashDto } from './dto/checkout-cash.dto';
 import { CheckoutSplitDto } from './dto/checkout-split.dto';
@@ -126,6 +127,7 @@ export class TransactionsService {
     private readonly promoService: PromoService,
     private readonly customersService: CustomersService,
     private readonly financeCheckout: FinanceCheckoutService,
+    private readonly creditLimitService: CreditLimitService,
   ) {}
 
   private isPrismaError(error: unknown, code: string): boolean {
@@ -1452,6 +1454,33 @@ export class TransactionsService {
         customerId,
       );
     }
+
+    const creditTotal = dto.payments
+      .filter((p) => p.method === PaymentMethod.CREDIT)
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    let overLimitApproved = false;
+    let creditApproverId: string | null = null;
+    if (
+      creditTotal > 0 &&
+      customerId &&
+      customerCreditLimitIdr != null &&
+      customerOutstandingIdr + creditTotal > customerCreditLimitIdr
+    ) {
+      if (dto.managerApprovalToken?.trim()) {
+        const approval = this.creditLimitService.validateAndConsumeApprovalToken(
+          dto.managerApprovalToken.trim(),
+          {
+            tenantId: user.tenantId,
+            customerId,
+            creditAmount: creditTotal,
+          },
+        );
+        overLimitApproved = true;
+        creditApproverId = approval.approvedById;
+      }
+    }
+
     this.financeCheckout.assertCheckoutFinancePayments({
       payments: dto.payments,
       customerId,
@@ -1459,6 +1488,7 @@ export class TransactionsService {
       customerCreditLimitIdr,
       customerOutstandingIdr,
       depositBalanceIdr,
+      overLimitApproved,
     });
     this.assertValidSplitPayments(dto.payments, total);
 
@@ -1562,6 +1592,18 @@ export class TransactionsService {
             recordedById: user.sub,
             payments: dto.payments,
           });
+
+          if (creditTotal > 0) {
+            await this.creditLimitService.logCreditCheckoutInTransaction(tx, {
+              tenantId: user.tenantId,
+              customerId,
+              creditAmount: creditTotal,
+              transactionId: created.id,
+              recordedById: user.sub,
+              approvedById: creditApproverId,
+              overLimitApproved,
+            });
+          }
         }
 
         return created;

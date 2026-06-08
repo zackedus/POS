@@ -48,4 +48,8 @@ export class CheckoutSplitDto extends CheckoutCustomerFields {
   @IsOptional()
   @IsUUID('4', { message: 'promoRuleId harus UUID valid.' })
   promoRuleId?: string;
+
+  @IsOptional()
+  @IsString({ message: 'managerApprovalToken harus berupa teks.' })
+  managerApprovalToken?: string;
 }

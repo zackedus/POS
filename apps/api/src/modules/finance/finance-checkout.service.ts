@@ -77,6 +77,7 @@ export class FinanceCheckoutService {
     customerCreditLimitIdr: number | null;
     customerOutstandingIdr: number;
     depositBalanceIdr: number;
+    overLimitApproved?: boolean;
   }) {
     const creditTotal = params.payments
       .filter((p) => p.method === PaymentMethod.CREDIT)
@@ -108,7 +109,7 @@ export class FinanceCheckoutService {
       }
       if (params.customerCreditLimitIdr != null) {
         const projected = params.customerOutstandingIdr + creditTotal;
-        if (projected > params.customerCreditLimitIdr) {
+        if (projected > params.customerCreditLimitIdr && !params.overLimitApproved) {
           throw new UnprocessableEntityException({
             code: ErrorCodes.CREDIT_LIMIT_EXCEEDED,
             message: `Limit kredit terlampaui. Outstanding: ${params.customerOutstandingIdr}, limit: ${params.customerCreditLimitIdr}.`,

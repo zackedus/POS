@@ -58,7 +58,7 @@ test('Finance checkout: blocks deposit without customer', () => {
   );
 });
 
-test('Finance checkout: blocks credit over limit', () => {
+test('Finance checkout: blocks credit over limit without approval', () => {
   const service = new FinanceCheckoutService({} as never);
   assert.throws(
     () =>
@@ -73,6 +73,21 @@ test('Finance checkout: blocks credit over limit', () => {
     (error: unknown) =>
       error instanceof UnprocessableEntityException &&
       (error.getResponse() as { code?: string }).code === ErrorCodes.CREDIT_LIMIT_EXCEEDED,
+  );
+});
+
+test('Finance checkout: allows credit over limit with manager approval flag', () => {
+  const service = new FinanceCheckoutService({} as never);
+  assert.doesNotThrow(() =>
+    service.assertCheckoutFinancePayments({
+      payments: [{ method: PaymentMethod.CREDIT, amount: 50_000 }],
+      customerId: 'cust-1',
+      tenantId: 'tenant-1',
+      customerCreditLimitIdr: 100_000,
+      customerOutstandingIdr: 80_000,
+      depositBalanceIdr: 0,
+      overLimitApproved: true,
+    }),
   );
 });
 
@@ -255,7 +270,11 @@ test('Finance summary: customer statement opening balance', async () => {
     },
   };
   const { ReceivablesService } = await import('./receivables.service');
-  const service = new ReceivablesService(prisma as never, { getCustomerFinanceSummary: async () => null } as never);
+  const service = new ReceivablesService(
+    prisma as never,
+    { getCustomerFinanceSummary: async () => null, getCustomerOutstandingReceivableIdr: async () => 0 } as never,
+    { recalculateAutoLimit: async () => false, setCreditLimit: async () => ({}) } as never,
+  );
   const statement = await service.getCustomerStatement(
     { tenantId: 'tenant-1', sub: 'user-1', role: 'OWNER', outletIds: [] } as never,
     'cust-1',

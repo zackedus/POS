@@ -15,6 +15,7 @@ export interface CustomerListItem {
   points: number;
   updatedAt: string;
   creditLimit?: number | null;
+  autoLimitEnabled?: boolean;
   receivableOutstanding?: number;
   depositBalance?: number;
   creditAvailable?: number | null;
@@ -77,6 +78,7 @@ export async function updateCustomer(
     phone?: string;
     email?: string | null;
     creditLimit?: number | null;
+    autoLimitEnabled?: boolean;
     notes?: string;
   },
 ): Promise<CustomerListItem> {

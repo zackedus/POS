@@ -4,6 +4,7 @@ import { DepositsService } from './deposits.service';
 import { FinanceCheckoutService } from './finance-checkout.service';
 import { FinanceController } from './finance.controller';
 import { FinanceSummaryService } from './finance-summary.service';
+import { CreditLimitService } from './credit-limit.service';
 import { PayablesController } from './payables.controller';
 import { PayablesService } from './payables.service';
 import { ReceivablesController } from './receivables.controller';
@@ -17,7 +18,8 @@ import { ReceivablesService } from './receivables.service';
     PayablesService,
     DepositsService,
     FinanceCheckoutService,
+    CreditLimitService,
   ],
-  exports: [FinanceCheckoutService, FinanceSummaryService, ReceivablesService, PayablesService, DepositsService],
+  exports: [FinanceCheckoutService, FinanceSummaryService, ReceivablesService, PayablesService, DepositsService, CreditLimitService],
 })
 export class FinanceModule {}

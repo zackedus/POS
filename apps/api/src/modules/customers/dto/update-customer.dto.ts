@@ -1,4 +1,4 @@
-import { IsEmail, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateCustomerDto {
   @IsOptional()
@@ -21,6 +21,10 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsInt({ message: 'Limit kredit harus bilangan bulat rupiah' })
   creditLimit?: number | null;
+
+  @IsOptional()
+  @IsBoolean({ message: 'autoLimitEnabled harus boolean' })
+  autoLimitEnabled?: boolean;
 
   @IsOptional()
   @IsString()

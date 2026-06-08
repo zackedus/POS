@@ -11,11 +11,22 @@ function makeService(prisma: Record<string, unknown>) {
   const receivablesService = {
     getCustomerFinanceSummary: async () => ({ customer: {}, finance: null, receivables: [], deposit: null }),
   };
-  return new CustomersService(prisma as never, financeCheckout as never, receivablesService as never);
+  const creditLimitService = {
+    getDefaultCreditLimitDecimal: () => ({ toString: () => '1000000' }),
+    logDefaultLimitOnCreate: async () => {},
+    setCreditLimit: async () => ({}),
+    listCreditAuditLog: async () => ({ entries: [], meta: {} }),
+  };
+  return new CustomersService(
+    prisma as never,
+    financeCheckout as never,
+    receivablesService as never,
+    creditLimitService as never,
+  );
 }
 
 test('CustomersService: findOrCreateByPhone creates new customer with member code', async () => {
-  const created: Array<{ tenantId: string; name: string; phone: string; memberCode: string }> = [];
+  const created: Array<{ tenantId: string; name: string; phone: string; memberCode: string; creditLimit?: unknown }> = [];
   const prisma = {
     customer: {
       findUnique: async () => null,
@@ -23,7 +34,7 @@ test('CustomersService: findOrCreateByPhone creates new customer with member cod
       create: async ({
         data,
       }: {
-        data: { tenantId: string; name: string; phone: string; memberCode: string };
+        data: { tenantId: string; name: string; phone: string; memberCode: string; creditLimit?: unknown };
       }) => {
         created.push(data);
         return { id: 'cust-1', ...data, points: 0 };
@@ -32,6 +43,19 @@ test('CustomersService: findOrCreateByPhone creates new customer with member cod
         throw new Error('update should not run');
       },
     },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        customer: {
+          create: async ({
+            data,
+          }: {
+            data: { tenantId: string; name: string; phone: string; memberCode: string; creditLimit?: unknown };
+          }) => {
+            created.push(data);
+            return { id: 'cust-1', ...data, points: 0 };
+          },
+        },
+      }),
   };
 
   const service = makeService(prisma);
@@ -39,6 +63,7 @@ test('CustomersService: findOrCreateByPhone creates new customer with member cod
   assert.equal(result.id, 'cust-1');
   assert.equal(created[0]?.phone, '6281234567890');
   assert.match(created[0]?.memberCode ?? '', /^MBR-/);
+  assert.ok(created[0]?.creditLimit);
 });
 
 test('CustomersService: resolveOptionalCustomerId returns null when phone missing', async () => {
@@ -182,6 +207,19 @@ test('CustomersService: registerPublic creates member for active tenant', async 
         throw new Error('update should not run');
       },
     },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        customer: {
+          create: async ({
+            data,
+          }: {
+            data: { tenantId: string; name: string; phone: string; memberCode: string };
+          }) => {
+            created = true;
+            return { id: 'cust-1', ...data, points: 0, updatedAt: new Date() };
+          },
+        },
+      }),
   };
   const service = makeService(prisma);
   const result = await service.registerPublic('toko-demo', { name: 'Budi', phone: '081234567890' });

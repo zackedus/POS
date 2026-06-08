@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -12,6 +11,7 @@ import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import { resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { FinanceCheckoutService } from './finance-checkout.service';
+import { CreditLimitService } from './credit-limit.service';
 import { computeOutstanding, computeReceivableStatus, computeAgingBucket, computeDaysOverdue, emptyAgingTotals, AGING_BUCKET_ORDER } from './finance.util';
 import type {
   AgingReportQueryDto,
@@ -27,6 +27,7 @@ export class ReceivablesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly financeCheckout: FinanceCheckoutService,
+    private readonly creditLimitService: CreditLimitService,
   ) {}
 
   async list(user: AuthJwtPayload, query: ListReceivablesQueryDto) {
@@ -136,7 +137,7 @@ export class ReceivablesService {
   async recordPayment(user: AuthJwtPayload, receivableId: string, dto: RecordReceivablePaymentDto) {
     const receivable = await this.prisma.receivable.findFirst({
       where: { id: receivableId, tenantId: user.tenantId },
-      select: { id: true },
+      select: { id: true, customerId: true },
     });
     if (!receivable) {
       throw new NotFoundException({
@@ -154,6 +155,8 @@ export class ReceivablesService {
         recordedById: user.sub,
       });
     });
+
+    await this.creditLimitService.recalculateAutoLimit(user.tenantId, receivable.customerId);
 
     return this.getById(user, receivableId);
   }
@@ -400,51 +403,10 @@ export class ReceivablesService {
     customerId: string,
     dto: UpdateCustomerCreditLimitDto,
   ) {
-    const customer = await this.prisma.customer.findFirst({
-      where: { id: customerId, tenantId: user.tenantId },
+    return this.creditLimitService.setCreditLimit(user, customerId, {
+      creditLimit: dto.creditLimit,
+      notes: 'Penyesuaian limit via modul piutang',
     });
-    if (!customer) {
-      throw new NotFoundException({
-        code: ErrorCodes.NOT_FOUND,
-        message: 'Pelanggan tidak ditemukan.',
-      });
-    }
-
-    if (dto.creditLimit != null) {
-      const outstanding = await this.financeCheckout.getCustomerOutstandingReceivableIdr(
-        user.tenantId,
-        customerId,
-      );
-      if (dto.creditLimit < outstanding) {
-        throw new ConflictException({
-          code: ErrorCodes.CONFLICT,
-          message: `Limit kredit tidak boleh di bawah outstanding piutang (${outstanding}).`,
-        });
-      }
-    }
-
-    const updated = await this.prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        creditLimit:
-          dto.creditLimit === undefined
-            ? undefined
-            : dto.creditLimit === null
-              ? null
-              : idrToDecimal(dto.creditLimit),
-      },
-      select: { id: true, name: true, phone: true, creditLimit: true, points: true },
-    });
-
-    const summary = await this.financeCheckout.getCustomerFinanceSummary(user.tenantId, customerId);
-    return {
-      id: updated.id,
-      name: updated.name,
-      phone: updated.phone,
-      points: updated.points,
-      creditLimit: updated.creditLimit != null ? toIdrInteger(updated.creditLimit) : null,
-      finance: summary,
-    };
   }
 
   async getCustomerFinanceSummary(user: AuthJwtPayload, customerId: string) {

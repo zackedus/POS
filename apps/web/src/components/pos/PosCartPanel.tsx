@@ -130,6 +130,9 @@ export interface PosCartPanelProps {
   customerCreditAvailable?: number | null;
   loyaltyPointsToRedeem?: string;
   onLoyaltyPointsToRedeemChange?: (value: string) => void;
+  onOpenCustomerPicker?: () => void;
+  onRequestCreditApproval?: () => void;
+  hasCreditApprovalToken?: boolean;
 }
 
 export function PosCartPanel({
@@ -216,9 +219,22 @@ export function PosCartPanel({
   customerCreditAvailable = null,
   loyaltyPointsToRedeem = '',
   onLoyaltyPointsToRedeemChange,
+  onOpenCustomerPicker,
+  onRequestCreditApproval,
+  hasCreditApprovalToken = false,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
   const customerLinked = isCustomerLinkedForFinance(customerId);
+  const creditOverLimit =
+    paymentMode === 'CREDIT' &&
+    customerCreditLimit !== 0 &&
+    customerCreditAvailable != null &&
+    total > customerCreditAvailable;
+  const creditCheckoutBlocked =
+    paymentMode === 'CREDIT' &&
+    (!customerLinked ||
+      customerCreditLimit === 0 ||
+      (creditOverLimit && !hasCreditApprovalToken));
   const stepperStyle = { minHeight: 44, minWidth: 44, padding: 0, fontSize: '1.125rem' };
 
   return (
@@ -414,7 +430,14 @@ export function PosCartPanel({
 
       {hasCartItems && onCustomerNameChange && onCustomerPhoneChange ? (
         <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>Pelanggan (opsional)</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>Pelanggan (opsional)</span>
+            {onOpenCustomerPicker ? (
+              <Button type="button" variant="secondary" onClick={onOpenCustomerPicker} style={{ minHeight: 36 }}>
+                Pilih dari Daftar
+              </Button>
+            ) : null}
+          </div>
           <input
             type="text"
             value={customerName}
@@ -785,12 +808,28 @@ export function PosCartPanel({
               customerCreditLimit !== 0 &&
               customerCreditAvailable != null &&
               total > customerCreditAvailable ? (
-                <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
-                  Transaksi tempo diblokir — melebihi limit kredit tersedia (
-                  {formatCurrencyIDR(customerCreditAvailable)}). Outstanding:{' '}
-                  {formatCurrencyIDR(customerReceivableOutstanding ?? 0)}
-                  {customerCreditLimit != null ? ` / Limit: ${formatCurrencyIDR(customerCreditLimit)}` : ''}.
-                </p>
+                <>
+                  <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
+                    Transaksi tempo melebihi limit kredit tersedia (
+                    {formatCurrencyIDR(customerCreditAvailable)}). Outstanding:{' '}
+                    {formatCurrencyIDR(customerReceivableOutstanding ?? 0)}
+                    {customerCreditLimit != null ? ` / Limit: ${formatCurrencyIDR(customerCreditLimit)}` : ''}.
+                  </p>
+                  {hasCreditApprovalToken ? (
+                    <p style={{ fontSize: '0.8125rem', color: '#166534', marginBottom: '0.75rem' }}>
+                      Persetujuan manager diterima — checkout tempo diizinkan untuk transaksi ini.
+                    </p>
+                  ) : onRequestCreditApproval ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={onRequestCreditApproval}
+                      style={{ minHeight: 44, width: '100%', marginBottom: '0.75rem' }}
+                    >
+                      Minta Persetujuan Manager
+                    </Button>
+                  ) : null}
+                </>
               ) : null}
               {paymentMode === 'DEPOSIT' &&
               customerDepositBalance != null &&
@@ -805,10 +844,7 @@ export function PosCartPanel({
                   processingSplit ||
                   checkoutBlockedByStock ||
                   (!activeShift && isOnline) ||
-                  !customerLinked ||
-                  (paymentMode === 'CREDIT' &&
-                    (customerCreditLimit === 0 ||
-                      (customerCreditAvailable != null && total > customerCreditAvailable))) ||
+                  creditCheckoutBlocked ||
                   (paymentMode === 'DEPOSIT' &&
                     (customerDepositBalance ?? 0) < total)
                 }

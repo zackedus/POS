@@ -209,6 +209,10 @@ test('Outlet isolation: checkout on outlet A does not deduct outlet B stock', as
       applyCheckoutFinanceInTransaction: async () => undefined,
       reverseFinanceForVoid: async () => undefined,
     } as never,
+    {
+      validateAndConsumeApprovalToken: () => ({ approvedById: 'manager-1' }),
+      logCreditCheckoutInTransaction: async () => {},
+    } as never,
   );
   await service.checkoutCash(manager(['outlet-a', 'outlet-b']), {
     outletId: 'outlet-a',
@@ -234,6 +238,9 @@ test('Outlet isolation: checkout rejected without active shift on outlet', async
     assertCheckoutFinancePayments: () => undefined,
     applyCheckoutFinanceInTransaction: async () => undefined,
     reverseFinanceForVoid: async () => undefined,
+  } as never, {
+    validateAndConsumeApprovalToken: () => ({ approvedById: 'manager-1' }),
+    logCreditCheckoutInTransaction: async () => {},
   } as never);
 
   await assert.rejects(

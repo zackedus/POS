@@ -5,13 +5,18 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { CreditLimitService } from './credit-limit.service';
+import { CreditApprovalDto } from './dto/credit-approval.dto';
 import { FinanceSummaryQueryDto } from './dto/finance.dto';
 import { FinanceSummaryService } from './finance-summary.service';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class FinanceController {
-  constructor(private readonly financeSummaryService: FinanceSummaryService) {}
+  constructor(
+    private readonly financeSummaryService: FinanceSummaryService,
+    private readonly creditLimitService: CreditLimitService,
+  ) {}
 
   @Get('summary')
   @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
@@ -26,5 +31,11 @@ export class FinanceController {
     @Body() body: { outletId?: string },
   ) {
     return this.financeSummaryService.sendOverdueReminderStub(user, body.outletId);
+  }
+
+  @Post('credit-approval')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  issueCreditApproval(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreditApprovalDto) {
+    return this.creditLimitService.issueCreditApproval(user, dto);
   }
 }

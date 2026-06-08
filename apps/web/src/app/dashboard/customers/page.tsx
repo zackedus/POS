@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR } from '@barokah/shared';
+import { formatCurrencyIDR, DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -172,6 +172,10 @@ export default function CustomersPage() {
       {canEdit ? (
         <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
           <h3 style={{ margin: '0 0 1rem', fontSize: '1.0625rem' }}>Daftar walk-in (staff)</h3>
+          <p style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem', color: tokens.muted }}>
+            Limit kredit default pelanggan baru: {formatCurrencyIDR(DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR)} (dapat
+            diubah di detail pelanggan).
+          </p>
           <form onSubmit={(e) => void handleCreate(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 420 }}>
             <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
               Nama lengkap

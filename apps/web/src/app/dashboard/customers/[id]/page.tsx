@@ -34,11 +34,13 @@ import {
 } from '@/lib/customers-api';
 import { recordReceivablePayment } from '@/lib/receivables-api';
 import { topUpDeposit } from '@/lib/deposits-api';
+import { fetchCustomerCreditAuditLog, type CustomerCreditAuditEntry } from '@/lib/finance-api';
+import { CUSTOMER_CREDIT_AUDIT_ACTION_LABELS, DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR } from '@barokah/shared';
 import { canManageCustomers } from '@/lib/rbac';
 import type { CustomerAddressView, LoyaltyPointLedgerEntry, MemberCardView } from '@barokah/shared';
 import type { CustomerFinanceSummary } from '@/lib/receivables-api';
 
-type TabId = 'profil' | 'alamat' | 'poin' | 'piutang' | 'deposit' | 'kartu';
+type TabId = 'profil' | 'alamat' | 'poin' | 'piutang' | 'deposit' | 'kartu' | 'riwayat-kredit';
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'profil', label: 'Profil' },
@@ -46,6 +48,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'poin', label: 'Poin' },
   { id: 'piutang', label: 'Piutang' },
   { id: 'deposit', label: 'Deposit' },
+  { id: 'riwayat-kredit', label: 'Riwayat Limit & Persetujuan' },
   { id: 'kartu', label: 'Kartu Member' },
 ];
 
@@ -105,6 +108,7 @@ export default function CustomerDetailPage() {
         phone: String(form.get('phone') ?? '').trim(),
         email: String(form.get('email') ?? '').trim() || null,
         notes: String(form.get('notes') ?? '').trim(),
+        autoLimitEnabled: form.get('autoLimitEnabled') === 'on',
         ...(creditLimit !== undefined ? { creditLimit } : {}),
       });
       setSuccess('Profil pelanggan diperbarui.');
@@ -181,6 +185,8 @@ export default function CustomerDetailPage() {
         <ReceivablesTab customerId={customerId} canEdit={canEdit} tokens={tokens} onRefresh={loadDetail} onMessage={setSuccess} onError={setError} />
       ) : tab === 'deposit' ? (
         <DepositTab customerId={customerId} canEdit={canEdit} tokens={tokens} onMessage={setSuccess} onError={setError} />
+      ) : tab === 'riwayat-kredit' ? (
+        <CreditAuditTab customerId={customerId} tokens={tokens} />
       ) : (
         <CardTab customerId={customerId} isOwner={isOwner} tokens={tokens} onMessage={setSuccess} onError={setError} />
       )}
@@ -228,8 +234,17 @@ function ProfileTab({
           <input value={detail.memberCode ?? '—'} readOnly style={{ ...inputStyle(tokens), background: '#f8fafc' }} />
         </label>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
-          Limit kredit (0 = tidak tempo, kosong = unlimited)
+          Limit kredit (default baru: {formatCurrencyIDR(DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR)} · 0 = tidak tempo · unlimited)
           <input name="creditLimit" defaultValue={creditDisplay} disabled={!canEdit} style={inputStyle(tokens)} />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+          <input
+            type="checkbox"
+            name="autoLimitEnabled"
+            defaultChecked={detail.autoLimitEnabled !== false}
+            disabled={!canEdit}
+          />
+          Naikkan limit otomatis berdasarkan riwayat bayar piutang
         </label>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
           Catatan
@@ -730,6 +745,67 @@ function CardTab({
           ) : null}
         </>
       ) : null}
+    </section>
+  );
+}
+
+function CreditAuditTab({
+  customerId,
+  tokens,
+}: {
+  customerId: string;
+  tokens: { cardBg: string; cardBorder: string; muted: string };
+}) {
+  const [entries, setEntries] = useState<CustomerCreditAuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetchCustomerCreditAuditLog(customerId)
+      .then((data) => setEntries(data.entries))
+      .catch((err) => setError(err instanceof Error ? err.message : 'Gagal memuat riwayat.'))
+      .finally(() => setLoading(false));
+  }, [customerId]);
+
+  return (
+    <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
+      {loading ? (
+        <LoadingSkeleton rows={4} />
+      ) : error ? (
+        <AlertBanner variant="error">{error}</AlertBanner>
+      ) : entries.length === 0 ? (
+        <p style={{ margin: 0, color: tokens.muted }}>Belum ada riwayat limit atau persetujuan.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+          {entries.map((entry) => (
+            <article
+              key={entry.id}
+              style={{
+                border: `1px solid ${tokens.cardBorder}`,
+                borderRadius: 8,
+                padding: '0.65rem 0.75rem',
+                fontSize: '0.8125rem',
+              }}
+            >
+              <strong>{CUSTOMER_CREDIT_AUDIT_ACTION_LABELS[entry.action] ?? entry.action}</strong>
+              <div style={{ color: tokens.muted, marginTop: 2 }}>
+                {new Date(entry.createdAt).toLocaleString('id-ID')}
+                {entry.receiptNo ? ` · ${entry.receiptNo}` : ''}
+              </div>
+              {entry.oldLimit != null || entry.newLimit != null ? (
+                <div>
+                  Limit: {entry.oldLimit != null ? formatCurrencyIDR(entry.oldLimit) : '—'} →{' '}
+                  {entry.newLimit != null ? formatCurrencyIDR(entry.newLimit) : '—'}
+                </div>
+              ) : null}
+              {entry.amount != null ? <div>Nominal tempo: {formatCurrencyIDR(entry.amount)}</div> : null}
+              {entry.approvedBy ? <div>Disetujui: {entry.approvedBy.fullName}</div> : null}
+              {entry.recordedBy ? <div>Dicatat: {entry.recordedBy.fullName}</div> : null}
+              {entry.notes ? <div style={{ color: tokens.muted }}>{entry.notes}</div> : null}
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

@@ -19,6 +19,8 @@ import { CreateCustomerAddressDto, UpdateCustomerAddressDto } from './dto/custom
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { LoyaltyLedgerQueryDto } from './dto/loyalty-ledger-query.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { PatchCustomerCreditLimitDto } from './dto/patch-credit-limit.dto';
+import { CreditAuditLogQueryDto } from './dto/credit-audit-log-query.dto';
 import { CustomersService } from './customers.service';
 
 @Controller('customers')
@@ -54,6 +56,14 @@ export class CustomersController {
       .then((customer) => ({ customer }));
   }
 
+  @Get('lookup-by-code/:memberCode')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  lookupByCodePath(@CurrentUser() user: AuthJwtPayload, @Param('memberCode') memberCode: string) {
+    return this.customersService
+      .lookupByMemberCode(user.tenantId, memberCode)
+      .then((customer) => ({ customer }));
+  }
+
   @Get(':customerId')
   @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
   getById(@CurrentUser() user: AuthJwtPayload, @Param('customerId') customerId: string) {
@@ -74,6 +84,31 @@ export class CustomersController {
   @Roles(UserRole.OWNER, UserRole.MANAGER)
   create(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreateCustomerDto) {
     return this.customersService.create(user, dto);
+  }
+
+  @Patch(':customerId/credit-limit')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  patchCreditLimit(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Body() dto: PatchCustomerCreditLimitDto,
+  ) {
+    return this.customersService.patchCreditLimit(user, customerId, dto);
+  }
+
+  @Get(':customerId/credit-audit-log')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
+  creditAuditLog(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Query() query: CreditAuditLogQueryDto,
+  ) {
+    return this.customersService.getCreditAuditLog(
+      user,
+      customerId,
+      query.page ?? 1,
+      query.limit ?? 20,
+    );
   }
 
   @Get(':customerId/addresses')

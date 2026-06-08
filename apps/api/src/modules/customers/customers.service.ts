@@ -19,16 +19,18 @@ import {
   type LoyaltyRedeemConfig,
 } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
-import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
+import { toIdrInteger } from '../../common/utils/money.util';
 import { normalizePhone } from '../online-orders/online-order.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { FinanceCheckoutService } from '../finance/finance-checkout.service';
+import { CreditLimitService } from '../finance/credit-limit.service';
 import { ReceivablesService } from '../finance/receivables.service';
 import type { CreateCustomerAddressDto, UpdateCustomerAddressDto } from './dto/customer-address.dto';
 import type { CreateCustomerDto } from './dto/create-customer.dto';
 import type { LinkCustomerDto } from './dto/link-customer.dto';
 import type { LoyaltyLedgerQueryDto } from './dto/loyalty-ledger-query.dto';
 import type { UpdateCustomerDto } from './dto/update-customer.dto';
+import type { PatchCustomerCreditLimitDto } from './dto/patch-credit-limit.dto';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -38,6 +40,7 @@ export class CustomersService {
     private readonly prisma: PrismaService,
     private readonly financeCheckout: FinanceCheckoutService,
     private readonly receivablesService: ReceivablesService,
+    private readonly creditLimitService: CreditLimitService,
   ) {}
 
   async findOrCreateByPhone(tenantId: string, name: string, phone: string) {
@@ -56,13 +59,23 @@ export class CustomersService {
       return existing;
     }
     const memberCode = await this.generateUniqueMemberCode(tenantId);
-    return this.prisma.customer.create({
-      data: {
+    const defaultLimit = this.creditLimitService.getDefaultCreditLimitDecimal();
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.create({
+        data: {
+          tenantId,
+          name: trimmedName,
+          phone: normalizedPhone,
+          memberCode,
+          creditLimit: defaultLimit,
+          autoLimitEnabled: true,
+        },
+      });
+      await this.creditLimitService.logDefaultLimitOnCreate(tx, {
         tenantId,
-        name: trimmedName,
-        phone: normalizedPhone,
-        memberCode,
-      },
+        customerId: customer.id,
+      });
+      return customer;
     });
   }
 
@@ -302,27 +315,67 @@ export class CustomersService {
       });
     }
     const memberCode = await this.generateUniqueMemberCode(user.tenantId);
-    const row = await this.prisma.customer.create({
-      data: {
+    const defaultLimit = this.creditLimitService.getDefaultCreditLimitDecimal();
+    const row = await this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.create({
+        data: {
+          tenantId: user.tenantId,
+          name: dto.name.trim(),
+          phone: normalizedPhone,
+          memberCode,
+          email: dto.email?.trim() || null,
+          creditLimit: defaultLimit,
+          autoLimitEnabled: true,
+        },
+      });
+      await this.creditLimitService.logDefaultLimitOnCreate(tx, {
         tenantId: user.tenantId,
-        name: dto.name.trim(),
-        phone: normalizedPhone,
-        memberCode,
-        email: dto.email?.trim() || null,
-      },
+        customerId: customer.id,
+        recordedById: user.sub,
+      });
+      return customer;
     });
     return this.toCustomerSummary(row);
   }
 
+  async patchCreditLimit(
+    user: AuthJwtPayload,
+    customerId: string,
+    dto: PatchCustomerCreditLimitDto,
+  ) {
+    return this.creditLimitService.setCreditLimit(user, customerId, {
+      creditLimit: dto.creditLimit,
+      autoLimitEnabled: dto.autoLimitEnabled,
+      notes: dto.notes,
+    });
+  }
+
+  async getCreditAuditLog(
+    user: AuthJwtPayload,
+    customerId: string,
+    page = 1,
+    limit = 20,
+  ) {
+    return this.creditLimitService.listCreditAuditLog(user, customerId, page, limit);
+  }
+
   async update(user: AuthJwtPayload, customerId: string, dto: UpdateCustomerDto) {
     await this.assertCustomer(user.tenantId, customerId);
+
+    if (dto.creditLimit !== undefined || dto.autoLimitEnabled !== undefined) {
+      await this.creditLimitService.setCreditLimit(user, customerId, {
+        creditLimit: dto.creditLimit,
+        autoLimitEnabled: dto.autoLimitEnabled,
+        notes: dto.notes,
+      });
+    }
+
     const data: Prisma.CustomerUpdateInput = {};
 
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.email !== undefined) data.email = dto.email?.trim() || null;
-    if (dto.notes !== undefined) data.notes = dto.notes?.trim() || null;
-    if (dto.creditLimit !== undefined) {
-      data.creditLimit = dto.creditLimit === null ? null : idrToDecimal(dto.creditLimit);
+    if (dto.notes !== undefined && dto.creditLimit === undefined) {
+      data.notes = dto.notes?.trim() || null;
     }
     if (dto.phone !== undefined) {
       const normalizedPhone = normalizePhone(dto.phone);
@@ -343,11 +396,38 @@ export class CustomersService {
       data.phone = normalizedPhone;
     }
 
-    const row = await this.prisma.customer.update({
-      where: { id: customerId },
-      data,
+    if (Object.keys(data).length > 0) {
+      await this.prisma.customer.update({
+        where: { id: customerId },
+        data,
+      });
+    }
+
+    const row = await this.prisma.customer.findFirst({
+      where: { id: customerId, tenantId: user.tenantId },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        memberCode: true,
+        points: true,
+        creditLimit: true,
+        autoLimitEnabled: true,
+        updatedAt: true,
+      },
     });
-    return this.toCustomerSummary(row);
+    if (!row) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Pelanggan tidak ditemukan.',
+      });
+    }
+    const finance = await this.buildFinanceSnapshot(user.tenantId, customerId, row.creditLimit);
+    return {
+      ...this.toCustomerSummary(row),
+      autoLimitEnabled: row.autoLimitEnabled,
+      ...finance,
+    };
   }
 
   async getById(user: AuthJwtPayload, customerId: string) {
@@ -395,6 +475,7 @@ export class CustomersService {
       memberSince: row.memberSince.toISOString(),
       notes: row.notes,
       points: row.points,
+      autoLimitEnabled: row.autoLimitEnabled,
       ...finance,
       updatedAt: row.updatedAt.toISOString(),
       stats: {
@@ -643,14 +724,24 @@ export class CustomersService {
     let customer = existing;
     if (!customer) {
       const memberCode = await this.generateUniqueMemberCode(tenant.id);
-      customer = await this.prisma.customer.create({
-        data: {
+      const defaultLimit = this.creditLimitService.getDefaultCreditLimitDecimal();
+      customer = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.customer.create({
+          data: {
+            tenantId: tenant.id,
+            name: dto.name.trim(),
+            phone: normalizedPhone,
+            memberCode,
+            email: dto.email?.trim() || null,
+            creditLimit: defaultLimit,
+            autoLimitEnabled: true,
+          },
+        });
+        await this.creditLimitService.logDefaultLimitOnCreate(tx, {
           tenantId: tenant.id,
-          name: dto.name.trim(),
-          phone: normalizedPhone,
-          memberCode,
-          email: dto.email?.trim() || null,
-        },
+          customerId: created.id,
+        });
+        return created;
       });
     } else if (dto.email?.trim() && customer && !customer.email) {
       customer = await this.prisma.customer.update({

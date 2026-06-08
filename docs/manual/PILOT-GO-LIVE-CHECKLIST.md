@@ -259,6 +259,11 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **Dashboard finance widgets:** piutang, utang, deposit, kas hari ini di `/dashboard`
 - [ ] **Overdue banner:** piutang jatuh tempo tampil di dashboard + badge merah di daftar piutang
 - [ ] **POS credit UX:** limit kredit, piutang, deposit tampil jelas; tempo diblokir jika over limit
+- [ ] **Default limit 1 jt:** pelanggan baru otomatis limit Rp 1.000.000 (dashboard create + POS find-or-create)
+- [ ] **Picker pelanggan POS:** tombol "Pilih dari Daftar" — search nama/HP/kode member
+- [ ] **Over-limit approval:** tempo melebihi limit → Minta Persetujuan Manager → checkout sukses + audit log
+- [ ] **Auto limit increase:** setelah piutang lunas kumulatif ≥ Rp 10 jt (zero overdue) limit naik +Rp 500 rb
+- [ ] **Riwayat limit:** tab "Riwayat Limit & Persetujuan" di detail pelanggan dashboard
 - [ ] **Filter outlet:** piutang & utang (via PO) filter per cabang
 - [ ] QRIS mock/sandbox: PASS di staging (perbaikan commit `750d4f5`: mock checkout tidak stuck polling — regresi TC005/QRIS UAT)
 - [ ] QRIS live + EDC + E-wallet: **defer** (butuh key Pak Zaki + hardware Arif)

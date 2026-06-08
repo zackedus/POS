@@ -9,6 +9,8 @@ import { PosProductGrid } from '@/components/pos/PosProductGrid';
 import { PosShiftBar } from '@/components/pos/PosShiftBar';
 import { PosUnitPickerModal } from '@/components/pos/PosUnitPickerModal';
 import { VoidTransactionModal } from '@/components/pos/VoidTransactionModal';
+import { CustomerPickerModal } from '@/components/pos/CustomerPickerModal';
+import { CreditApprovalModal } from '@/components/pos/CreditApprovalModal';
 import type { CartItem, HeldTransactionSummary, PaymentMode, ProductGridItem } from '@/components/pos/pos-types';
 import { hasMultipleSellUnits, resolveDisplaySellUnit } from '@/components/pos/pos-ui-utils';
 import { apiConfig } from '@/lib/api';
@@ -42,7 +44,7 @@ import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
 import { fetchActivePromos, previewPromoLocally, type PromoValidationResult } from '@/lib/promo-checkout-api';
 import { fetchTenantSettings } from '@/lib/settings-api';
-import { lookupCustomerByPhone, lookupCustomerByMemberCode } from '@/lib/customers-api';
+import { lookupCustomerByPhone, lookupCustomerByMemberCode, type CustomerListItem } from '@/lib/customers-api';
 import {
   canSelectFinancePaymentMode,
   FINANCE_CUSTOMER_REQUIRED_MESSAGE,
@@ -196,6 +198,9 @@ export default function PosPage() {
   const [customerCreditLimit, setCustomerCreditLimit] = useState<number | null>(null);
   const [customerCreditAvailable, setCustomerCreditAvailable] = useState<number | null>(null);
   const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState('');
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [showCreditApproval, setShowCreditApproval] = useState(false);
+  const [managerApprovalToken, setManagerApprovalToken] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchTenantSettings()
@@ -564,6 +569,11 @@ export default function PosPage() {
   );
   const taxAmount = taxPreview.tax;
   const total = taxPreview.total;
+
+  useEffect(() => {
+    setManagerApprovalToken(null);
+  }, [customerId, total, cart.length]);
+
   const loyaltyPointsPreview = useMemo(() => {
     const name = customerName.trim();
     const phone = customerPhone.trim();
@@ -1367,6 +1377,7 @@ export default function PosPage() {
           ...buildOutletScope(activeOutletId),
           ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
           ...buildCustomerCheckoutPayload(),
+          ...(managerApprovalToken ? { managerApprovalToken } : {}),
         }),
       });
       const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
@@ -1381,6 +1392,7 @@ export default function PosPage() {
       setCart([]);
       setNonCashReference('');
       setLoyaltyPointsToRedeem('');
+      setManagerApprovalToken(null);
       await loadRecentTransactions();
       void openReceipt(json.data.id);
     } catch (err) {
@@ -1580,8 +1592,33 @@ export default function PosPage() {
           customerCreditAvailable={customerCreditAvailable}
           loyaltyPointsToRedeem={loyaltyPointsToRedeem}
           onLoyaltyPointsToRedeemChange={setLoyaltyPointsToRedeem}
+          onOpenCustomerPicker={() => setShowCustomerPicker(true)}
+          onRequestCreditApproval={() => setShowCreditApproval(true)}
+          hasCreditApprovalToken={Boolean(managerApprovalToken)}
         />
       </div>
+
+      {showCustomerPicker ? (
+        <CustomerPickerModal
+          onClose={() => setShowCustomerPicker(false)}
+          onSelect={(customer: CustomerListItem) => applyCustomerLookup(customer)}
+        />
+      ) : null}
+
+      {showCreditApproval && customerId && user ? (
+        <CreditApprovalModal
+          customerId={customerId}
+          customerName={customerName.trim() || 'Pelanggan'}
+          creditAmount={total}
+          userRole={user.role}
+          outletId={activeOutletId}
+          onApproved={(token) => {
+            setManagerApprovalToken(token);
+            setSuccess('Persetujuan manager diterima. Lanjutkan checkout tempo.');
+          }}
+          onClose={() => setShowCreditApproval(false)}
+        />
+      ) : null}
 
       <PosUnitPickerModal
         product={unitPickerProduct}
