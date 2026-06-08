@@ -3,6 +3,19 @@ import { authApiJson } from '@/lib/api-client';
 
 const BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/online-orders`;
 
+export interface OnlineOrderDeliveryRef {
+  id: string;
+  deliveryNo: string;
+  status: string;
+  statusLabel: string;
+}
+
+export interface FulfillmentOrderItem {
+  productName: string;
+  quantity: number;
+  sku: string;
+}
+
 export interface FulfillmentOrder {
   id: string;
   orderNo: string;
@@ -14,10 +27,13 @@ export interface FulfillmentOrder {
   fulfillmentType: string;
   fulfillmentTypeLabel: string;
   deliveryAddressSnippet: string | null;
+  deliveryAddressFull: string | null;
   shippingFee: number;
   total: number;
   itemCount: number;
   notes: string | null;
+  items: FulfillmentOrderItem[];
+  delivery: OnlineOrderDeliveryRef | null;
 }
 
 export interface PaginatedOrders {
@@ -34,7 +50,12 @@ export interface OrderDetail {
   customerName: string;
   customerPhone: string;
   customerNotes: string | null;
-  outlet: { id: string; name: string; address: string };
+  deliveryAddress: unknown;
+  deliveryAddressFull: string | null;
+  shippingFee: number;
+  tenantName: string;
+  outlet: { id: string; name: string; address: string; phone: string | null };
+  delivery: OnlineOrderDeliveryRef | null;
   subtotal: number;
   tax: number;
   total: number;
@@ -50,8 +71,33 @@ export interface OrderDetail {
   }>;
 }
 
+export interface ShippingLabelData {
+  orderNo: string;
+  orderDate: string;
+  serviceName: string;
+  deliveryTypeLabel: string;
+  from: {
+    storeName: string;
+    outletName: string;
+    address: string;
+    phone: string | null;
+  };
+  to: {
+    name: string;
+    phone: string;
+    address: string;
+  };
+  delivery: {
+    deliveryNo: string;
+    status: string;
+    statusLabel: string;
+  } | null;
+  items: Array<{ productName: string; quantity: number; sku: string }>;
+  notes: string | null;
+}
+
 export async function fetchFulfillmentQueue(outletId?: string): Promise<FulfillmentOrder[]> {
-  const params = outletId ? `?outletId=${outletId}` : '';
+  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
   const data = await authApiJson<PaginatedOrders>(
     `${BASE}/fulfillment${params}`,
     undefined,
@@ -86,11 +132,20 @@ export async function fetchManagerOrders(params: {
 }
 
 export async function fetchOrderDetail(orderId: string, outletId?: string): Promise<OrderDetail> {
-  const params = outletId ? `?outletId=${outletId}` : '';
+  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
   return authApiJson<OrderDetail>(
     `${BASE}/${orderId}${params}`,
     undefined,
     'Gagal memuat detail pesanan.',
+  );
+}
+
+export async function fetchShippingLabel(orderId: string, outletId?: string): Promise<ShippingLabelData> {
+  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+  return authApiJson<ShippingLabelData>(
+    `${BASE}/${orderId}/shipping-label${params}`,
+    undefined,
+    'Gagal memuat data label pengiriman.',
   );
 }
 
@@ -99,7 +154,7 @@ export async function updateOrderStatus(
   status: 'CONFIRMED' | 'READY' | 'COMPLETED',
   outletId?: string,
 ) {
-  const params = outletId ? `?outletId=${outletId}` : '';
+  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
   return authApiJson(
     `${BASE}/${orderId}/status${params}`,
     {
@@ -108,5 +163,14 @@ export async function updateOrderStatus(
       body: JSON.stringify({ status }),
     },
     'Gagal memperbarui status order.',
+  );
+}
+
+export async function shipOnlineOrder(orderId: string, outletId?: string) {
+  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+  return authApiJson(
+    `${BASE}/${orderId}/ship${params}`,
+    { method: 'POST' },
+    'Gagal menandai order dikirim.',
   );
 }

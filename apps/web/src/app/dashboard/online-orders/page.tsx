@@ -19,9 +19,12 @@ import { mapApiError } from '@/lib/api-client';
 import {
   fetchManagerOrders,
   fetchOrderDetail,
+  fetchShippingLabel,
   type FulfillmentOrder,
   type OrderDetail,
+  type ShippingLabelData,
 } from '@/lib/online-orders-api';
+import { ShippingLabelPrint, printShippingLabel } from '@/components/pos/ShippingLabelPrint';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 
 const STATUS_OPTIONS = [
@@ -48,6 +51,8 @@ export default function DashboardOnlineOrdersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [labelData, setLabelData] = useState<ShippingLabelData | null>(null);
+  const [printingLabel, setPrintingLabel] = useState(false);
 
   const loadOrders = useCallback(
     async (page = 1) => {
@@ -90,6 +95,19 @@ export default function DashboardOnlineOrdersPage() {
       setSelectedId(null);
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function handlePrintLabel(orderId: string) {
+    setPrintingLabel(true);
+    try {
+      const data = await fetchShippingLabel(orderId, selectedOutletId ?? undefined);
+      setLabelData(data);
+      window.setTimeout(() => printShippingLabel(), 150);
+    } catch (err) {
+      setError(mapApiError(err, 'Gagal menyiapkan label pengiriman.'));
+    } finally {
+      setPrintingLabel(false);
     }
   }
 
@@ -233,6 +251,16 @@ export default function DashboardOnlineOrdersPage() {
                 <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
                   {detail.fulfillmentType === 'DELIVERY' ? '🚚 Antar' : '📍 Pickup'} · {detail.outlet.name}
                 </p>
+                {detail.deliveryAddressFull ? (
+                  <p style={{ margin: 0, fontSize: '0.875rem', color: '#475569' }}>
+                    Alamat: {detail.deliveryAddressFull}
+                  </p>
+                ) : null}
+                {detail.delivery ? (
+                  <p style={{ margin: 0, fontSize: '0.875rem' }}>
+                    Pengiriman {detail.delivery.deliveryNo} · {detail.delivery.statusLabel}
+                  </p>
+                ) : null}
                 {detail.customerNotes ? (
                   <p style={{ margin: 0, fontSize: '0.875rem' }}>Catatan: {detail.customerNotes}</p>
                 ) : null}
@@ -244,9 +272,21 @@ export default function DashboardOnlineOrdersPage() {
                   ))}
                 </ul>
                 <p style={{ margin: 0, fontWeight: 700 }}>Total: {formatCurrency(detail.total)}</p>
-                <Link href="/pos/online-orders" style={{ textDecoration: 'none' }}>
-                  <Button type="button">Ke antrian fulfillment</Button>
-                </Link>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <Link href="/pos/online-orders" style={{ textDecoration: 'none' }}>
+                    <Button type="button">Ke antrian fulfillment</Button>
+                  </Link>
+                  {detail.fulfillmentType === 'DELIVERY' ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={printingLabel}
+                      onClick={() => void handlePrintLabel(detail.id)}
+                    >
+                      {printingLabel ? 'Menyiapkan…' : 'Cetak Label'}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
             <div style={{ marginTop: '1rem' }}>
@@ -262,6 +302,12 @@ export default function DashboardOnlineOrdersPage() {
               </Button>
             </div>
           </SectionCard>
+        </div>
+      ) : null}
+
+      {labelData ? (
+        <div aria-hidden style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+          <ShippingLabelPrint data={labelData} />
         </div>
       ) : null}
     </div>

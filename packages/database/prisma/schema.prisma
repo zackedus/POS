@@ -1036,8 +1036,9 @@ model OnlineOrder {
   tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   outlet   Outlet               @relation(fields: [outletId], references: [id], onDelete: Restrict)
   customer Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  items    OnlineOrderItem[]
-  payments OnlineOrderPayment[]
+  items         OnlineOrderItem[]
+  payments      OnlineOrderPayment[]
+  deliveryOrder DeliveryOrder?
 
   @@unique([tenantId, orderNo])
   @@unique([tenantId, clientRequestId])
@@ -1359,6 +1360,7 @@ model DeliveryOrder {
   deliveryNo        String         @map("delivery_no")
   deliveryType      DeliveryType   @default(STORE_DIRECT) @map("delivery_type")
   transactionId     String?        @map("transaction_id")
+  onlineOrderId     String?        @unique @map("online_order_id")
   customerId        String         @map("customer_id")
   addressId         String?        @map("address_id")
   addressLabel      String         @map("address_label")
@@ -1379,6 +1381,7 @@ model DeliveryOrder {
   tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   outlet        Outlet             @relation(fields: [outletId], references: [id], onDelete: Restrict)
   transaction   Transaction?       @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  onlineOrder   OnlineOrder?       @relation(fields: [onlineOrderId], references: [id], onDelete: SetNull)
   customer      Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
   address       CustomerAddress?   @relation(fields: [addressId], references: [id], onDelete: SetNull)
   createdBy     User               @relation("DeliveryOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)

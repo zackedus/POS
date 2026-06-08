@@ -63,9 +63,16 @@ Panduan singkat shift harian toko bahan bangunan.
 
 ## Online Orders (jika aktif)
 
-- Badge pesanan online di header POS
-- `/pos/online-orders` → fulfill pickup/delivery
+- Badge pesanan online di header POS (`Order Online`)
+- Buka **`/pos/online-orders`** — antrian fulfillment kasir (filter per cabang aktif)
+- Alur kasir:
+  1. **Konfirmasi** (order sudah dibayar / PAID)
+  2. **Tandai Disiapkan** (READY) — untuk pengiriman, otomatis masuk antrian `/dashboard/deliveries`
+  3. **Cetak Label** — label DARI/UNTUK siap tempel (A6 / 10×15 cm)
+  4. **Kirim** — tandai pengiriman DIKIRIM
+  5. **Selesai / diserahkan** — pickup di toko atau pengiriman selesai
 - Stok sudah terpotong saat PAID — fulfill tidak deduct ulang
+- Checkout web (`/store/[slug]/checkout`) wajib isi **nama**, **HP**, dan **alamat lengkap** jika pilih antar ke alamat
 
 ## Pengiriman ke Alamat (POS)
 

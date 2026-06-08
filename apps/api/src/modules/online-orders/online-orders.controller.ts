@@ -27,13 +27,28 @@ export class OnlineOrdersController {
     return this.onlineOrdersService.listManagerOrders(user, query);
   }
 
-  @Get(':id')
-  getOrder(
+  @Post('maintenance/expire-pending')
+  @Roles(UserRole.OWNER, UserRole.MANAGER)
+  expirePending(@CurrentUser() user: AuthJwtPayload) {
+    return this.onlineOrdersService.expirePendingOrders(user.tenantId);
+  }
+
+  @Get(':id/shipping-label')
+  getShippingLabel(
     @CurrentUser() user: AuthJwtPayload,
     @Param('id') id: string,
     @Query('outletId') outletId?: string,
   ) {
-    return this.onlineOrdersService.getOrderDetail(user, id, outletId);
+    return this.onlineOrdersService.getShippingLabel(user, id, outletId);
+  }
+
+  @Post(':id/ship')
+  shipOrder(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('id') id: string,
+    @Query('outletId') outletId?: string,
+  ) {
+    return this.onlineOrdersService.shipOrder(user, id, outletId);
   }
 
   @Patch(':id/status')
@@ -46,9 +61,12 @@ export class OnlineOrdersController {
     return this.onlineOrdersService.updateStatus(user, id, dto, outletId);
   }
 
-  @Post('maintenance/expire-pending')
-  @Roles(UserRole.OWNER, UserRole.MANAGER)
-  expirePending(@CurrentUser() user: AuthJwtPayload) {
-    return this.onlineOrdersService.expirePendingOrders(user.tenantId);
+  @Get(':id')
+  getOrder(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('id') id: string,
+    @Query('outletId') outletId?: string,
+  ) {
+    return this.onlineOrdersService.getOrderDetail(user, id, outletId);
   }
 }

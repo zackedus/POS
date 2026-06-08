@@ -33,6 +33,7 @@ export interface DeliveryOrderListItem {
   addressSnippet: string;
   outlet: { id: string; name: string };
   transaction: { id: string; receiptNo: string; total: number } | null;
+  onlineOrder: { id: string; orderNo: string } | null;
   itemCount: number;
 }
 

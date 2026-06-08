@@ -93,6 +93,7 @@ export class DeliveriesService {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           outlet: { select: { id: true, name: true } },
+          onlineOrder: { select: { id: true, orderNo: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
           transaction: {
             select: {
               id: true,
@@ -119,6 +120,19 @@ export class DeliveriesService {
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         outlet: { select: { id: true, name: true } },
+        onlineOrder: {
+          select: {
+            id: true,
+            orderNo: true,
+            items: {
+              select: {
+                productName: true,
+                quantity: true,
+                subtotal: true,
+              },
+            },
+          },
+        },
         transaction: {
           select: {
             id: true,
@@ -265,6 +279,7 @@ export class DeliveriesService {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           outlet: { select: { id: true, name: true } },
+          onlineOrder: { select: { id: true, orderNo: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
           transaction: {
             select: {
               id: true,
@@ -343,6 +358,7 @@ export class DeliveriesService {
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         outlet: { select: { id: true, name: true } },
+        onlineOrder: { select: { id: true, orderNo: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
         transaction: {
           select: {
             id: true,
@@ -457,6 +473,7 @@ export class DeliveriesService {
     addressProvince: string | null;
     customer: { id: string; name: string; phone: string };
     outlet: { id: string; name: string };
+    onlineOrder: { id: string; orderNo: string; items: Array<{ productName: string; quantity: { toString(): string }; subtotal: { toString(): string } }> } | null;
     transaction: {
       id: string;
       receiptNo: string;
@@ -464,6 +481,7 @@ export class DeliveriesService {
       items: Array<{ id: string }>;
     } | null;
   }): DeliveryOrderListItem {
+    const onlineItemCount = order.onlineOrder?.items.length ?? 0;
     return {
       id: order.id,
       deliveryNo: order.deliveryNo,
@@ -490,7 +508,10 @@ export class DeliveriesService {
             total: toIdrInteger(order.transaction.total),
           }
         : null,
-      itemCount: order.transaction?.items.length ?? 0,
+      onlineOrder: order.onlineOrder
+        ? { id: order.onlineOrder.id, orderNo: order.onlineOrder.orderNo }
+        : null,
+      itemCount: order.transaction?.items.length ?? onlineItemCount,
     };
   }
 
@@ -512,6 +533,15 @@ export class DeliveriesService {
     addressPostalCode: string | null;
     customer: { id: string; name: string; phone: string };
     outlet: { id: string; name: string };
+    onlineOrder: {
+      id: string;
+      orderNo: string;
+      items: Array<{
+        productName: string;
+        quantity: { toString(): string };
+        subtotal: { toString(): string };
+      }>;
+    } | null;
     transaction: {
       id: string;
       receiptNo: string;
@@ -532,6 +562,14 @@ export class DeliveriesService {
       changedBy: { fullName: string };
     }>;
   }): DeliveryOrderDetail {
+    const onlineItems =
+      order.onlineOrder?.items.map((item) => ({
+        productName: item.productName,
+        quantity: Number(item.quantity),
+        sellUnitSymbol: null as string | null,
+        subtotal: toIdrInteger(item.subtotal),
+      })) ?? [];
+
     const listItem = this.toListItem({
       ...order,
       transaction: order.transaction
@@ -544,7 +582,7 @@ export class DeliveriesService {
 
     return {
       ...listItem,
-      itemCount: order.transaction?.items.length ?? 0,
+      itemCount: order.transaction?.items.length ?? onlineItems.length,
       address: {
         label: order.addressLabel,
         addressLine1: order.addressLine1,
@@ -560,7 +598,7 @@ export class DeliveriesService {
           quantity: Number(item.quantity),
           sellUnitSymbol: item.sellUnitSymbol,
           subtotal: toIdrInteger(item.subtotal),
-        })) ?? [],
+        })) ?? onlineItems,
       statusHistory: order.statusHistory.map((log) => ({
         id: log.id,
         fromStatus: log.fromStatus,

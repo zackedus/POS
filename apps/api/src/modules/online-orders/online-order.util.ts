@@ -47,7 +47,7 @@ export function orderStatusLabel(status: OnlineOrderStatus | 'EXPIRED'): string 
     case 'CONFIRMED':
       return 'Dikonfirmasi toko';
     case 'READY':
-      return 'Siap diambil';
+      return 'Siap disiapkan';
     case 'COMPLETED':
       return 'Selesai';
     case 'CANCELLED':

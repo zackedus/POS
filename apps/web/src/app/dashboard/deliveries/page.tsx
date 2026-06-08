@@ -26,6 +26,8 @@ import {
   updateDeliveryStatus,
   type PaginatedDeliveries,
 } from '@/lib/deliveries-api';
+import { fetchShippingLabel, type ShippingLabelData } from '@/lib/online-orders-api';
+import { ShippingLabelPrint, printShippingLabel } from '@/components/pos/ShippingLabelPrint';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 
 const STATUS_TABS: Array<{ value: DeliveryStatus | 'ALL'; label: string }> = [
@@ -72,6 +74,8 @@ export default function DashboardDeliveriesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [driverName, setDriverName] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [labelData, setLabelData] = useState<ShippingLabelData | null>(null);
+  const [printingLabel, setPrintingLabel] = useState(false);
 
   const statusFilter = useMemo(() => {
     if (activeTab === 'ALL') return 'MENUNGGU,DISIAPKAN,DIKIRIM';
@@ -163,6 +167,19 @@ export default function DashboardDeliveriesPage() {
     }
   }
 
+  async function handlePrintLabel(onlineOrderId: string) {
+    setPrintingLabel(true);
+    try {
+      const data = await fetchShippingLabel(onlineOrderId, selectedOutletId ?? undefined);
+      setLabelData(data);
+      window.setTimeout(() => printShippingLabel(), 150);
+    } catch (err) {
+      setError(mapApiError(err, 'Gagal menyiapkan label pengiriman.'));
+    } finally {
+      setPrintingLabel(false);
+    }
+  }
+
   const activeOrder = detail ?? orders.find((row) => row.id === selectedId) ?? null;
 
   return (
@@ -244,6 +261,9 @@ export default function DashboardDeliveriesPage() {
                           Struk {order.transaction.receiptNo}
                         </Link>
                       ) : null}
+                      {order.onlineOrder ? (
+                        <Link href={`/dashboard/online-orders`}>Order {order.onlineOrder.orderNo}</Link>
+                      ) : null}
                     </div>
                     <p style={{ margin: 0 }}>{order.addressSnippet}</p>
                     <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>
@@ -322,6 +342,25 @@ export default function DashboardDeliveriesPage() {
                     </Link>{' '}
                     · {formatCurrencyIDR(detail.transaction.total)}
                   </p>
+                ) : null}
+
+                {detail.onlineOrder ? (
+                  <p style={{ margin: 0, fontSize: 13 }}>
+                    Order online:{' '}
+                    <Link href="/dashboard/online-orders">{detail.onlineOrder.orderNo}</Link>
+                  </p>
+                ) : null}
+
+                {detail.deliveryType === 'ONLINE_ORDER' && detail.onlineOrder ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={printingLabel}
+                    onClick={() => void handlePrintLabel(detail.onlineOrder!.id)}
+                    style={{ minHeight: 44 }}
+                  >
+                    {printingLabel ? 'Menyiapkan…' : 'Cetak Label'}
+                  </Button>
                 ) : null}
 
                 {detail.items.length > 0 ? (
@@ -403,6 +442,12 @@ export default function DashboardDeliveriesPage() {
           </SectionCard>
         ) : null}
       </div>
+
+      {labelData ? (
+        <div aria-hidden style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+          <ShippingLabelPrint data={labelData} />
+        </div>
+      ) : null}
     </div>
   );
 }

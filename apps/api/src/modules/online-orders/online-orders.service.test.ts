@@ -24,6 +24,12 @@ function noopRealtime() {
   };
 }
 
+function noopCustomers() {
+  return {
+    findOrCreateByPhone: async () => ({ id: 'cust-1' }),
+  };
+}
+
 test('OnlineOrders: updateStatus rejects invalid transition', async () => {
   const prisma = {
     onlineOrder: {
@@ -42,7 +48,12 @@ test('OnlineOrders: updateStatus rejects invalid transition', async () => {
     },
   };
 
-  const service = new OnlineOrdersService(prisma as never, {} as MidtransService, noopRealtime() as never);
+  const service = new OnlineOrdersService(
+    prisma as never,
+    {} as MidtransService,
+    noopRealtime() as never,
+    noopCustomers() as never,
+  );
   await assert.rejects(
     () =>
       service.updateStatus(cashierUser(), 'order-1', { status: 'COMPLETED' as never }),
@@ -80,7 +91,12 @@ test('OnlineOrders: webhook ignores already paid order', async () => {
     isCancelledNotification: () => false,
   };
 
-  const service = new OnlineOrdersService(prisma as never, midtrans as never, noopRealtime() as never);
+  const service = new OnlineOrdersService(
+    prisma as never,
+    midtrans as never,
+    noopRealtime() as never,
+    noopCustomers() as never,
+  );
   const result = await service.handleMidtransWebhook({
     order_id: 'WEB-20260605-0001',
     transaction_status: 'settlement',
@@ -115,7 +131,12 @@ test('OnlineOrders: listManagerOrders paginates with date filter', async () => {
     },
   };
 
-  const service = new OnlineOrdersService(prisma as never, {} as MidtransService, noopRealtime() as never);
+  const service = new OnlineOrdersService(
+    prisma as never,
+    {} as MidtransService,
+    noopRealtime() as never,
+    noopCustomers() as never,
+  );
   const result = await service.listManagerOrders(
     {
       sub: 'mgr-1',
@@ -178,7 +199,12 @@ test('Edge BL-EC-05: markOrderPaid rejects when stock race depletes inventory (4
     isCancelledNotification: () => false,
   };
 
-  const service = new OnlineOrdersService(prisma as never, midtrans as never, noopRealtime() as never);
+  const service = new OnlineOrdersService(
+    prisma as never,
+    midtrans as never,
+    noopRealtime() as never,
+    noopCustomers() as never,
+  );
   await assert.rejects(
     () =>
       service.handleMidtransWebhook({
