@@ -24,6 +24,7 @@ import {
   StatCard,
   dashboardTokens,
 } from '@/components/dashboard/dashboard-ui';
+import { FinanceReportBreakdownSections } from '@/components/dashboard/reports/FinanceReportBreakdownTable';
 import { FinancialReportPrint } from '@/components/dashboard/reports/FinancialReportPrint';
 import {
   fetchCashFlowReport,
@@ -330,6 +331,7 @@ function ProfitLossPanel({ report }: { report: ProfitLossReport }) {
           </tbody>
         </table>
       </SectionCard>
+      <FinanceReportBreakdownSections sections={report.breakdown.sections} />
     </div>
   );
 }
@@ -370,22 +372,26 @@ function ReceivablesPanel({ report }: { report: ReceivablesFinanceReport }) {
           </tbody>
         </table>
       </SectionCard>
+      <FinanceReportBreakdownSections sections={report.breakdown.sections} />
     </div>
   );
 }
 
 function PayablesPanel({ report }: { report: PayablesFinanceReport }) {
   return (
-    <div style={dashboardTokens.grid}>
-      <StatCard label="Outstanding utang" value={formatCurrencyIDR(report.summary.outstanding)} accent="warning" />
-      <StatCard label="Utang baru" value={formatCurrencyIDR(report.summary.newInPeriod)} />
-      <StatCard label="Pembayaran" value={formatCurrencyIDR(report.summary.paymentsInPeriod)} accent="success" />
-      <StatCard
-        label="Jatuh tempo"
-        value={formatCurrencyIDR(report.summary.overdueAmount)}
-        hint={`${report.summary.overdueCount} faktur`}
-        accent="warning"
-      />
+    <div style={{ display: 'grid', gap: '1rem' }}>
+      <div style={dashboardTokens.grid}>
+        <StatCard label="Outstanding utang" value={formatCurrencyIDR(report.summary.outstanding)} accent="warning" />
+        <StatCard label="Utang baru" value={formatCurrencyIDR(report.summary.newInPeriod)} />
+        <StatCard label="Pembayaran" value={formatCurrencyIDR(report.summary.paymentsInPeriod)} accent="success" />
+        <StatCard
+          label="Jatuh tempo"
+          value={formatCurrencyIDR(report.summary.overdueAmount)}
+          hint={`${report.summary.overdueCount} faktur`}
+          accent="warning"
+        />
+      </div>
+      <FinanceReportBreakdownSections sections={report.breakdown.sections} />
     </div>
   );
 }
@@ -412,6 +418,7 @@ function CashFlowPanel({ report }: { report: CashFlowFinanceReport }) {
           </tbody>
         </table>
       </SectionCard>
+      <FinanceReportBreakdownSections sections={report.breakdown.sections} />
     </div>
   );
 }
@@ -453,6 +460,7 @@ function DailySummaryPanel({ report }: { report: DailySummaryFinanceReport }) {
           </tbody>
         </table>
       </SectionCard>
+      <FinanceReportBreakdownSections sections={report.breakdown.sections} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   formatCurrencyIDR,
   type CashFlowFinanceReport,
   type DailySummaryFinanceReport,
+  type FinanceReportBreakdownSection,
   type FinanceReportMeta,
   type FinanceReportType,
   type PayablesFinanceReport,
@@ -40,6 +41,101 @@ function periodLabel(meta: FinanceReportMeta): string {
   }
   const preset = FINANCE_REPORT_PERIOD_LABELS[meta.period as keyof typeof FINANCE_REPORT_PERIOD_LABELS];
   return preset ? `${preset} · ${meta.dateFrom}${meta.isRange ? ` — ${meta.dateTo}` : ''}` : meta.date;
+}
+
+function resolveBreakdownLabel(label: string): string {
+  return PAYMENT_METHOD_LABELS[label] ?? EXPENSE_CATEGORY_LABELS[label] ?? label;
+}
+
+function PrintBreakdownSection({
+  section,
+  showReference,
+  showDueDate,
+  showStatus,
+  showQuantity,
+  showCount,
+  showPercentage,
+}: {
+  section: FinanceReportBreakdownSection;
+  showReference?: boolean;
+  showDueDate?: boolean;
+  showStatus?: boolean;
+  showQuantity?: boolean;
+  showCount?: boolean;
+  showPercentage?: boolean;
+}) {
+  if (section.rows.length === 0) {
+    return (
+      <div style={{ marginBottom: '1rem', pageBreakInside: 'avoid' }}>
+        <h3 style={{ fontSize: '0.875rem', margin: '0 0 0.35rem' }}>{section.title}</h3>
+        <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
+          {section.emptyMessage ?? 'Tidak ada data pada periode ini'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: '1rem', pageBreakInside: 'avoid' }}>
+      <h3 style={{ fontSize: '0.875rem', margin: '0 0 0.35rem' }}>{section.title}</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+            <th style={{ textAlign: 'left', padding: '0.25rem 0' }}>Keterangan</th>
+            {showReference ? <th style={{ textAlign: 'left', padding: '0.25rem' }}>No. Ref</th> : null}
+            {showQuantity ? <th style={{ textAlign: 'right', padding: '0.25rem' }}>Qty</th> : null}
+            {showCount ? <th style={{ textAlign: 'right', padding: '0.25rem' }}>Jumlah</th> : null}
+            {showDueDate ? <th style={{ textAlign: 'left', padding: '0.25rem' }}>Jatuh Tempo</th> : null}
+            {showStatus ? <th style={{ textAlign: 'left', padding: '0.25rem' }}>Status</th> : null}
+            {showPercentage ? <th style={{ textAlign: 'right', padding: '0.25rem' }}>%</th> : null}
+            <th style={{ textAlign: 'right', padding: '0.25rem 0' }}>Nominal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {section.rows.map((row, index) => (
+            <tr key={`${row.label}-${index}`} style={{ background: index % 2 === 1 ? '#f8fafc' : 'transparent' }}>
+              <td style={{ padding: '0.25rem 0' }}>
+                {resolveBreakdownLabel(row.label)}
+                {row.subLabel ? <div style={{ color: '#64748b' }}>{row.subLabel}</div> : null}
+              </td>
+              {showReference ? <td style={{ padding: '0.25rem' }}>{row.referenceNo ?? '—'}</td> : null}
+              {showQuantity ? <td style={{ textAlign: 'right', padding: '0.25rem' }}>{row.quantity ?? '—'}</td> : null}
+              {showCount ? <td style={{ textAlign: 'right', padding: '0.25rem' }}>{row.count ?? '—'}</td> : null}
+              {showDueDate ? <td style={{ padding: '0.25rem' }}>{row.dueDate ?? '—'}</td> : null}
+              {showStatus ? <td style={{ padding: '0.25rem' }}>{row.status ?? '—'}</td> : null}
+              {showPercentage ? (
+                <td style={{ textAlign: 'right', padding: '0.25rem' }}>
+                  {row.percentage != null ? `${row.percentage}%` : '—'}
+                </td>
+              ) : null}
+              <td style={{ textAlign: 'right', padding: '0.25rem 0' }}>{formatCurrencyIDR(row.amount)}</td>
+            </tr>
+          ))}
+          {section.subtotal != null ? (
+            <tr style={{ borderTop: '1px solid #cbd5e1' }}>
+              <td
+                colSpan={
+                  1 +
+                  (showReference ? 1 : 0) +
+                  (showQuantity ? 1 : 0) +
+                  (showCount ? 1 : 0) +
+                  (showDueDate ? 1 : 0) +
+                  (showStatus ? 1 : 0) +
+                  (showPercentage ? 1 : 0)
+                }
+                style={{ padding: '0.35rem 0', fontWeight: 700 }}
+              >
+                Subtotal
+              </td>
+              <td style={{ textAlign: 'right', padding: '0.35rem 0', fontWeight: 700 }}>
+                {formatCurrencyIDR(section.subtotal)}
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function PrintRow({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
@@ -123,6 +219,18 @@ export function FinancialReportPrint({
         </table>
       ) : null}
 
+      {reportType === 'profit-loss' && profitLoss
+        ? profitLoss.breakdown.sections.map((section) => (
+            <PrintBreakdownSection
+              key={section.title}
+              section={section}
+              showCount
+              showQuantity
+              showPercentage
+            />
+          ))
+        : null}
+
       {reportType === 'receivables' && receivables ? (
         <>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '1rem' }}>
@@ -154,18 +262,37 @@ export function FinancialReportPrint({
               ))}
             </tbody>
           </table>
+          {receivables.breakdown.sections.map((section) => (
+            <PrintBreakdownSection
+              key={section.title}
+              section={section}
+              showReference
+              showDueDate
+            />
+          ))}
         </>
       ) : null}
 
       {reportType === 'payables' && payables ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-          <tbody>
-            <PrintRow label="Outstanding utang" value={formatCurrencyIDR(payables.summary.outstanding)} emphasize />
-            <PrintRow label="Utang baru (periode)" value={formatCurrencyIDR(payables.summary.newInPeriod)} />
-            <PrintRow label="Pembayaran (periode)" value={formatCurrencyIDR(payables.summary.paymentsInPeriod)} />
-            <PrintRow label="Jatuh tempo" value={`${payables.summary.overdueCount} faktur · ${formatCurrencyIDR(payables.summary.overdueAmount)}`} />
-          </tbody>
-        </table>
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '1rem' }}>
+            <tbody>
+              <PrintRow label="Outstanding utang" value={formatCurrencyIDR(payables.summary.outstanding)} emphasize />
+              <PrintRow label="Utang baru (periode)" value={formatCurrencyIDR(payables.summary.newInPeriod)} />
+              <PrintRow label="Pembayaran (periode)" value={formatCurrencyIDR(payables.summary.paymentsInPeriod)} />
+              <PrintRow label="Jatuh tempo" value={`${payables.summary.overdueCount} faktur · ${formatCurrencyIDR(payables.summary.overdueAmount)}`} />
+            </tbody>
+          </table>
+          {payables.breakdown.sections.map((section) => (
+            <PrintBreakdownSection
+              key={section.title}
+              section={section}
+              showReference
+              showDueDate
+              showStatus
+            />
+          ))}
+        </>
       ) : null}
 
       {reportType === 'cash-flow' && cashFlow ? (
@@ -191,6 +318,17 @@ export function FinancialReportPrint({
           </tbody>
         </table>
       ) : null}
+
+      {reportType === 'cash-flow' && cashFlow
+        ? cashFlow.breakdown.sections.map((section) => (
+            <PrintBreakdownSection
+              key={section.title}
+              section={section}
+              showCount
+              showPercentage
+            />
+          ))
+        : null}
 
       {reportType === 'daily-summary' && dailySummary ? (
         <>
@@ -222,11 +360,20 @@ export function FinancialReportPrint({
               ))}
             </tbody>
           </table>
+          {dailySummary.breakdown.sections.map((section) => (
+            <PrintBreakdownSection
+              key={section.title}
+              section={section}
+              showCount
+              showQuantity
+              showPercentage
+            />
+          ))}
         </>
       ) : null}
 
       <footer style={{ marginTop: '1.5rem', fontSize: '0.7rem', color: '#94a3b8', textAlign: 'center' }}>
-        Dicetak {new Date(meta.generatedAt).toLocaleString('id-ID')} · Zona waktu {meta.timezone}
+        Barokah Core POS · Dicetak {new Date(meta.generatedAt).toLocaleString('id-ID')} · Zona waktu {meta.timezone}
       </footer>
     </article>
   );

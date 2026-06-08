@@ -61,13 +61,29 @@ test('FinanceReportsService: profit-loss calculates net profit', async () => {
     },
     transactionItem: {
       findMany: async () => [
-        { quantity: '2', product: { costPrice: '300000' } },
-        { quantity: '1', product: { costPrice: '100000' } },
+        {
+          quantity: '2',
+          productName: 'Cat Tembok 20L',
+          subtotal: '600000',
+          product: { costPrice: '300000', category: { name: 'Cat & Finishing' } },
+        },
+        {
+          quantity: '1',
+          productName: 'Kuas 4"',
+          subtotal: '50000',
+          product: { costPrice: '100000', category: null },
+        },
       ],
     },
     expense: {
       aggregate: async () => ({ _sum: { amount: '150000' } }),
       groupBy: async () => [{ category: 'OPERATIONAL', _sum: { amount: '150000' } }],
+    },
+    payment: {
+      groupBy: async () => [
+        { method: PaymentMethod.CASH, _sum: { amount: '700000' }, _count: { id: 3 } },
+        { method: PaymentMethod.CREDIT, _sum: { amount: '300000' }, _count: { id: 2 } },
+      ],
     },
   };
 
@@ -87,6 +103,10 @@ test('FinanceReportsService: profit-loss calculates net profit', async () => {
   assert.equal(result.netProfit, 50_000);
   assert.equal(result.meta.period, 'month');
   assert.equal(result.meta.outletId, 'outlet-1');
+  assert.ok(result.breakdown.sections.length >= 4);
+  assert.equal(result.breakdown.sections[0]?.title, 'Rincian Penjualan per Metode Bayar');
+  assert.equal(result.breakdown.sections[0]?.rows.length, 2);
+  assert.equal(result.breakdown.sections[1]?.rows[0]?.label, 'Cat & Finishing');
 });
 
 test('FinanceReportsService: profit-loss tenant-wide without outletId', async () => {
@@ -102,6 +122,7 @@ test('FinanceReportsService: profit-loss tenant-wide without outletId', async ()
       aggregate: async () => ({ _sum: { amount: '50000' } }),
       groupBy: async () => [{ category: 'OTHER', _sum: { amount: '50000' } }],
     },
+    payment: { groupBy: async () => [] },
   };
 
   const service = new FinanceReportsService(prisma as never);
@@ -120,12 +141,20 @@ test('FinanceReportsService: cash-flow aggregates in and out', async () => {
     },
     receivablePayment: {
       aggregate: async () => ({ _sum: { amount: '200000' } }),
+      groupBy: async () => [{ method: PaymentMethod.CASH, _sum: { amount: '200000' }, _count: { id: 1 } }],
     },
     payablePayment: {
       aggregate: async () => ({ _sum: { amount: '100000' } }),
     },
     expense: {
       aggregate: async () => ({ _sum: { amount: '50000' } }),
+      groupBy: async () => [{ category: 'OPERATIONAL', _sum: { amount: '50000' } }],
+    },
+    depositTransaction: {
+      aggregate: async () => ({ _sum: { amount: '50000' }, _count: { id: 1 } }),
+    },
+    transactionAdjustment: {
+      aggregate: async () => ({ _sum: { amount: '25000' } }),
     },
   };
 
@@ -138,12 +167,13 @@ test('FinanceReportsService: cash-flow aggregates in and out', async () => {
 
   assert.equal(result.cashIn.cashSales, 400_000);
   assert.equal(result.cashIn.receivableCollections, 200_000);
-  assert.equal(result.cashIn.total, 600_000);
+  assert.equal(result.cashIn.total, 650_000);
   assert.equal(result.cashOut.payablePayments, 100_000);
   assert.equal(result.cashOut.operatingExpenses, 50_000);
-  assert.equal(result.cashOut.total, 150_000);
-  assert.equal(result.netCashFlow, 450_000);
+  assert.equal(result.cashOut.total, 175_000);
+  assert.equal(result.netCashFlow, 475_000);
   assert.equal(result.meta.period, 'custom');
+  assert.ok(result.breakdown.sections.some((section) => section.title === 'Rincian Kas Masuk'));
 });
 
 test('FinanceReportsService: daily-summary includes payment mix', async () => {
@@ -163,6 +193,17 @@ test('FinanceReportsService: daily-summary includes payment mix', async () => {
     },
     receivable: { findMany: async () => [{ amount: '100000' }] },
     payable: { findMany: async () => [] },
+    transactionItem: {
+      groupBy: async () => [
+        {
+          productName: 'Semen 40kg',
+          _sum: { quantity: '10', subtotal: '150000' },
+          _count: { id: 5 },
+        },
+      ],
+    },
+    expense: { findMany: async () => [] },
+    shift: { findMany: async () => [] },
   };
 
   const service = new FinanceReportsService(prisma as never);
@@ -175,6 +216,11 @@ test('FinanceReportsService: daily-summary includes payment mix', async () => {
   assert.equal(result.newReceivables.count, 1);
   assert.equal(result.newReceivables.amount, 100_000);
   assert.equal(result.paymentMix.length, 2);
+  assert.ok(result.breakdown.sections.some((section) => section.title === 'Top 10 Produk Terjual'));
+  assert.equal(
+    result.breakdown.sections.find((section) => section.title === 'Top 10 Produk Terjual')?.rows[0]?.label,
+    'Semen 40kg',
+  );
 });
 
 test('FinanceReportsService: rejects unknown outlet', async () => {

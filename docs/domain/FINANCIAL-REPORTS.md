@@ -69,12 +69,58 @@ Laba bersih       = Laba kotor − Beban operasional
 
 Tidak termasuk: transfer non-tunai penjualan, deposit apply, koreksi shift.
 
+## Struktur Breakdown (Rincian)
+
+Setiap endpoint mengembalikan objek `breakdown` berdampingan dengan ringkasan (`summary` / total):
+
+```typescript
+{
+  // ... ringkasan existing ...
+  breakdown: {
+    sections: [
+      {
+        title: string,           // mis. "Rincian Penjualan per Metode Bayar"
+        rows: [
+          {
+            label: string,       // kategori / metode / nama pelanggan / produk
+            subLabel?: string,
+            referenceNo?: string, // no transaksi / PO
+            quantity?: number,
+            count?: number,
+            amount: number,      // IDR integer
+            percentage?: number,
+            dueDate?: string,
+            status?: string,
+          },
+        ],
+        subtotal?: number,
+        emptyMessage?: string,
+      },
+    ],
+  },
+}
+```
+
+### Rincian per Laporan
+
+| Laporan | Section breakdown |
+|---------|-------------------|
+| **Laba Rugi** | Penjualan per metode bayar · HPP per kategori produk · Top 10 produk (HPP) · Beban per kategori |
+| **Piutang** | Daftar faktur per bucket aging (nama pelanggan, no transaksi, jumlah, jatuh tempo) |
+| **Utang** | Daftar utang per supplier/PO · Subtotal per status (OPEN, PARTIAL, OVERDUE) |
+| **Arus Kas** | Kas masuk (tunai, pelunasan, top-up deposit) · Pelunasan per metode · Pengeluaran per kategori · Kas keluar (utang, beban, refund) |
+| **Ringkasan Harian** | Transaksi per metode · Top 10 produk · Ringkasan shift · Pengeluaran hari ini |
+
+Breakdown selalu disertakan (tidak perlu query param `?detail=true`). Agregasi dilakukan di SQL/Prisma `groupBy`, bukan N+1.
+
 ## UI
 
 - Route: `/dashboard/reports/finance`
 - Tab: Laba Rugi | Piutang | Utang | Arus Kas | Ringkasan
-- Cetak: `window.print()` + CSS `@media print`
+- Layout: kartu ringkasan di atas + **tabel rincian** di bawah (selalu tampil, bukan collapse)
+- Cetak: `window.print()` + CSS `@media print` — semua section breakdown ikut tercetak
 - Export PDF: browser print-to-PDF (MVP)
+- Footer cetak: **Barokah Core POS**
 
 ## RBAC
 

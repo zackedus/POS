@@ -285,7 +285,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **Overdue utang:** banner di finance hub + filter `?status=OVERDUE` di `/dashboard/finance?tab=utang`
 - [ ] **Cross-link AR:** piutang → profil pelanggan, statement, transaksi kasir
 - [ ] **Cross-link AP:** utang → PO detail, supplier; PO detail → section utang + tombol catat utang
-- [ ] **Laporan Keuangan:** `/dashboard/reports/finance` — Laba Rugi, Piutang, Utang, Arus Kas, Ringkasan Harian; periode harian/mingguan/bulanan/tahunan + custom; **Cetak/PDF**
+- [ ] **Laporan Keuangan:** `/dashboard/reports/finance` — Laba Rugi, Piutang, Utang, Arus Kas, Ringkasan Harian; periode harian/mingguan/bulanan/tahunan + custom; **tabel rincian** (metode bayar, HPP kategori, aging per pelanggan, daftar utang, arus kas detail, top produk/shift/pengeluaran harian); **Cetak/PDF** termasuk breakdown
 - [ ] **Auto utang PO:** penerimaan barang otomatis buat payable; fallback manual dari PO detail
 - [ ] **Payment mix:** komposisi pembayaran harian include Tempo (CREDIT) dan Deposit
 - [ ] **POS credit UX:** limit kredit, piutang, deposit tampil jelas; tempo diblokir jika over limit

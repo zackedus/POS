@@ -11,6 +11,7 @@ const fetchDashboardMock = vi.fn();
 const exportDailyReportMock = vi.fn();
 const fetchStockReportMock = vi.fn();
 const fetchFulfillmentQueueMock = vi.fn();
+const fetchFinanceSummaryMock = vi.fn();
 
 vi.mock('@/lib/outlet-selection-state', () => ({
   useOutletSelection: () => ({
@@ -23,6 +24,11 @@ vi.mock('@/lib/outlet-selection-state', () => ({
 
 vi.mock('@/lib/online-orders-api', () => ({
   fetchFulfillmentQueue: (...args: unknown[]) => fetchFulfillmentQueueMock(...args),
+}));
+
+vi.mock('@/lib/finance-api', () => ({
+  fetchFinanceSummary: (...args: unknown[]) => fetchFinanceSummaryMock(...args),
+  sendOverdueReminders: vi.fn().mockResolvedValue({ sent: 0 }),
 }));
 
 vi.mock('@/lib/reports', async () => {
@@ -78,6 +84,20 @@ describe('DashboardHomePage', () => {
     exportDailyReportMock.mockReset();
     fetchStockReportMock.mockReset();
     fetchFulfillmentQueueMock.mockReset();
+    fetchFinanceSummaryMock.mockReset();
+    fetchFinanceSummaryMock.mockResolvedValue({
+      receivablesOutstanding: 0,
+      receivablesOverdue: 0,
+      receivablesOverdueAmount: 0,
+      payablesOutstanding: 0,
+      payablesOverdue: 0,
+      payablesOverdueAmount: 0,
+      depositsOutstanding: 0,
+      cashToday: 0,
+      netPosition: 0,
+      date: todayIsoDate(),
+      outletId: 'out-1',
+    });
     fetchStockReportMock.mockResolvedValue(null);
     exportDailyReportMock.mockResolvedValue({
       status: 'unavailable',
