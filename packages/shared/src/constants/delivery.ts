@@ -1,4 +1,9 @@
-import type { DeliveryStatus } from '../types/delivery-types';
+import type { DeliveryStatus, DeliveryType } from '../types/delivery-types';
+
+export const DELIVERY_TYPE_LABELS: Record<DeliveryType, string> = {
+  STORE_DIRECT: 'Toko Langsung',
+  ONLINE_ORDER: 'Order Online',
+};
 
 export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
   MENUNGGU: 'Menunggu',

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsISO8601,
   IsOptional,
   IsString,
@@ -59,6 +60,10 @@ export class CreateDeliveryOrderDto {
   @ValidateNested()
   @Type(() => DeliveryAddressSnapshotDto)
   addressSnapshot?: DeliveryAddressSnapshotDto;
+
+  @IsOptional()
+  @IsIn(['STORE_DIRECT', 'ONLINE_ORDER'], { message: 'Tipe pengiriman tidak valid' })
+  deliveryType?: 'STORE_DIRECT' | 'ONLINE_ORDER';
 
   @IsOptional()
   @IsUUID('4', { message: 'Outlet ID tidak valid' })

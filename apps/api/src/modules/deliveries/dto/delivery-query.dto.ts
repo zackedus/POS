@@ -12,6 +12,10 @@ export class DeliveryListQueryDto {
 
   @IsOptional()
   @IsString()
+  deliveryType?: string;
+
+  @IsOptional()
+  @IsString()
   dateFrom?: string;
 
   @IsOptional()

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { CustomerAddressView } from '@barokah/shared';
 import { CUSTOMER_ADDRESS_LABELS } from '@barokah/shared';
 import { Button, Input } from '@barokah/ui';
-import { fetchCustomerAddresses, type CustomerListItem } from '@/lib/customers-api';
+import { fetchCustomerAddresses } from '@/lib/customers-api';
 
 export type DeliverySelection =
   | { mode: 'saved'; addressId: string; snapshot: CustomerAddressView }
@@ -19,6 +19,7 @@ interface PosDeliverySelectorProps {
   onSelectionChange: (selection: DeliverySelection | null) => void;
   notes: string;
   onNotesChange: (notes: string) => void;
+  isOnline?: boolean;
 }
 
 const emptyManual = (): CustomerAddressView => ({
@@ -34,6 +35,31 @@ const emptyManual = (): CustomerAddressView => ({
   updatedAt: new Date(0).toISOString(),
 });
 
+function formatAddressPreview(snapshot: CustomerAddressView): string {
+  const parts = [snapshot.addressLine1];
+  if (snapshot.addressLine2?.trim()) parts.push(snapshot.addressLine2.trim());
+  parts.push(snapshot.city);
+  if (snapshot.province?.trim()) parts.push(snapshot.province.trim());
+  return parts.join(', ');
+}
+
+function toggleStyle(active: boolean) {
+  return {
+    minHeight: 44,
+    flex: 1,
+    padding: '0.5rem 0.75rem',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderStyle: 'solid' as const,
+    borderColor: active ? '#0284c7' : '#e2e8f0',
+    background: active ? '#e0f2fe' : '#fff',
+    color: active ? '#0369a1' : '#64748b',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontSize: '0.8125rem',
+  };
+}
+
 export function PosDeliverySelector({
   enabled,
   onEnabledChange,
@@ -43,6 +69,7 @@ export function PosDeliverySelector({
   onSelectionChange,
   notes,
   onNotesChange,
+  isOnline = true,
 }: PosDeliverySelectorProps) {
   const [addresses, setAddresses] = useState<CustomerAddressView[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
@@ -52,7 +79,9 @@ export function PosDeliverySelector({
   useEffect(() => {
     if (!enabled || !customerId) {
       setAddresses([]);
-      onSelectionChange(null);
+      if (!enabled) {
+        onSelectionChange(null);
+      }
       return;
     }
 
@@ -63,7 +92,7 @@ export function PosDeliverySelector({
         if (cancelled) return;
         setAddresses(items);
         const defaultAddress = items.find((item) => item.isDefault) ?? items[0] ?? null;
-        if (defaultAddress && !useManual) {
+        if (defaultAddress && !useManual && !selection) {
           onSelectionChange({ mode: 'saved', addressId: defaultAddress.id, snapshot: defaultAddress });
         }
       })
@@ -86,30 +115,34 @@ export function PosDeliverySelector({
   }
 
   return (
-    <div
-      style={{
-        border: '1px solid #cbd5e1',
-        borderRadius: 10,
-        padding: 12,
-        background: enabled ? '#f0f9ff' : '#f8fafc',
-      }}
-    >
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => {
-            onEnabledChange(event.target.checked);
-            if (!event.target.checked) {
-              onSelectionChange(null);
-            }
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8 }} role="group" aria-label="Tipe pengiriman">
+        <button
+          type="button"
+          aria-pressed={!enabled}
+          onClick={() => onEnabledChange(false)}
+          style={toggleStyle(!enabled)}
+        >
+          Ambil di toko
+        </button>
+        <button
+          type="button"
+          aria-pressed={enabled}
+          disabled={!isOnline}
+          title={!isOnline ? 'Pengiriman tidak tersedia saat offline' : undefined}
+          onClick={() => onEnabledChange(true)}
+          style={{
+            ...toggleStyle(enabled),
+            opacity: isOnline ? 1 : 0.5,
+            cursor: isOnline ? 'pointer' : 'not-allowed',
           }}
-        />
-        Antar ke alamat
-      </label>
+        >
+          Kirim ke alamat
+        </button>
+      </div>
 
       {enabled ? (
-        <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+        <div style={{ display: 'grid', gap: 8 }}>
           {!customerId ? (
             <p style={{ margin: 0, color: '#b45309', fontSize: 13 }}>
               Pilih pelanggan terlebih dahulu untuk pengiriman.
@@ -117,7 +150,7 @@ export function PosDeliverySelector({
           ) : (
             <>
               <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
-                Pelanggan: <strong>{customerName ?? customerId.slice(0, 8)}</strong>
+                Ke: <strong>{customerName ?? customerId.slice(0, 8)}</strong>
               </p>
 
               {loadingAddresses ? (
@@ -133,7 +166,14 @@ export function PosDeliverySelector({
                           onSelectionChange({ mode: 'saved', addressId: address.id, snapshot: address });
                         }
                       }}
-                      style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid #cbd5e1' }}
+                      aria-label="Pilih alamat tersimpan"
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1',
+                        minHeight: 44,
+                      }}
                     >
                       {addresses.map((address) => (
                         <option key={address.id} value={address.id}>
@@ -160,6 +200,7 @@ export function PosDeliverySelector({
                         });
                       }
                     }}
+                    style={{ minHeight: 44 }}
                   >
                     {useManual ? 'Pakai alamat tersimpan' : 'Alamat sekali pakai'}
                   </Button>
@@ -169,7 +210,7 @@ export function PosDeliverySelector({
                       <select
                         value={manual.label}
                         onChange={(event) => handleManualField('label', event.target.value)}
-                        style={{ padding: 8, borderRadius: 8, border: '1px solid #cbd5e1' }}
+                        style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #cbd5e1', minHeight: 44 }}
                       >
                         {CUSTOMER_ADDRESS_LABELS.map((label) => (
                           <option key={label} value={label}>
@@ -204,6 +245,22 @@ export function PosDeliverySelector({
                 </>
               )}
 
+              {selection && isDeliverySelectionValid(selection) ? (
+                <div
+                  style={{
+                    padding: '0.55rem 0.65rem',
+                    borderRadius: 8,
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    fontSize: '0.8125rem',
+                    color: '#0c4a6e',
+                  }}
+                >
+                  <strong>Preview alamat:</strong>{' '}
+                  {selection.snapshot.label} — {formatAddressPreview(selection.snapshot)}
+                </div>
+              ) : null}
+
               <Input
                 placeholder="Catatan pengiriman (proyek, lantai 2, dll.)"
                 value={notes}
@@ -222,5 +279,3 @@ export function isDeliverySelectionValid(selection: DeliverySelection | null): b
   const { snapshot } = selection;
   return snapshot.addressLine1.trim().length >= 3 && snapshot.city.trim().length >= 2;
 }
-
-export type { CustomerListItem };

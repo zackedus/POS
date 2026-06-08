@@ -17,15 +17,18 @@ Panduan singkat shift harian toko bahan bangunan.
 1. **Cari produk:** ketik nama/SKU/barcode atau tap grid kategori
 2. **Multi satuan:** pilih dus/kg/m di dropdown keranjang jika produk punya beberapa satuan jual
 3. **Qty:** tombol ± atau ketik langsung
-4. **Pelanggan (opsional):** pilih dari daftar, ketik nama + HP `08…`, atau scan QR `MBR-…`
-   - **Pilih dari daftar:** tombol di panel pelanggan — search nama/HP/kode member
-   - **Scan kartu member:** ketik/scan QR `MBR-…` di field scan member
-   - Panel info menampilkan kode member, limit kredit, kredit tersedia, piutang, deposit, poin
+4. **Checkout panel** (3 kartu berurutan di sidebar):
+   - **Pelanggan:** badge *Walk-in* atau *Terdaftar* — **Pilih Pelanggan**, scan `MBR-…`, atau ketik nama/HP; tombol **Walk-in** untuk reset
+   - Info kredit tersedia, deposit, piutang tampil otomatis saat pelanggan terhubung
+   - **Pengiriman:** *Ambil di toko* (default) atau *Kirim ke alamat* (perlu pelanggan + online)
+   - **Pembayaran:** Tunai / Transfer / QRIS / Tempo / Deposit / Split — field kontekstual hanya muncul sesuai metode
+   - Validasi tampil **sebelum** checkout (pelanggan wajib untuk tempo/deposit, alamat wajib untuk kirim)
 5. **Promo:** pilih otomatis atau promo spesifik di dropdown
 6. **Tukar poin:** jika pelanggan terdaftar dan punya saldo, isi jumlah poin (maks 50% total)
 7. **Total:** periksa subtotal, diskon, PPN (jika aktif), total akhir
-8. **Bayar:** Tunai / Transfer / QRIS / Split / Tempo / Deposit
+8. **Bayar & checkout** — tempo/deposit butuh pelanggan; jatuh tempo bisa diubah di panel pembayaran
    - **Tempo over limit:** diblokir — klik **Minta Persetujuan Manager** (manager email+password)
+   - **Deposit kurang:** tombol *Deposit + Tempo* otomatis muncul jika kredit mencukupi
 9. **Struk:** preview digital; cetak PDF atau thermal (jika terhubung)
 
 ## Hold & Recall
@@ -66,13 +69,13 @@ Panduan singkat shift harian toko bahan bangunan.
 
 ## Pengiriman ke Alamat (POS)
 
-1. Hubungkan **pelanggan** (daftar member / scan QR `MBR-…`)
-2. Centang **Antar ke alamat** di panel keranjang
-3. Pilih alamat tersimpan CRM atau isi **alamat sekali pakai** (proyek/lantai)
-4. Checkout seperti biasa — setelah sukses muncul *"Masuk antrian pengiriman DLV-…"*
-5. Manager/owner kelola antrian di **Dashboard → Pengiriman** (`/dashboard/deliveries`)
+1. Di kartu **Pelanggan**, pilih pelanggan terdaftar
+2. Di kartu **Pengiriman**, tap **Kirim ke alamat**
+3. Pilih alamat CRM atau **alamat sekali pakai** + catatan
+4. Checkout di kartu **Pembayaran** — sukses menampilkan *"Masuk antrian pengiriman DLV-…"*
+5. Kelola antrian di **Dashboard → Pengiriman** (`/dashboard/deliveries`)
 
-> Pengiriman ke alamat **tidak tersedia** saat mode offline.
+> Pengiriman **tidak tersedia** saat offline atau walk-in tanpa pelanggan.
 
 ## Tips
 

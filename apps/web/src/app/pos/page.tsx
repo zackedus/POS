@@ -57,6 +57,10 @@ import type { PromoRuleView } from '@/lib/promotions-api';
 import { mapRecallItemsToCart } from '@/lib/recall-cart';
 import { evaluateAddToCartStock, resolveStockErrorMessage } from '@/lib/stock-errors';
 import { isOutOfStock } from '@/lib/pos-stock-display';
+import type { DeliverySelection } from '@/components/pos/PosDeliverySelector';
+import { isDeliverySelectionValid } from '@/components/pos/PosDeliverySelector';
+import { createDeliveryOrder } from '@/lib/deliveries-api';
+import { buildDeliveryOrderPayload } from '@/lib/pos-checkout-delivery';
 
 function buildOutletScope(outletId: string | null): { outletId?: string } {
   return outletId ? { outletId } : {};
@@ -209,6 +213,9 @@ export default function PosPage() {
   const [showReceivablePayment, setShowReceivablePayment] = useState(false);
   const [defaultCreditTermsDays, setDefaultCreditTermsDays] = useState(30);
   const [creditTermsDays, setCreditTermsDays] = useState(30);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
+  const [deliverySelection, setDeliverySelection] = useState<DeliverySelection | null>(null);
+  const [deliveryNotes, setDeliveryNotes] = useState('');
 
   useEffect(() => {
     void fetchTenantSettings()
@@ -250,6 +257,12 @@ export default function PosPage() {
     setCustomerCreditAvailable(customer.creditAvailable ?? null);
   }
 
+  function resetDeliveryState() {
+    setDeliveryEnabled(false);
+    setDeliverySelection(null);
+    setDeliveryNotes('');
+  }
+
   function clearCustomerLookup() {
     setCustomerId(null);
     setCustomerMemberCode('');
@@ -259,6 +272,65 @@ export default function PosPage() {
     setCustomerCreditLimit(null);
     setCustomerCreditAvailable(null);
     setLoyaltyPointsToRedeem('');
+    resetDeliveryState();
+    if (paymentMode === 'CREDIT' || paymentMode === 'DEPOSIT') {
+      setPaymentMode('CASH');
+    }
+  }
+
+  function handleClearCustomer() {
+    setCustomerName('');
+    setCustomerPhone('');
+    setMemberScanInput('');
+    clearCustomerLookup();
+  }
+
+  function validateDeliveryBeforeCheckout(): string | null {
+    if (!deliveryEnabled) {
+      return null;
+    }
+    if (!isOnline) {
+      return 'Pengiriman tidak tersedia saat offline.';
+    }
+    if (!customerId) {
+      return 'Pilih pelanggan terlebih dahulu untuk pengiriman.';
+    }
+    if (!isDeliverySelectionValid(deliverySelection)) {
+      return 'Lengkapi alamat pengiriman sebelum checkout.';
+    }
+    return null;
+  }
+
+  async function createDeliveryAfterCheckout(transactionId: string): Promise<string | null> {
+    if (!deliveryEnabled || !customerId || !deliverySelection || !isDeliverySelectionValid(deliverySelection)) {
+      return null;
+    }
+    try {
+      const order = await createDeliveryOrder(
+        buildDeliveryOrderPayload({
+          transactionId,
+          customerId,
+          outletId: activeOutletId,
+          selection: deliverySelection,
+          notes: deliveryNotes,
+        }),
+      );
+      return order.deliveryNo;
+    } catch {
+      return null;
+    }
+  }
+
+  async function appendDeliverySuccessMessage(baseMessage: string, transactionId: string): Promise<string> {
+    const deliveryNo = await createDeliveryAfterCheckout(transactionId);
+    resetDeliveryState();
+    if (deliveryNo) {
+      return `${baseMessage} Masuk antrian pengiriman ${deliveryNo} — lihat di Dashboard → Pengiriman.`;
+    }
+    if (deliveryEnabled) {
+      return `${baseMessage} (Pengiriman gagal dibuat — buat manual di Dashboard → Pengiriman.)`;
+    }
+    return baseMessage;
   }
 
   useEffect(() => {
@@ -275,12 +347,12 @@ export default function PosPage() {
         if (cancelled) return;
         if (customer) {
           applyCustomerLookup(customer);
-        } else if (!memberScanInput.trim()) {
+        } else if (!memberScanInput.trim() && !customerId) {
           clearCustomerLookup();
         }
       })
       .catch(() => {
-        if (!cancelled && !memberScanInput.trim()) {
+        if (!cancelled && !memberScanInput.trim() && !customerId) {
           clearCustomerLookup();
         }
       });
@@ -632,7 +704,7 @@ export default function PosPage() {
 
   useEffect(() => {
     setManagerApprovalToken(null);
-  }, [customerId, total, cart.length]);
+  }, [customerId]);
 
   const loyaltyPointsPreview = useMemo(() => {
     const name = customerName.trim();
@@ -1044,6 +1116,12 @@ export default function PosPage() {
       return;
     }
 
+    const deliveryError = validateDeliveryBeforeCheckout();
+    if (deliveryError) {
+      setError(deliveryError);
+      return;
+    }
+
     const cartItems = mapCartItemsForCheckout(cart);
     const cashReceivedValue = parseCurrencyInput(cashReceived);
 
@@ -1096,11 +1174,10 @@ export default function PosPage() {
         );
       }
 
-      setSuccess(
-        `Checkout berhasil (${json.data.receiptNo}). Kembalian: ${formatCurrencyIDR(json.data.change)}.${
-          json.data.hasNegativeMargin ? ' Perhatian: ada item dengan margin negatif.' : ''
-        }`,
-      );
+      const baseSuccess = `Checkout berhasil (${json.data.receiptNo}). Kembalian: ${formatCurrencyIDR(json.data.change)}.${
+        json.data.hasNegativeMargin ? ' Perhatian: ada item dengan margin negatif.' : ''
+      }`;
+      setSuccess(await appendDeliverySuccessMessage(baseSuccess, json.data.id));
       setCart([]);
       setCashReceived('');
       setLoyaltyPointsToRedeem('');
@@ -1252,6 +1329,12 @@ export default function PosPage() {
     transferAmount: number;
     transferReference?: string;
   }) {
+    const deliveryError = validateDeliveryBeforeCheckout();
+    if (deliveryError) {
+      setError(deliveryError);
+      return;
+    }
+
     const cartItems = mapCartItemsForCheckout(cart);
     const payments = [
       { method: 'CASH', amount: splitData.cashAmount },
@@ -1308,9 +1391,8 @@ export default function PosPage() {
         );
       }
 
-      setSuccess(
-        `Checkout split berhasil (${json.data.receiptNo}). Cash: ${formatCurrencyIDR(json.data.payments.CASH ?? 0)}, Transfer: ${formatCurrencyIDR(json.data.payments.TRANSFER ?? 0)}.`,
-      );
+      const baseSuccess = `Checkout split berhasil (${json.data.receiptNo}). Cash: ${formatCurrencyIDR(json.data.payments.CASH ?? 0)}, Transfer: ${formatCurrencyIDR(json.data.payments.TRANSFER ?? 0)}.`;
+      setSuccess(await appendDeliverySuccessMessage(baseSuccess, json.data.id));
       setCart([]);
       setCashReceived('');
       setLoyaltyPointsToRedeem('');
@@ -1349,9 +1431,10 @@ export default function PosPage() {
   }
 
   const handleQrisPaid = useCallback(
-    ({ transactionId, receiptNo, total: paidTotal }: { transactionId: string; receiptNo: string; total: number }) => {
+    async ({ transactionId, receiptNo, total: paidTotal }: { transactionId: string; receiptNo: string; total: number }) => {
       setQrisSession(null);
-      setSuccess(`Checkout QRIS berhasil (${receiptNo}). Total: ${formatCurrencyIDR(paidTotal)}.`);
+      const baseSuccess = `Checkout QRIS berhasil (${receiptNo}). Total: ${formatCurrencyIDR(paidTotal)}.`;
+      setSuccess(await appendDeliverySuccessMessage(baseSuccess, transactionId));
       setCart([]);
       setNonCashReference('');
       setLoyaltyPointsToRedeem('');
@@ -1361,7 +1444,7 @@ export default function PosPage() {
       }
       void openReceipt(transactionId);
     },
-    [activeOutletId, customerId],
+    [activeOutletId, customerId, deliveryEnabled, deliverySelection, deliveryNotes, isOnline],
   );
 
   async function submitFinanceCheckout(
@@ -1373,6 +1456,12 @@ export default function PosPage() {
     }
     if (checkoutBlockedByOutlet) {
       setError(checkoutOutletHint);
+      return;
+    }
+
+    const deliveryError = validateDeliveryBeforeCheckout();
+    if (deliveryError) {
+      setError(deliveryError);
       return;
     }
 
@@ -1423,7 +1512,8 @@ export default function PosPage() {
         );
       }
 
-      setSuccess(`${successLabel} berhasil (${json.data.receiptNo}). Total: ${formatCurrencyIDR(json.data.total)}.`);
+      const baseSuccess = `${successLabel} berhasil (${json.data.receiptNo}). Total: ${formatCurrencyIDR(json.data.total)}.`;
+      setSuccess(await appendDeliverySuccessMessage(baseSuccess, json.data.id));
       setCart([]);
       setNonCashReference('');
       setLoyaltyPointsToRedeem('');
@@ -1707,6 +1797,13 @@ export default function PosPage() {
             setPendingFinancePaymentMode(null);
             setShowCustomerPicker(true);
           }}
+          onClearCustomer={handleClearCustomer}
+          deliveryEnabled={deliveryEnabled}
+          onDeliveryEnabledChange={setDeliveryEnabled}
+          deliverySelection={deliverySelection}
+          onDeliverySelectionChange={setDeliverySelection}
+          deliveryNotes={deliveryNotes}
+          onDeliveryNotesChange={setDeliveryNotes}
           onRequestCreditApproval={() => setShowCreditApproval(true)}
           hasCreditApprovalToken={Boolean(managerApprovalToken)}
           onCheckoutDepositPlusCredit={() => void handleCheckoutDepositPlusCredit()}

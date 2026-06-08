@@ -1,24 +1,15 @@
 'use client';
 
-import Link from 'next/link';
-import { formatCurrencyIDR, parseQuantityInput, CREDIT_TERMS_DAYS_OPTIONS } from '@barokah/shared';
-import { Button, CurrencyInput, QuantityInput } from '@barokah/ui';
+import { formatCurrencyIDR, parseQuantityInput } from '@barokah/shared';
+import { Button, QuantityInput } from '@barokah/ui';
 import type { CartMarginWarning, CartStockIssue } from '@/lib/cart-margin';
 import { evaluateCartLineStock } from '@/lib/pos-stock-display';
 import type { RecentTransactionSummary, ReceiptResponse } from '@/lib/transactions';
 import { ReceiptPanel } from '@/components/pos/ReceiptPanel';
 import { PosAccordionSection } from '@/components/pos/PosAccordionSection';
+import { PosCheckoutContextPanel } from '@/components/pos/PosCheckoutContextPanel';
+import type { DeliverySelection } from '@/components/pos/PosDeliverySelector';
 import type { CartItem, HeldTransactionSummary, PaymentMode, ProductGridItem } from './pos-types';
-import {
-  canCheckoutDepositPlusCredit,
-  canCheckoutFullDeposit,
-  computeDepositApplyAmount,
-  computeDepositShortfall,
-  FINANCE_CUSTOMER_REQUIRED_MESSAGE,
-  getCreditLimitStatus,
-  isCustomerLinkedForFinance,
-  needsCustomerPickerForFinance,
-} from '@/lib/pos-finance-payment';
 
 import {
   formatPromoTargetingLabel,
@@ -26,31 +17,6 @@ import {
   type PromoCartLine,
 } from '@/lib/promo-checkout-api';
 import type { PromoRuleView } from '@/lib/promotions-api';
-
-type SplitMethod = 'CASH' | 'TRANSFER' | 'QRIS' | 'EWALLET' | 'CARD';
-
-interface SplitMethodOption {
-  method: SplitMethod;
-  label: string;
-  enabled: boolean;
-}
-
-const splitMethodOptions: SplitMethodOption[] = [
-  { method: 'CASH', label: 'Cash', enabled: true },
-  { method: 'TRANSFER', label: 'Transfer', enabled: true },
-  { method: 'QRIS', label: 'QRIS', enabled: true },
-  { method: 'EWALLET', label: 'E-Wallet', enabled: false },
-  { method: 'CARD', label: 'Kartu', enabled: false },
-];
-
-const paymentLabels: Record<PaymentMode, string> = {
-  CASH: 'Tunai',
-  TRANSFER: 'Transfer',
-  QRIS: 'QRIS',
-  SPLIT: 'Split',
-  CREDIT: 'Tempo',
-  DEPOSIT: 'Deposit',
-};
 
 export interface PosCartPanelProps {
   cart: CartItem[];
@@ -137,6 +103,7 @@ export interface PosCartPanelProps {
   loyaltyPointsToRedeem?: string;
   onLoyaltyPointsToRedeemChange?: (value: string) => void;
   onOpenCustomerPicker?: () => void;
+  onClearCustomer?: () => void;
   onRequestCreditApproval?: () => void;
   hasCreditApprovalToken?: boolean;
   onCheckoutDepositPlusCredit?: () => void;
@@ -144,19 +111,12 @@ export interface PosCartPanelProps {
   defaultCreditTermsDays?: number;
   creditTermsDays?: number;
   onCreditTermsDaysChange?: (days: number) => void;
-}
-
-const standardPaymentModes: PaymentMode[] = ['CASH', 'TRANSFER', 'QRIS'];
-const financePaymentModes: PaymentMode[] = ['CREDIT', 'DEPOSIT'];
-
-function financePanelColor(status: 'ok' | 'warning' | 'over'): { bg: string; border: string; accent: string } {
-  if (status === 'over') {
-    return { bg: '#fef2f2', border: '#fecaca', accent: '#b91c1c' };
-  }
-  if (status === 'warning') {
-    return { bg: '#fffbeb', border: '#fcd34d', accent: '#b45309' };
-  }
-  return { bg: '#eff6ff', border: '#bfdbfe', accent: '#1e40af' };
+  deliveryEnabled?: boolean;
+  onDeliveryEnabledChange?: (enabled: boolean) => void;
+  deliverySelection?: DeliverySelection | null;
+  onDeliverySelectionChange?: (selection: DeliverySelection | null) => void;
+  deliveryNotes?: string;
+  onDeliveryNotesChange?: (notes: string) => void;
 }
 
 export function PosCartPanel({
@@ -233,7 +193,7 @@ export function PosCartPanel({
   onCustomerNameChange,
   onCustomerPhoneChange,
   loyaltyPointsPreview = null,
-  loyaltyEarnRateIdr = 10_000,
+  loyaltyEarnRateIdr: _loyaltyEarnRateIdr = 10_000,
   loyaltyRedeemEnabled = false,
   loyaltyRedeemValueIdr = 1_000,
   customerPointsBalance = null,
@@ -244,6 +204,7 @@ export function PosCartPanel({
   loyaltyPointsToRedeem = '',
   onLoyaltyPointsToRedeemChange,
   onOpenCustomerPicker,
+  onClearCustomer,
   onRequestCreditApproval,
   hasCreditApprovalToken = false,
   onCheckoutDepositPlusCredit,
@@ -251,61 +212,28 @@ export function PosCartPanel({
   defaultCreditTermsDays = 30,
   creditTermsDays = defaultCreditTermsDays,
   onCreditTermsDaysChange,
+  deliveryEnabled = false,
+  onDeliveryEnabledChange,
+  deliverySelection = null,
+  onDeliverySelectionChange,
+  deliveryNotes = '',
+  onDeliveryNotesChange,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
-  const customerLinked = isCustomerLinkedForFinance(customerId);
-  const depositApplyAmount = computeDepositApplyAmount(customerDepositBalance ?? 0, total);
-  const depositShortfall = computeDepositShortfall(customerDepositBalance ?? 0, total);
-  const creditLimitStatus = getCreditLimitStatus({
-    creditLimit: customerCreditLimit,
-    creditAvailable: customerCreditAvailable,
-    receivableOutstanding: customerReceivableOutstanding ?? 0,
-    additionalCreditAmount: paymentMode === 'CREDIT' ? total : depositShortfall,
-  });
-  const creditOverLimit = paymentMode === 'CREDIT' && creditLimitStatus === 'over';
-  const creditCheckoutBlocked =
-    paymentMode === 'CREDIT' &&
-    (!customerLinked || customerCreditLimit === 0 || (creditOverLimit && !hasCreditApprovalToken));
-  const depositFullCheckout = canCheckoutFullDeposit(customerDepositBalance, total);
-  const depositPlusCreditAvailable = canCheckoutDepositPlusCredit({
-    depositBalance: customerDepositBalance,
-    cartTotal: total,
-    creditLimit: customerCreditLimit,
-    creditAvailable: customerCreditAvailable,
-    receivableOutstanding: customerReceivableOutstanding ?? 0,
-    hasCreditApprovalToken,
-  });
-  const financePanelColors = financePanelColor(creditLimitStatus);
   const stepperStyle = { minHeight: 44, minWidth: 44, padding: 0, fontSize: '1.125rem' };
-
-  function renderPaymentModeButton(mode: PaymentMode) {
-    const active = paymentMode === mode;
-    const needsCustomer = needsCustomerPickerForFinance(mode, customerId);
-    return (
-      <button
-        key={mode}
-        type="button"
-        aria-pressed={active}
-        title={needsCustomer ? FINANCE_CUSTOMER_REQUIRED_MESSAGE : undefined}
-        onClick={() => onPaymentModeChange(mode)}
-        style={{
-          minHeight: 48,
-          minWidth: 72,
-          padding: '0 1rem',
-          borderRadius: 8,
-          borderWidth: 2,
-          borderStyle: needsCustomer && !active ? 'dashed' : 'solid',
-          borderColor: active ? '#16a34a' : needsCustomer ? '#cbd5e1' : '#e2e8f0',
-          background: active ? '#f0fdf4' : '#fff',
-          color: active ? '#15803d' : needsCustomer ? '#64748b' : '#334155',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        {paymentLabels[mode]}
-      </button>
-    );
-  }
+  const checkoutContextReady =
+    onCustomerNameChange &&
+    onCustomerPhoneChange &&
+    onOpenCustomerPicker &&
+    onRequestCreditApproval &&
+    onCheckoutDepositPlusCredit &&
+    onOpenReceivablePayment &&
+    onCreditTermsDaysChange &&
+    onMemberScanChange &&
+    onLoyaltyPointsToRedeemChange &&
+    onDeliveryEnabledChange &&
+    onDeliverySelectionChange &&
+    onDeliveryNotesChange;
 
   return (
     <aside
@@ -498,195 +426,6 @@ export function PosCartPanel({
         </div>
       )}
 
-      {hasCartItems && onCustomerNameChange && onCustomerPhoneChange ? (
-        <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>Pelanggan (opsional)</span>
-            {onOpenCustomerPicker ? (
-              <Button type="button" variant="secondary" onClick={onOpenCustomerPicker} style={{ minHeight: 36 }}>
-                Pilih dari Daftar
-              </Button>
-            ) : null}
-          </div>
-          <input
-            type="text"
-            value={customerName}
-            onChange={(event) => onCustomerNameChange(event.target.value)}
-            placeholder="Nama pelanggan"
-            aria-label="Nama pelanggan"
-            style={{
-              minHeight: 44,
-              padding: '0.5rem 0.75rem',
-              borderRadius: 8,
-              border: '1px solid #cbd5e1',
-              fontSize: '0.875rem',
-            }}
-          />
-          <input
-            type="tel"
-            value={customerPhone}
-            onChange={(event) => onCustomerPhoneChange(event.target.value)}
-            placeholder="08xxxxxxxxxx"
-            aria-label="No. HP pelanggan"
-            style={{
-              minHeight: 44,
-              padding: '0.5rem 0.75rem',
-              borderRadius: 8,
-              border: '1px solid #cbd5e1',
-              fontSize: '0.875rem',
-            }}
-          />
-          {onMemberScanChange ? (
-            <input
-              type="text"
-              value={memberScanInput}
-              onChange={(event) => onMemberScanChange(event.target.value)}
-              placeholder="Scan QR / ketik kode MBR-…"
-              aria-label="Scan kartu member"
-              style={{
-                minHeight: 44,
-                padding: '0.5rem 0.75rem',
-                borderRadius: 8,
-                border: '1px solid #cbd5e1',
-                fontSize: '0.875rem',
-                fontFamily: 'monospace',
-              }}
-            />
-          ) : null}
-          {customerLinked ? (
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#166534' }}>
-              Pelanggan terhubung: <strong>{customerName.trim() || '—'}</strong>
-              {customerMemberCode ? (
-                <span style={{ marginLeft: 6, fontFamily: 'monospace', color: '#1d4ed8' }}>
-                  ({customerMemberCode})
-                </span>
-              ) : null}
-            </p>
-          ) : customerPhone.trim().length >= 8 ? (
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#b45309' }}>
-              No. HP belum terdaftar — daftar pelanggan di dashboard untuk tempo/deposit.
-            </p>
-          ) : null}
-          {customerLinked && loyaltyPointsPreview != null && loyaltyPointsPreview > 0 ? (
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#166534' }}>
-              Estimasi poin didapat: <strong>+{loyaltyPointsPreview}</strong> (1 poin / Rp{' '}
-              {loyaltyEarnRateIdr.toLocaleString('id-ID')})
-            </p>
-          ) : null}
-          {loyaltyRedeemEnabled &&
-          customerPointsBalance != null &&
-          customerPointsBalance > 0 &&
-          onLoyaltyPointsToRedeemChange ? (
-            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
-              Tukar poin (saldo: {customerPointsBalance})
-              <input
-                type="number"
-                min={0}
-                max={customerPointsBalance}
-                value={loyaltyPointsToRedeem}
-                onChange={(event) => onLoyaltyPointsToRedeemChange(event.target.value)}
-                placeholder="0"
-                aria-label="Jumlah poin ditukar"
-                style={{
-                  minHeight: 44,
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: 8,
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.875rem',
-                }}
-              />
-              {loyaltyRedeemDiscount > 0 ? (
-                <span style={{ color: '#166534' }}>
-                  Diskon poin: −{formatCurrencyIDR(loyaltyRedeemDiscount)} (1 poin = Rp{' '}
-                  {loyaltyRedeemValueIdr.toLocaleString('id-ID')})
-                </span>
-              ) : null}
-            </label>
-          ) : null}
-          {customerLinked ? (
-            <div
-              role="status"
-              style={{
-                marginTop: '0.35rem',
-                padding: '0.65rem 0.75rem',
-                borderRadius: 8,
-                background: financePanelColors.bg,
-                border: `1px solid ${financePanelColors.border}`,
-                fontSize: '0.8125rem',
-                color: '#1e3a5f',
-              }}
-            >
-              <strong style={{ display: 'block', marginBottom: '0.35rem', color: financePanelColors.accent }}>
-                Info Keuangan Pelanggan
-              </strong>
-              {customerMemberCode ? (
-                <div style={{ fontFamily: 'monospace', marginBottom: '0.25rem' }}>
-                  Kode member: <strong>{customerMemberCode}</strong>
-                </div>
-              ) : null}
-              <div style={{ display: 'grid', gap: '0.2rem' }}>
-                <div>
-                  Saldo poin:{' '}
-                  <strong style={{ color: '#16a34a' }}>
-                    {(customerPointsBalance ?? 0).toLocaleString('id-ID')}
-                  </strong>
-                </div>
-                <div>
-                  Limit kredit:{' '}
-                  <strong style={{ color: customerCreditLimit === 0 ? '#b91c1c' : undefined }}>
-                    {customerCreditLimit === 0
-                      ? 'Tidak diizinkan tempo'
-                      : customerCreditLimit != null
-                        ? formatCurrencyIDR(customerCreditLimit)
-                        : 'Unlimited'}
-                  </strong>
-                </div>
-                <div style={{ color: creditLimitStatus !== 'ok' ? financePanelColors.accent : undefined }}>
-                  Piutang outstanding:{' '}
-                  <strong>{formatCurrencyIDR(customerReceivableOutstanding ?? 0)}</strong>
-                </div>
-                {customerLinked && customerId && (customerReceivableOutstanding ?? 0) > 0 ? (
-                  <Link
-                    href={`/dashboard/customers/${customerId}?tab=piutang`}
-                    style={{ fontSize: '0.75rem', color: '#2563eb' }}
-                  >
-                    Detail piutang di dashboard →
-                  </Link>
-                ) : null}
-                {(customerReceivableOutstanding ?? 0) > 0 && onOpenReceivablePayment ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    style={{ marginTop: '0.35rem', fontSize: '0.8125rem', minHeight: 36 }}
-                    onClick={onOpenReceivablePayment}
-                  >
-                    Terima Pembayaran Piutang
-                  </Button>
-                ) : null}
-                <div>
-                  Saldo deposit: <strong>{formatCurrencyIDR(customerDepositBalance ?? 0)}</strong>
-                </div>
-                {customerCreditLimit !== 0 && customerCreditAvailable != null ? (
-                  <div
-                    style={{
-                      color:
-                        creditLimitStatus === 'over'
-                          ? '#b91c1c'
-                          : creditLimitStatus === 'warning'
-                            ? '#b45309'
-                            : '#166534',
-                    }}
-                  >
-                    Kredit tersedia: <strong>{formatCurrencyIDR(customerCreditAvailable)}</strong>
-                    {creditLimitStatus === 'warning' ? ' (mendekati limit)' : null}
-                    {creditLimitStatus === 'over' ? ' (melebihi limit)' : null}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       {hasCartItems && activePromos.length > 0 ? (
         <label style={{ display: 'grid', gap: '0.35rem', marginTop: '0.75rem', fontSize: '0.8125rem' }}>
@@ -783,376 +522,73 @@ export function PosCartPanel({
         )}
       </p>
 
-      {hasCartItems ? (
-        <>
-          <div aria-label="Metode pembayaran" style={{ display: 'grid', gap: '0.65rem', marginBottom: '0.75rem' }}>
-            <div>
-              <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
-                Bayar Langsung
-              </p>
-              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                {standardPaymentModes.map(renderPaymentModeButton)}
-              </div>
-            </div>
-            <div>
-              <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
-                Kredit &amp; Deposit <span style={{ fontWeight: 400 }}>(perlu pelanggan)</span>
-              </p>
-              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                {financePaymentModes.map(renderPaymentModeButton)}
-              </div>
-            </div>
-            <div>
-              <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
-                Kombinasi
-              </p>
-              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                {renderPaymentModeButton('SPLIT')}
-              </div>
-            </div>
-          </div>
-          {!customerLinked && (paymentMode === 'CREDIT' || paymentMode === 'DEPOSIT') ? (
-            <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
-              {FINANCE_CUSTOMER_REQUIRED_MESSAGE}
-            </p>
-          ) : null}
-
-          {paymentMode === 'CASH' ? (
-            <>
-              <CurrencyInput
-                label="Tunai diterima (IDR)"
-                value={cashReceived}
-                onChange={onCashReceivedChange}
-                placeholder="150.000"
-                fullWidth
-                style={{ minHeight: 44 }}
-              />
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                <Button
-                  type="button"
-                  disabled={checkingOut || checkoutBlockedByStock || (!activeShift && isOnline)}
-                  onClick={onCheckoutCash}
-                  style={{ minHeight: 48, flex: '1 1 auto' }}
-                >
-                  {checkingOut ? 'Memproses checkout…' : 'Checkout Tunai'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={holding}
-                  onClick={onHoldTransaction}
-                  style={{ minHeight: 48 }}
-                >
-                  {holding ? 'Menyimpan hold…' : 'Hold Transaksi'}
-                </Button>
-              </div>
-            </>
-          ) : null}
-
-          {paymentMode === 'TRANSFER' || paymentMode === 'QRIS' ? (
-            <>
-              <label style={{ display: 'grid', gap: '0.3rem', marginBottom: '0.75rem' }}>
-                <span style={{ fontSize: '0.875rem' }}>
-                  Referensi {paymentMode === 'QRIS' ? 'QRIS' : 'transfer'} (opsional)
-                </span>
-                <input
-                  value={nonCashReference}
-                  onChange={(event) => onNonCashReferenceChange(event.target.value)}
-                  type="text"
-                  style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '0.6rem', minHeight: 44 }}
-                  placeholder={paymentMode === 'QRIS' ? 'Contoh: QRIS-240602-001' : 'Contoh: TRF-240602-001'}
-                />
-              </label>
-              <Button
-                type="button"
-                disabled={
-                  processingSplit ||
-                  qrisPending ||
-                  checkoutBlockedByStock ||
-                  (!activeShift && isOnline)
-                }
-                onClick={() => onCheckoutNonCash(paymentMode)}
-                style={{ minHeight: 48, width: '100%' }}
-              >
-                {processingSplit
-                  ? 'Memproses…'
-                  : qrisPending && paymentMode === 'QRIS'
-                    ? 'Menunggu QRIS…'
-                    : `Checkout ${paymentMode === 'QRIS' ? 'QRIS' : 'Transfer'}`}
-              </Button>
-            </>
-          ) : null}
-
-          {paymentMode === 'CREDIT' || paymentMode === 'DEPOSIT' ? (
-            <>
-              {!customerLinked ? (
-                <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
-                  {FINANCE_CUSTOMER_REQUIRED_MESSAGE}. Tap Tempo/Deposit lagi atau pilih pelanggan dari daftar.
-                </p>
-              ) : null}
-              {paymentMode === 'CREDIT' && customerLinked ? (
-                <div
-                  style={{
-                    marginBottom: '0.75rem',
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: 8,
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    fontSize: '0.8125rem',
-                    color: '#166534',
-                  }}
-                >
-                  <strong>Masuk piutang:</strong> {formatCurrencyIDR(total)}
-                  <label
-                    style={{
-                      display: 'grid',
-                      gap: 4,
-                      marginTop: '0.5rem',
-                      fontSize: '0.8125rem',
-                      color: '#14532d',
-                    }}
-                  >
-                    Jatuh tempo
-                    <select
-                      value={creditTermsDays}
-                      onChange={(e) => onCreditTermsDaysChange?.(Number(e.target.value))}
-                      style={{
-                        padding: '0.45rem 0.5rem',
-                        borderRadius: 6,
-                        border: '1px solid #86efac',
-                        fontSize: '0.8125rem',
-                        minHeight: 40,
-                      }}
-                    >
-                      {CREDIT_TERMS_DAYS_OPTIONS.map((days) => (
-                        <option key={days} value={days}>
-                          {days} hari
-                          {days === defaultCreditTermsDays ? ' (default toko)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              ) : null}
-              {paymentMode === 'DEPOSIT' && customerLinked ? (
-                <div
-                  style={{
-                    marginBottom: '0.75rem',
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: 8,
-                    background: depositFullCheckout ? '#f0fdf4' : '#fffbeb',
-                    border: `1px solid ${depositFullCheckout ? '#bbf7d0' : '#fcd34d'}`,
-                    fontSize: '0.8125rem',
-                    color: depositFullCheckout ? '#166534' : '#92400e',
-                  }}
-                >
-                  <div>
-                    Saldo deposit: <strong>{formatCurrencyIDR(customerDepositBalance ?? 0)}</strong>
-                  </div>
-                  <div>
-                    Total belanja: <strong>{formatCurrencyIDR(total)}</strong>
-                  </div>
-                  {depositFullCheckout ? (
-                    <div style={{ marginTop: '0.25rem' }}>
-                      Akan dipotong dari deposit: <strong>{formatCurrencyIDR(total)}</strong>
-                    </div>
-                  ) : depositApplyAmount > 0 ? (
-                    <>
-                      <div style={{ marginTop: '0.25rem' }}>
-                        Deposit terpakai: <strong>{formatCurrencyIDR(depositApplyAmount)}</strong>
-                      </div>
-                      <div>
-                        Kurang: <strong>{formatCurrencyIDR(depositShortfall)}</strong>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ marginTop: '0.25rem', color: '#b91c1c' }}>
-                      Saldo deposit kosong — tidak bisa bayar dengan deposit.
-                    </div>
-                  )}
-                </div>
-              ) : null}
-              {paymentMode === 'CREDIT' && customerCreditLimit === 0 ? (
-                <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
-                  Pelanggan ini tidak diizinkan transaksi tempo (limit kredit = 0).
-                </p>
-              ) : null}
-              {paymentMode === 'CREDIT' && customerCreditLimit !== 0 && creditOverLimit ? (
-                <>
-                  <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
-                    Transaksi tempo melebihi limit kredit tersedia (
-                    {formatCurrencyIDR(customerCreditAvailable ?? 0)}). Outstanding:{' '}
-                    {formatCurrencyIDR(customerReceivableOutstanding ?? 0)}
-                    {customerCreditLimit != null ? ` / Limit: ${formatCurrencyIDR(customerCreditLimit)}` : ''}.
-                  </p>
-                  {hasCreditApprovalToken ? (
-                    <p style={{ fontSize: '0.8125rem', color: '#166534', marginBottom: '0.75rem' }}>
-                      Persetujuan manager diterima — checkout tempo diizinkan untuk transaksi ini.
-                    </p>
-                  ) : onRequestCreditApproval ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={onRequestCreditApproval}
-                      style={{ minHeight: 44, width: '100%', marginBottom: '0.75rem' }}
-                    >
-                      Minta Persetujuan Manager
-                    </Button>
-                  ) : null}
-                </>
-              ) : null}
-              {paymentMode === 'DEPOSIT' && !depositFullCheckout && depositShortfall > 0 ? (
-                <>
-                  <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
-                    Saldo deposit tidak mencukupi untuk total belanja. Kurang{' '}
-                    {formatCurrencyIDR(depositShortfall)}.
-                  </p>
-                  {depositPlusCreditAvailable && onCheckoutDepositPlusCredit ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={processingSplit || checkoutBlockedByStock || (!activeShift && isOnline)}
-                      onClick={onCheckoutDepositPlusCredit}
-                      style={{ minHeight: 44, width: '100%', marginBottom: '0.75rem' }}
-                    >
-                      {processingSplit
-                        ? 'Memproses…'
-                        : `Pakai Deposit ${formatCurrencyIDR(depositApplyAmount)} + Tempo ${formatCurrencyIDR(depositShortfall)}`}
-                    </Button>
-                  ) : customerCreditLimit === 0 ? (
-                    <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
-                      Pelanggan tidak diizinkan tempo — gunakan metode bayar lain untuk sisa{' '}
-                      {formatCurrencyIDR(depositShortfall)}.
-                    </p>
-                  ) : depositShortfall > (customerCreditAvailable ?? 0) && !hasCreditApprovalToken ? (
-                    <>
-                      <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
-                        Sisa tempo {formatCurrencyIDR(depositShortfall)} melebihi kredit tersedia.
-                      </p>
-                      {onRequestCreditApproval ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={onRequestCreditApproval}
-                          style={{ minHeight: 44, width: '100%', marginBottom: '0.75rem' }}
-                        >
-                          Minta Persetujuan Manager (Sisa Tempo)
-                        </Button>
-                      ) : null}
-                    </>
-                  ) : null}
-                </>
-              ) : null}
-              {paymentMode === 'DEPOSIT' && depositFullCheckout ? (
-                <Button
-                  type="button"
-                  disabled={
-                    processingSplit ||
-                    checkoutBlockedByStock ||
-                    (!activeShift && isOnline) ||
-                    !customerLinked
-                  }
-                  onClick={() => onCheckoutNonCash('DEPOSIT')}
-                  style={{ minHeight: 48, width: '100%' }}
-                >
-                  {processingSplit
-                    ? 'Memproses…'
-                    : `Checkout Pakai Deposit (${formatCurrencyIDR(total)})`}
-                </Button>
-              ) : paymentMode === 'CREDIT' ? (
-                <Button
-                  type="button"
-                  disabled={
-                    processingSplit ||
-                    checkoutBlockedByStock ||
-                    (!activeShift && isOnline) ||
-                    creditCheckoutBlocked
-                  }
-                  onClick={() => onCheckoutNonCash('CREDIT')}
-                  style={{ minHeight: 48, width: '100%' }}
-                >
-                  {processingSplit ? 'Memproses…' : `Checkout Tempo (Piutang ${formatCurrencyIDR(total)})`}
-                </Button>
-              ) : null}
-            </>
-          ) : null}
-
-          {paymentMode === 'SPLIT' ? (
-            <div style={{ display: 'grid', gap: '0.6rem' }}>
-              <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>Split Payment (Cash + Transfer)</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                {splitMethodOptions.map((option) => (
-                  <span
-                    key={option.method}
-                    style={{
-                      border: `1px solid ${option.enabled ? '#86efac' : '#cbd5e1'}`,
-                      borderRadius: 999,
-                      padding: '0.2rem 0.55rem',
-                      fontSize: '0.75rem',
-                      color: option.enabled ? '#15803d' : '#64748b',
-                      background: option.enabled ? '#f0fdf4' : '#f8fafc',
-                    }}
-                  >
-                    {option.label} {option.enabled ? 'aktif' : 'menunggu backend'}
-                  </span>
-                ))}
-              </div>
-              <CurrencyInput
-                label="Nominal Cash (IDR)"
-                value={splitCashAmount}
-                onChange={onSplitCashAmountChange}
-                placeholder="50.000"
-                fullWidth
-              />
-              <CurrencyInput
-                label="Nominal Transfer (IDR)"
-                value={splitTransferAmount}
-                onChange={onSplitTransferAmountChange}
-                placeholder="75.000"
-                fullWidth
-              />
-              <label style={{ display: 'grid', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.875rem' }}>Referensi Transfer (opsional)</span>
-                <input
-                  value={transferReference}
-                  onChange={(event) => onTransferReferenceChange(event.target.value)}
-                  type="text"
-                  style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '0.55rem', minHeight: 44 }}
-                  placeholder="Contoh: TRF-240602-001"
-                />
-              </label>
-              <p
-                style={{
-                  margin: 0,
-                  color: splitAmountsMismatch || !splitHasValue ? '#b45309' : '#166534',
-                  fontSize: '0.85rem',
-                }}
-              >
-                {splitHint}
-              </p>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={processingSplit || splitInvalid || (!activeShift && isOnline)}
-                onClick={onCheckoutSplit}
-                style={{ minHeight: 48 }}
-              >
-                {processingSplit ? 'Memproses split payment…' : 'Checkout Split'}
-              </Button>
-              {hasLastSplitAttempt ? (
-                <Button type="button" variant="ghost" disabled={processingSplit} onClick={onRetrySplit}>
-                  Coba Lagi Split Terakhir
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {!activeShift && isOnline ? (
-            <p style={{ marginTop: '0.5rem', color: '#b45309', fontSize: '0.875rem' }}>
-              Shift belum aktif — buka shift di menu atas sebelum checkout.
-            </p>
-          ) : null}
-        </>
+      {hasCartItems && checkoutContextReady ? (
+        <PosCheckoutContextPanel
+          total={total}
+          paymentMode={paymentMode}
+          onPaymentModeChange={onPaymentModeChange}
+          customerId={customerId}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          customerMemberCode={customerMemberCode}
+          memberScanInput={memberScanInput}
+          onCustomerNameChange={onCustomerNameChange}
+          onCustomerPhoneChange={onCustomerPhoneChange}
+          onMemberScanChange={onMemberScanChange}
+          onOpenCustomerPicker={onOpenCustomerPicker}
+          onClearCustomer={onClearCustomer}
+          loyaltyPointsPreview={loyaltyPointsPreview ?? null}
+          loyaltyRedeemEnabled={loyaltyRedeemEnabled}
+          loyaltyRedeemValueIdr={loyaltyRedeemValueIdr}
+          customerPointsBalance={customerPointsBalance}
+          customerReceivableOutstanding={customerReceivableOutstanding}
+          customerDepositBalance={customerDepositBalance}
+          customerCreditLimit={customerCreditLimit}
+          customerCreditAvailable={customerCreditAvailable}
+          loyaltyPointsToRedeem={loyaltyPointsToRedeem}
+          onLoyaltyPointsToRedeemChange={onLoyaltyPointsToRedeemChange}
+          loyaltyRedeemDiscount={loyaltyRedeemDiscount}
+          deliveryEnabled={deliveryEnabled}
+          onDeliveryEnabledChange={onDeliveryEnabledChange}
+          deliverySelection={deliverySelection}
+          onDeliverySelectionChange={onDeliverySelectionChange}
+          deliveryNotes={deliveryNotes}
+          onDeliveryNotesChange={onDeliveryNotesChange}
+          isOnline={isOnline}
+          hasCreditApprovalToken={hasCreditApprovalToken}
+          onRequestCreditApproval={onRequestCreditApproval}
+          onOpenReceivablePayment={onOpenReceivablePayment}
+          defaultCreditTermsDays={defaultCreditTermsDays}
+          creditTermsDays={creditTermsDays}
+          onCreditTermsDaysChange={onCreditTermsDaysChange}
+          cashReceived={cashReceived}
+          onCashReceivedChange={onCashReceivedChange}
+          nonCashReference={nonCashReference}
+          onNonCashReferenceChange={onNonCashReferenceChange}
+          splitCashAmount={splitCashAmount}
+          onSplitCashAmountChange={onSplitCashAmountChange}
+          splitTransferAmount={splitTransferAmount}
+          onSplitTransferAmountChange={onSplitTransferAmountChange}
+          transferReference={transferReference}
+          onTransferReferenceChange={onTransferReferenceChange}
+          splitHint={splitHint}
+          splitInvalid={splitInvalid}
+          splitAmountsMismatch={splitAmountsMismatch}
+          splitHasValue={splitHasValue}
+          checkingOut={checkingOut}
+          processingFinance={processingSplit}
+          holding={holding}
+          qrisPending={qrisPending}
+          activeShift={activeShift}
+          checkoutBlocked={checkoutBlockedByStock}
+          onCheckoutCash={onCheckoutCash}
+          onHoldTransaction={onHoldTransaction}
+          onCheckoutNonCash={onCheckoutNonCash}
+          onCheckoutSplit={onCheckoutSplit}
+          onRetrySplit={onRetrySplit}
+          hasLastSplitAttempt={hasLastSplitAttempt}
+          onCheckoutDepositPlusCredit={onCheckoutDepositPlusCredit}
+        />
       ) : null}
 
       {success ? <p style={{ marginTop: '0.75rem', color: '#166534', fontSize: '0.875rem' }}>{success}</p> : null}

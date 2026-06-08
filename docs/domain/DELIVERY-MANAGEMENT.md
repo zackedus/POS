@@ -17,6 +17,7 @@ Toko bahan bangunan sering mengantar material ke lokasi proyek pelanggan. Kasir 
 | Entitas | Deskripsi |
 |---------|-----------|
 | `DeliveryOrder` | Satu permintaan pengiriman — terhubung ke `Transaction` (POS) atau standalone |
+| `DeliveryType` | `STORE_DIRECT` (POS toko langsung) · `ONLINE_ORDER` (order web) |
 | `DeliveryStatusLog` | Audit trail perubahan status |
 | `CustomerAddress` | Sumber alamat tersimpan (CRM) — snapshot disimpan saat create |
 
@@ -53,7 +54,7 @@ Pelanggan **wajib terhubung** saat mode pengiriman aktif di POS.
 
 ## Integrasi POS
 
-1. Toggle **Antar ke alamat** di panel keranjang.
+1. Toggle **Kirim ke alamat** / **Ambil di toko** di panel checkout.
 2. Dropdown alamat pelanggan atau input manual.
 3. Checkout sukses → `POST /deliveries` dengan `transactionId` + alamat.
 4. Konfirmasi kasir: *"Masuk antrian pengiriman #DLV-…"*.

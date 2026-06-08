@@ -6,15 +6,19 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { UserRole } from '@barokah/database';
-import type { DeliveryStatus } from '@barokah/database';
+import type { DeliveryStatus, DeliveryType as PrismaDeliveryType } from '@barokah/database';
 import {
   DELIVERY_STATUS_TRANSITIONS,
+  DELIVERY_TYPE_LABELS,
   ErrorCodes,
   type DeliveryAddressSnapshot,
   type DeliveryOrderDetail,
   type DeliveryOrderListItem,
   type DeliveryQueueSummary,
+  type DeliveryType,
 } from '@barokah/shared';
+
+type DeliveryTypeValue = PrismaDeliveryType | DeliveryType;
 import { PrismaService } from '../../common/database/prisma.service';
 import { resolveOutletId } from '../../common/utils/outlet.util';
 import { toIdrInteger } from '../../common/utils/money.util';
@@ -56,10 +60,13 @@ export class DeliveriesService {
       createdAt.lte = end;
     }
 
+    const deliveryTypeFilter = query.deliveryType?.trim() as DeliveryTypeValue | undefined;
+
     const where = {
       tenantId: user.tenantId,
       outletId,
       status: { in: statusFilter },
+      ...(deliveryTypeFilter ? { deliveryType: deliveryTypeFilter } : {}),
       ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
       ...(query.search?.trim()
         ? {
@@ -209,11 +216,14 @@ export class DeliveriesService {
       });
       const deliveryNo = buildDeliveryNo(dateKey, sequence.lastValue);
 
+      const deliveryType = (dto.deliveryType ?? 'STORE_DIRECT') as DeliveryTypeValue;
+
       const order = await tx.deliveryOrder.create({
         data: {
           tenantId: user.tenantId,
           outletId,
           deliveryNo,
+          deliveryType,
           transactionId: dto.transactionId ?? null,
           customerId,
           addressId: addressFields.addressId ?? null,
@@ -420,6 +430,7 @@ export class DeliveriesService {
   private toListItem(order: {
     id: string;
     deliveryNo: string;
+    deliveryType: DeliveryTypeValue;
     status: DeliveryStatus;
     createdAt: Date;
     scheduledAt: Date | null;
@@ -441,6 +452,8 @@ export class DeliveriesService {
     return {
       id: order.id,
       deliveryNo: order.deliveryNo,
+      deliveryType: order.deliveryType,
+      deliveryTypeLabel: DELIVERY_TYPE_LABELS[order.deliveryType],
       status: order.status,
       statusLabel: deliveryStatusLabel(order.status),
       createdAt: order.createdAt.toISOString(),
@@ -469,6 +482,7 @@ export class DeliveriesService {
   private toDetail(order: {
     id: string;
     deliveryNo: string;
+    deliveryType: DeliveryTypeValue;
     status: DeliveryStatus;
     createdAt: Date;
     scheduledAt: Date | null;

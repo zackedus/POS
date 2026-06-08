@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { formatCurrency } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
@@ -31,6 +32,8 @@ function todayIsoDate(): string {
 }
 
 export default function DashboardTransactionsPage() {
+  const searchParams = useSearchParams();
+  const linkedTransactionId = searchParams.get('id');
   const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransactionSummary[]>([]);
@@ -104,6 +107,16 @@ export default function DashboardTransactionsPage() {
       setLoadingReceiptId(null);
     }
   }
+
+  useEffect(() => {
+    if (!linkedTransactionId || recentTransactions.length === 0) {
+      return;
+    }
+    const match = recentTransactions.find((row) => row.id === linkedTransactionId);
+    if (match && expandedId !== match.id) {
+      void openReceipt(match.id);
+    }
+  }, [linkedTransactionId, recentTransactions, expandedId]);
 
   return (
     <div style={{ display: 'grid', gap: '1.25rem', maxWidth: 960 }}>

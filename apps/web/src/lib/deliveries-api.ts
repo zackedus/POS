@@ -15,6 +15,7 @@ export interface PaginatedDeliveries {
 
 export async function fetchDeliveries(params: {
   outletId?: string;
+  deliveryType?: string;
   status?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -24,6 +25,7 @@ export async function fetchDeliveries(params: {
 }): Promise<PaginatedDeliveries> {
   const query = new URLSearchParams();
   if (params.outletId) query.set('outletId', params.outletId);
+  if (params.deliveryType) query.set('deliveryType', params.deliveryType);
   if (params.status) query.set('status', params.status);
   if (params.dateFrom) query.set('dateFrom', params.dateFrom);
   if (params.dateTo) query.set('dateTo', params.dateTo);
@@ -59,6 +61,7 @@ export async function fetchDeliveryDetail(id: string, outletId?: string): Promis
 export interface CreateDeliveryPayload {
   transactionId?: string;
   customerId?: string;
+  deliveryType?: 'STORE_DIRECT' | 'ONLINE_ORDER';
   addressId?: string;
   addressSnapshot?: {
     label: string;

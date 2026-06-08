@@ -1,3 +1,6 @@
+/** Delivery source — store direct (POS) vs online order */
+export type DeliveryType = 'STORE_DIRECT' | 'ONLINE_ORDER';
+
 /** Delivery order status — POS shipment queue */
 export type DeliveryStatus =
   | 'MENUNGGU'
@@ -18,6 +21,8 @@ export interface DeliveryAddressSnapshot {
 export interface DeliveryOrderListItem {
   id: string;
   deliveryNo: string;
+  deliveryType: DeliveryType;
+  deliveryTypeLabel: string;
   status: DeliveryStatus;
   statusLabel: string;
   createdAt: string;

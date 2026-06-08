@@ -1335,6 +1335,11 @@ enum DeliveryStatus {
   BATAL
 }
 
+enum DeliveryType {
+  STORE_DIRECT
+  ONLINE_ORDER
+}
+
 model DeliveryOrderSequence {
   id           String   @id @default(uuid())
   tenantId     String   @map("tenant_id")
@@ -1352,6 +1357,7 @@ model DeliveryOrder {
   tenantId          String         @map("tenant_id")
   outletId          String         @map("outlet_id")
   deliveryNo        String         @map("delivery_no")
+  deliveryType      DeliveryType   @default(STORE_DIRECT) @map("delivery_type")
   transactionId     String?        @map("transaction_id")
   customerId        String         @map("customer_id")
   addressId         String?        @map("address_id")

@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DELIVERY_STATUS_LABELS, DELIVERY_STATUS_TRANSITIONS } from '@barokah/shared';
-import type { DeliveryOrderListItem, DeliveryStatus } from '@barokah/shared';
+import {
+  DELIVERY_STATUS_LABELS,
+  DELIVERY_STATUS_TRANSITIONS,
+  DELIVERY_TYPE_LABELS,
+  formatCurrencyIDR,
+} from '@barokah/shared';
+import type { DeliveryOrderDetail, DeliveryOrderListItem, DeliveryStatus, DeliveryType } from '@barokah/shared';
 import { Button, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -17,6 +22,7 @@ import {
 import { mapApiError } from '@/lib/api-client';
 import {
   fetchDeliveries,
+  fetchDeliveryDetail,
   updateDeliveryStatus,
   type PaginatedDeliveries,
 } from '@/lib/deliveries-api';
@@ -31,6 +37,12 @@ const STATUS_TABS: Array<{ value: DeliveryStatus | 'ALL'; label: string }> = [
   { value: 'BATAL', label: DELIVERY_STATUS_LABELS.BATAL },
 ];
 
+const TYPE_TABS: Array<{ value: DeliveryType | 'ALL'; label: string }> = [
+  { value: 'ALL', label: 'Semua tipe' },
+  { value: 'STORE_DIRECT', label: DELIVERY_TYPE_LABELS.STORE_DIRECT },
+  { value: 'ONLINE_ORDER', label: DELIVERY_TYPE_LABELS.ONLINE_ORDER },
+];
+
 function statusVariant(status: DeliveryStatus): 'neutral' | 'warning' | 'success' | 'error' {
   if (status === 'SELESAI') return 'success';
   if (status === 'BATAL') return 'error';
@@ -41,6 +53,7 @@ function statusVariant(status: DeliveryStatus): 'neutral' | 'warning' | 'success
 export default function DashboardDeliveriesPage() {
   const { selectedOutletId } = useOutletSelection();
   const [activeTab, setActiveTab] = useState<DeliveryStatus | 'ALL'>('ALL');
+  const [typeTab, setTypeTab] = useState<DeliveryType | 'ALL'>('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
@@ -54,6 +67,8 @@ export default function DashboardDeliveriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<DeliveryOrderDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [driverName, setDriverName] = useState('');
   const [cancelReason, setCancelReason] = useState('');
@@ -70,6 +85,7 @@ export default function DashboardDeliveriesPage() {
       try {
         const result = await fetchDeliveries({
           outletId: selectedOutletId ?? undefined,
+          deliveryType: typeTab === 'ALL' ? undefined : typeTab,
           status: statusFilter,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
@@ -85,12 +101,38 @@ export default function DashboardDeliveriesPage() {
         setLoading(false);
       }
     },
-    [selectedOutletId, statusFilter, dateFrom, dateTo, search],
+    [selectedOutletId, statusFilter, typeTab, dateFrom, dateTo, search],
+  );
+
+  const loadDetail = useCallback(
+    async (id: string) => {
+      setDetailLoading(true);
+      setError(null);
+      try {
+        const data = await fetchDeliveryDetail(id, selectedOutletId ?? undefined);
+        setDetail(data);
+        setDriverName(data.driverName ?? '');
+      } catch (err) {
+        setDetail(null);
+        setError(mapApiError(err, 'Gagal memuat detail pengiriman.'));
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [selectedOutletId],
   );
 
   useEffect(() => {
     void loadOrders(1);
   }, [loadOrders]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
+    }
+    void loadDetail(selectedId);
+  }, [selectedId, loadDetail]);
 
   async function handleAdvance(order: DeliveryOrderListItem, nextStatus: DeliveryStatus) {
     setActionLoading(true);
@@ -110,8 +152,10 @@ export default function DashboardDeliveriesPage() {
         selectedOutletId ?? undefined,
       );
       setCancelReason('');
-      setSelectedId(null);
       await loadOrders(meta.page);
+      if (selectedId === order.id) {
+        await loadDetail(order.id);
+      }
     } catch (err) {
       setError(mapApiError(err, 'Gagal memperbarui status pengiriman.'));
     } finally {
@@ -119,16 +163,30 @@ export default function DashboardDeliveriesPage() {
     }
   }
 
+  const activeOrder = detail ?? orders.find((row) => row.id === selectedId) ?? null;
+
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <PageHeader
         title="Antrian Pengiriman"
-        description="Kelola pengiriman barang ke proyek / alamat pelanggan dari transaksi POS."
+        description="Kelola pengiriman toko langsung (POS) dan order online ke alamat pelanggan."
       />
 
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
 
       <SectionCard title="Filter">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {TYPE_TABS.map((tab) => (
+            <Button
+              key={tab.value}
+              type="button"
+              variant={typeTab === tab.value ? 'primary' : 'secondary'}
+              onClick={() => setTypeTab(tab.value)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {STATUS_TABS.map((tab) => (
             <Button
@@ -155,94 +213,196 @@ export default function DashboardDeliveriesPage() {
         </div>
       </SectionCard>
 
-      {loading ? (
-        <LoadingSkeleton rows={6} />
-      ) : orders.length === 0 ? (
-        <EmptyState title="Belum ada pengiriman" description="Pengiriman dari POS akan muncul di sini." />
-      ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
-          {orders.map((order) => {
-            const nextStatuses = DELIVERY_STATUS_TRANSITIONS[order.status] ?? [];
-            const isSelected = selectedId === order.id;
-            return (
-              <SectionCard key={order.id} title={`${order.deliveryNo} · ${order.customer.name}`}>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                    <StatusBadge label={order.statusLabel} variant={statusVariant(order.status)} />
-                    <span style={{ color: '#64748b', fontSize: 13 }}>
-                      {new Date(order.createdAt).toLocaleString('id-ID')}
-                    </span>
-                    {order.transaction ? (
-                      <Link href={`/dashboard/transactions?receipt=${order.transaction.receiptNo}`}>
-                        Struk {order.transaction.receiptNo}
-                      </Link>
-                    ) : null}
-                  </div>
-                  <p style={{ margin: 0 }}>{order.addressSnippet}</p>
-                  <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>
-                    {order.customer.phone}
-                    {order.itemCount > 0 ? ` · ${order.itemCount} item` : ''}
-                    {order.driverName ? ` · Driver: ${order.driverName}` : ''}
-                  </p>
-                  {order.notes ? (
-                    <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>Catatan: {order.notes}</p>
-                  ) : null}
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    <Button type="button" variant="secondary" onClick={() => setSelectedId(isSelected ? null : order.id)}>
-                      {isSelected ? 'Tutup aksi' : 'Kelola'}
-                    </Button>
-                    {nextStatuses
-                      .filter((status) => status !== 'BATAL')
-                      .map((status) => (
-                        <Button
-                          key={status}
-                          type="button"
-                          disabled={actionLoading}
-                          onClick={() => void handleAdvance(order, status)}
-                        >
-                          → {DELIVERY_STATUS_LABELS[status]}
-                        </Button>
-                      ))}
-                  </div>
-
-                  {isSelected ? (
-                    <div style={{ display: 'grid', gap: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
-                      <Input
-                        placeholder="Nama driver (opsional)"
-                        value={driverName}
-                        onChange={(event) => setDriverName(event.target.value)}
-                      />
-                      <Input
-                        placeholder="Alasan batal (wajib jika batalkan)"
-                        value={cancelReason}
-                        onChange={(event) => setCancelReason(event.target.value)}
-                      />
-                      {nextStatuses.includes('BATAL') ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={actionLoading}
-                          onClick={() => void handleAdvance(order, 'BATAL')}
-                        >
-                          Batalkan pengiriman
-                        </Button>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: selectedId ? 'minmax(0, 1fr) minmax(280px, 360px)' : '1fr',
+          gap: 16,
+          alignItems: 'start',
+        }}
+      >
+        {loading ? (
+          <LoadingSkeleton rows={6} />
+        ) : orders.length === 0 ? (
+          <EmptyState title="Belum ada pengiriman" description="Pengiriman dari POS akan muncul di sini." />
+        ) : (
+          <div style={{ display: 'grid', gap: 12 }}>
+            {orders.map((order) => {
+              const nextStatuses = DELIVERY_STATUS_TRANSITIONS[order.status] ?? [];
+              const isSelected = selectedId === order.id;
+              return (
+                <SectionCard key={order.id} title={`${order.deliveryNo} · ${order.customer.name}`}>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                      <StatusBadge label={order.statusLabel} variant={statusVariant(order.status)} />
+                      <StatusBadge label={order.deliveryTypeLabel} variant="neutral" />
+                      <span style={{ color: '#64748b', fontSize: 13 }}>
+                        {new Date(order.createdAt).toLocaleString('id-ID')}
+                      </span>
+                      {order.transaction ? (
+                        <Link href={`/dashboard/transactions?id=${order.transaction.id}`}>
+                          Struk {order.transaction.receiptNo}
+                        </Link>
                       ) : null}
                     </div>
+                    <p style={{ margin: 0 }}>{order.addressSnippet}</p>
+                    <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>
+                      {order.customer.phone}
+                      {order.itemCount > 0 ? ` · ${order.itemCount} item` : ''}
+                      {order.driverName ? ` · Driver: ${order.driverName}` : ''}
+                    </p>
+                    {order.notes ? (
+                      <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>Catatan: {order.notes}</p>
+                    ) : null}
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      <Button
+                        type="button"
+                        variant={isSelected ? 'primary' : 'secondary'}
+                        onClick={() => setSelectedId(isSelected ? null : order.id)}
+                      >
+                        {isSelected ? 'Tutup detail' : 'Detail'}
+                      </Button>
+                      {nextStatuses
+                        .filter((status) => status !== 'BATAL')
+                        .map((status) => (
+                          <Button
+                            key={status}
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => void handleAdvance(order, status)}
+                            style={{ minHeight: 44 }}
+                          >
+                            → {DELIVERY_STATUS_LABELS[status]}
+                          </Button>
+                        ))}
+                    </div>
+
+                  </div>
+                </SectionCard>
+              );
+            })}
+            <TablePagination
+              page={meta.page}
+              totalPages={meta.totalPages}
+              totalItems={meta.total}
+              pageSize={meta.limit}
+              onPageChange={(page) => void loadOrders(page)}
+            />
+          </div>
+        )}
+
+        {selectedId ? (
+          <SectionCard title="Detail Pengiriman">
+            {detailLoading ? (
+              <LoadingSkeleton rows={4} />
+            ) : activeOrder && detail ? (
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <StatusBadge label={detail.statusLabel} variant={statusVariant(detail.status)} />
+                  <StatusBadge label={detail.deliveryTypeLabel} variant="neutral" />
+                </div>
+
+                <div style={{ fontSize: 14 }}>
+                  <p style={{ margin: '0 0 4px' }}>
+                    <strong>{detail.customer.name}</strong> · {detail.customer.phone}
+                  </p>
+                  <p style={{ margin: 0, color: '#475569' }}>
+                    {detail.address.label}: {detail.address.addressLine1}
+                    {detail.address.addressLine2 ? `, ${detail.address.addressLine2}` : ''}, {detail.address.city}
+                    {detail.address.province ? `, ${detail.address.province}` : ''}
+                  </p>
+                </div>
+
+                {detail.transaction ? (
+                  <p style={{ margin: 0, fontSize: 13 }}>
+                    Transaksi:{' '}
+                    <Link href={`/dashboard/transactions?id=${detail.transaction.id}`}>
+                      {detail.transaction.receiptNo}
+                    </Link>{' '}
+                    · {formatCurrencyIDR(detail.transaction.total)}
+                  </p>
+                ) : null}
+
+                {detail.items.length > 0 ? (
+                  <div>
+                    <strong style={{ fontSize: 13 }}>Item ({detail.items.length})</strong>
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                      {detail.items.map((item, index) => (
+                        <li key={`${item.productName}-${index}`}>
+                          {item.productName} — {item.quantity}
+                          {item.sellUnitSymbol ? ` ${item.sellUnitSymbol}` : ''} (
+                          {formatCurrencyIDR(item.subtotal)})
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {detail.notes ? (
+                  <p style={{ margin: 0, fontSize: 13 }}>Catatan: {detail.notes}</p>
+                ) : null}
+
+                {detail.statusHistory.length > 0 ? (
+                  <div>
+                    <strong style={{ fontSize: 13 }}>Riwayat status</strong>
+                    <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: '#475569' }}>
+                      {detail.statusHistory.map((log) => (
+                        <li key={log.id} style={{ marginBottom: 4 }}>
+                          {log.fromStatusLabel ? `${log.fromStatusLabel} → ` : ''}
+                          <strong>{log.toStatusLabel}</strong> · {log.changedByName} ·{' '}
+                          {new Date(log.createdAt).toLocaleString('id-ID')}
+                          {log.notes ? ` — ${log.notes}` : ''}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+
+                <Input
+                  placeholder="Nama driver (opsional)"
+                  value={driverName}
+                  onChange={(event) => setDriverName(event.target.value)}
+                />
+                <Input
+                  placeholder="Alasan batal (wajib jika batalkan)"
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                />
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? [])
+                    .filter((status) => status !== 'BATAL')
+                    .map((status) => (
+                      <Button
+                        key={status}
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => void handleAdvance(detail, status)}
+                        style={{ minHeight: 44, flex: '1 1 auto' }}
+                      >
+                        → {DELIVERY_STATUS_LABELS[status]}
+                      </Button>
+                    ))}
+                  {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? []).includes('BATAL') ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={actionLoading}
+                      onClick={() => void handleAdvance(detail, 'BATAL')}
+                      style={{ minHeight: 44, width: '100%' }}
+                    >
+                      Batalkan pengiriman
+                    </Button>
                   ) : null}
                 </div>
-              </SectionCard>
-            );
-          })}
-          <TablePagination
-            page={meta.page}
-            totalPages={meta.totalPages}
-            totalItems={meta.total}
-            pageSize={meta.limit}
-            onPageChange={(page) => void loadOrders(page)}
-          />
-        </div>
-      )}
+              </div>
+            ) : (
+              <p style={{ margin: 0, color: '#64748b' }}>Detail tidak tersedia.</p>
+            )}
+          </SectionCard>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -255,6 +255,10 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 
 - [ ] Baca [KASIR-QUICK-START](./KASIR-QUICK-START.md)
 - [ ] UAT Skenario B–F di atas
+- [ ] **Pengiriman toko langsung (POS):** pelanggan + alamat CRM → mode **Kirim ke alamat** → checkout → antrian `DLV-…` otomatis
+- [ ] **Dashboard pengiriman:** `/dashboard/deliveries` — filter tipe Toko Langsung, ubah status Menunggu → Disiapkan → Dikirim → Selesai
+- [ ] **Link transaksi:** detail pengiriman membuka struk transaksi asal (`/dashboard/transactions?id=…`)
+- [ ] **Offline kasir:** pengiriman tidak tersedia saat POS offline (defer — buat manual setelah sync)
 - [ ] Rekonsiliasi kas di **Shift & Kas** (`/shift`): `expectedCash = opening + cashSales + arCashCollections − cashExpenses`
 - [ ] Thermal printer: PDF fallback OK; WebUSB **stub** — defer hardware prod
 
