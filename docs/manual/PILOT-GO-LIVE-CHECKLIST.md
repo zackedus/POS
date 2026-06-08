@@ -166,7 +166,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 |---|---------|----------|
 | **J1** | Login owner → `/dashboard/outlets` | Daftar cabang tampil: **Cabang Utama** (★ cabang utama), **Cabang Utara**, kode & status aktif |
 | **J2** | Owner → `/pos` → picker **Cabang Utama** → catat stok grid produk uji (mis. Semen) → ganti picker ke **Cabang Utara** | Grid refresh; qty stok **berbeda** sesuai P2 (bukan salinan cabang sebelumnya) |
-| **J3** | Pilih **Cabang Utara** → `/shift/open` → buka shift saldo `500000` → checkout 1× produk uji (tunai) | Shift aktif di Cabang Utara; stok produk uji **Cabang Utara −1**; stok **Cabang Utama tidak berubah** |
+| **J3** | Pilih **Cabang Utara** → `/shift` (tab Shift Aktif → Buka Shift) saldo `500000` → checkout 1× produk uji (tunai) | Shift aktif di Cabang Utara; stok produk uji **Cabang Utara −1**; stok **Cabang Utama tidak berubah** |
 | **J4** | Tanpa tutup shift Cabang Utara → di POS ganti picker ke **Cabang Utama** | Banner peringatan: *"Shift aktif di cabang lain…"*; checkout **diblokir** sampai buka shift di cabang terpilih atau tutup shift lama |
 | **J5** | Login **kasir** (`kasir@barokah.local`) → coba akses PO **Cabang Utara** (owner/manager buat draft dulu) via API atau URL detail PO | HTTP **403 Forbidden** / pesan akses ditolak — kasir hanya scope **Cabang Utama** (cabang assign) |
 | **J5b** | Login **manager** atau **owner** → buat/lihat PO **Cabang Utara** → buka detail PO tersebut | **PASS** — manager & owner boleh akses PO cabang mana pun dalam tenant |
@@ -255,7 +255,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 
 - [ ] Baca [KASIR-QUICK-START](./KASIR-QUICK-START.md)
 - [ ] UAT Skenario B–F di atas
-- [ ] Rekonsiliasi kas: `expectedCash = opening + cashSales`
+- [ ] Rekonsiliasi kas di **Shift & Kas** (`/shift`): `expectedCash = opening + cashSales + arCashCollections − cashExpenses`
 - [ ] Thermal printer: PDF fallback OK; WebUSB **stub** — defer hardware prod
 
 ## 6. Payment

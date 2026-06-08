@@ -35,6 +35,7 @@ Dashboard admin saat ini punya **40+ route** di bawah `apps/web/src/app/dashboar
 | `/dashboard/payables` | Utang | Keuangan |
 | `/dashboard/deposits` | Deposit | Keuangan |
 | `/dashboard/expenses` | Pengeluaran | Keuangan |
+| `/dashboard/reports/finance` | Laporan Keuangan | Keuangan / Laporan |
 | `/dashboard/customers` | Member & Pelanggan | Penjualan & pelanggan |
 | `/dashboard/customers/[id]` | Detail pelanggan | Penjualan (detail — OK) |
 | `/dashboard/promotions` | Promo & Diskon | Master & katalog |
@@ -63,8 +64,9 @@ Dashboard admin saat ini punya **40+ route** di bawah `apps/web/src/app/dashboar
 |-------|-------|
 | `/pos` | Kasir |
 | `/pos/online-orders` | Order Online (kasir) |
-| `/shift/open` | Buka Shift |
-| `/shift/close` | Tutup Shift |
+| `/shift` | Shift & Kas (kasir — buka/tutup + riwayat) |
+| `/dashboard/shifts` | Shift & Kas (manager/owner, layout dashboard) |
+| `/shift/open`, `/shift/close` | Redirect → `/shift` |
 
 ---
 
@@ -72,7 +74,7 @@ Dashboard admin saat ini punya **40+ route** di bawah `apps/web/src/app/dashboar
 
 ### 1. Operasional harian
 Shift → kasir → void/struk → pengiriman order.  
-**Pages:** `/dashboard`, `/pos`, `/shift/*`, `/dashboard/transactions`, `/dashboard/deliveries`, `/pos/online-orders`
+**Pages:** `/dashboard`, `/pos`, `/shift`, `/dashboard/shifts`, `/dashboard/transactions`, `/dashboard/deliveries`, `/pos/online-orders`
 
 ### 2. Master & katalog
 Produk, kategori, satuan, bundling, promo sebelum jual.  

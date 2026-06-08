@@ -64,7 +64,7 @@
 
 | # | Langkah | Hasil yang diharapkan |
 |---|---------|----------------------|
-| 1 | Buka shift jika belum (`/shift/open`) | Shift aktif |
+| 1 | Buka shift jika belum (`/shift`) | Shift aktif |
 | 2 | Buka **Kasir** (`/pos`) | Grid produk tampil |
 | 3 | Cari `Cat Tembok` (induk varian) di grid | **Tidak muncul** di grid |
 | 4 | Cari `Cat Tembok Putih` (turunan) | **Muncul** dan bisa ditambah ke keranjang |
