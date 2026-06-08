@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@barokah/ui';
+import { parseCurrencyInput } from '@barokah/shared';
+import { Button, CurrencyInput } from '@barokah/ui';
 import {
   AlertBanner,
   cardStyle,
@@ -103,7 +104,8 @@ export default function PromotionsPage() {
       const payload = {
         name: form.name.trim(),
         type: form.type,
-        value: Number(form.value),
+        value:
+          form.type === 'FIXED_AMOUNT' ? parseCurrencyInput(form.value) : Number(form.value),
         applyTo: form.applyTo,
         isActive: form.isActive,
         startsAt: form.startsAt.trim() ? new Date(form.startsAt).toISOString() : undefined,
@@ -229,17 +231,29 @@ export default function PromotionsPage() {
                 <option value="FIXED_AMOUNT">Potongan nominal</option>
               </select>
             </label>
-            <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
-              Nilai
-              <input
-                required
-                type="number"
-                min={1}
+            {form.type === 'FIXED_AMOUNT' ? (
+              <CurrencyInput
+                label="Nilai potongan (IDR)"
                 value={form.value}
-                onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                style={{ padding: '0.5rem', borderRadius: 8, border: `1px solid ${tokens.cardBorder}` }}
+                onChange={(value) => setForm((f) => ({ ...f, value }))}
+                placeholder="50.000"
+                fullWidth
+                required
               />
-            </label>
+            ) : (
+              <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
+                Nilai (%)
+                <input
+                  required
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={form.value}
+                  onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+                  style={{ padding: '0.5rem', borderRadius: 8, border: `1px solid ${tokens.cardBorder}` }}
+                />
+              </label>
+            )}
             <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
               Target
               <select

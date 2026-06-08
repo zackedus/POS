@@ -8,7 +8,7 @@ import {
   formatCurrencyIDR,
   parseCurrencyInput,
 } from '@barokah/shared';
-import { Button } from '@barokah/ui';
+import { Button, CurrencyInput } from '@barokah/ui';
 import {
   AlertBanner,
   cardStyle,
@@ -92,27 +92,26 @@ export default function CustomerDetailPage() {
     void loadDetail();
   }, [loadDetail]);
 
-  async function handleProfileSave(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleProfileSave(data: {
+    name: string;
+    phone: string;
+    email: string | null;
+    notes: string;
+    autoLimitEnabled: boolean;
+    creditLimit?: number | null;
+  }) {
     if (!canEdit || !detail) return;
-    const form = new FormData(e.currentTarget);
     setSaving(true);
     setError(null);
     setSuccess(null);
     try {
-      const creditRaw = String(form.get('creditLimit') ?? '').trim();
-      let creditLimit: number | null | undefined;
-      if (creditRaw === 'unlimited') creditLimit = null;
-      else if (creditRaw === '0') creditLimit = 0;
-      else if (creditRaw) creditLimit = parseCurrencyInput(creditRaw);
-
       await updateCustomer(customerId, {
-        name: String(form.get('name') ?? '').trim(),
-        phone: String(form.get('phone') ?? '').trim(),
-        email: String(form.get('email') ?? '').trim() || null,
-        notes: String(form.get('notes') ?? '').trim(),
-        autoLimitEnabled: form.get('autoLimitEnabled') === 'on',
-        ...(creditLimit !== undefined ? { creditLimit } : {}),
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        notes: data.notes,
+        autoLimitEnabled: data.autoLimitEnabled,
+        ...(data.creditLimit !== undefined ? { creditLimit: data.creditLimit } : {}),
       });
       setSuccess('Profil pelanggan diperbarui.');
       await loadDetail();
@@ -179,7 +178,7 @@ export default function CustomerDetailPage() {
       ) : !detail ? (
         <p style={{ color: tokens.muted }}>Pelanggan tidak ditemukan.</p>
       ) : tab === 'profil' ? (
-        <ProfileTab detail={detail} canEdit={canEdit} saving={saving} onSave={(e) => void handleProfileSave(e)} tokens={tokens} />
+        <ProfileTab detail={detail} canEdit={canEdit} saving={saving} onSave={(data) => void handleProfileSave(data)} tokens={tokens} />
       ) : tab === 'alamat' ? (
         <AddressTab customerId={customerId} canEdit={canEdit} tokens={tokens} onMessage={setSuccess} onError={setError} />
       ) : tab === 'poin' ? (
@@ -197,6 +196,8 @@ export default function CustomerDetailPage() {
   );
 }
 
+type CreditLimitMode = 'unlimited' | 'none' | 'custom';
+
 function ProfileTab({
   detail,
   canEdit,
@@ -207,19 +208,46 @@ function ProfileTab({
   detail: CustomerDetail;
   canEdit: boolean;
   saving: boolean;
-  onSave: (e: FormEvent<HTMLFormElement>) => void;
+  onSave: (data: {
+    name: string;
+    phone: string;
+    email: string | null;
+    notes: string;
+    autoLimitEnabled: boolean;
+    creditLimit?: number | null;
+  }) => void;
   tokens: { cardBg: string; cardBorder: string; muted: string };
 }) {
-  const creditDisplay =
-    detail.creditLimit === 0
-      ? '0'
-      : detail.creditLimit != null
-        ? formatCurrencyIDR(detail.creditLimit).replace(/^Rp\s?/, '')
-        : 'unlimited';
+  const [creditLimitMode, setCreditLimitMode] = useState<CreditLimitMode>(() => {
+    if (detail.creditLimit === null) return 'unlimited';
+    if (detail.creditLimit === 0) return 'none';
+    return 'custom';
+  });
+  const [creditLimitAmount, setCreditLimitAmount] = useState(() =>
+    detail.creditLimit != null && detail.creditLimit > 0 ? String(detail.creditLimit) : '',
+  );
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    let creditLimit: number | null | undefined;
+    if (creditLimitMode === 'unlimited') creditLimit = null;
+    else if (creditLimitMode === 'none') creditLimit = 0;
+    else creditLimit = parseCurrencyInput(creditLimitAmount);
+
+    onSave({
+      name: String(form.get('name') ?? '').trim(),
+      phone: String(form.get('phone') ?? '').trim(),
+      email: String(form.get('email') ?? '').trim() || null,
+      notes: String(form.get('notes') ?? '').trim(),
+      autoLimitEnabled: form.get('autoLimitEnabled') === 'on',
+      ...(creditLimit !== undefined ? { creditLimit } : {}),
+    });
+  }
 
   return (
     <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
-      <form onSubmit={onSave} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
           Nama
           <input name="name" defaultValue={detail.name} required minLength={2} disabled={!canEdit} style={inputStyle(tokens)} />
@@ -236,10 +264,51 @@ function ProfileTab({
           Kode member
           <input value={detail.memberCode ?? '—'} readOnly style={{ ...inputStyle(tokens), background: '#f8fafc' }} />
         </label>
-        <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem' }}>
-          Limit kredit (default baru: {formatCurrencyIDR(DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR)} · 0 = tidak tempo · unlimited)
-          <input name="creditLimit" defaultValue={creditDisplay} disabled={!canEdit} style={inputStyle(tokens)} />
-        </label>
+        <fieldset style={{ border: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.5rem' }}>
+          <legend style={{ fontSize: '0.875rem', marginBottom: 4 }}>
+            Limit kredit (default baru: {formatCurrencyIDR(DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR)})
+          </legend>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+            <input
+              type="radio"
+              name="creditLimitMode"
+              checked={creditLimitMode === 'custom'}
+              disabled={!canEdit}
+              onChange={() => setCreditLimitMode('custom')}
+            />
+            Nominal khusus
+          </label>
+          {creditLimitMode === 'custom' ? (
+            <CurrencyInput
+              label="Limit kredit (IDR)"
+              value={creditLimitAmount}
+              onChange={setCreditLimitAmount}
+              placeholder={formatCurrencyIDR(DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR).replace(/^Rp\s?/, '')}
+              fullWidth
+              disabled={!canEdit}
+            />
+          ) : null}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+            <input
+              type="radio"
+              name="creditLimitMode"
+              checked={creditLimitMode === 'none'}
+              disabled={!canEdit}
+              onChange={() => setCreditLimitMode('none')}
+            />
+            Tidak tempo (0)
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+            <input
+              type="radio"
+              name="creditLimitMode"
+              checked={creditLimitMode === 'unlimited'}
+              disabled={!canEdit}
+              onChange={() => setCreditLimitMode('unlimited')}
+            />
+            Unlimited
+          </label>
+        </fieldset>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
           <input
             type="checkbox"
@@ -694,13 +763,16 @@ function DepositTab({
             Saldo deposit: <strong>{formatCurrencyIDR(summary.finance?.depositBalance ?? 0)}</strong>
           </p>
           {canEdit ? (
-            <form onSubmit={(e) => void handleTopUp(e)} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <input
-                value={topUpAmount}
-                onChange={(e) => setTopUpAmount(e.target.value)}
-                placeholder="Nominal top-up (Rp)"
-                style={{ ...inputStyle(tokens), flex: '1 1 180px' }}
-              />
+            <form onSubmit={(e) => void handleTopUp(e)} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 180px' }}>
+                <CurrencyInput
+                  label="Nominal top-up"
+                  value={topUpAmount}
+                  onChange={setTopUpAmount}
+                  placeholder="100.000"
+                  fullWidth
+                />
+              </div>
               <Button type="submit" variant="primary">
                 Top-up
               </Button>

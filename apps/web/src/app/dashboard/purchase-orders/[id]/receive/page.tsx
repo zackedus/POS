@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { deriveBaseCostFromPurchaseCost, formatCurrencyIDR } from '@barokah/shared';
-import { Button, QuantityInput } from '@barokah/ui';
+import { deriveBaseCostFromPurchaseCost, formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
+import { Button, CurrencyInput, QuantityInput } from '@barokah/ui';
 import {
   AlertBanner,
   BreadcrumbNav,
@@ -77,7 +77,7 @@ export default function ReceivePurchaseOrderPage() {
       .map((line) => ({
         purchaseOrderItemId: line.purchaseOrderItemId,
         quantityReceived: Number(line.quantityReceived),
-        unitCost: Number(line.unitCost),
+        unitCost: parseCurrencyInput(line.unitCost),
       }))
       .filter((line) => line.quantityReceived > 0);
 
@@ -149,7 +149,7 @@ export default function ReceivePurchaseOrderPage() {
               <tbody>
                 {openItems.map((item) => {
                   const draft = lines.find((line) => line.purchaseOrderItemId === item.id);
-                  const unitCost = Number(draft?.unitCost ?? item.unitCost);
+                  const unitCost = parseCurrencyInput(draft?.unitCost ?? String(item.unitCost));
                   const previewBaseCost = deriveBaseCostFromPurchaseCost(unitCost, item.conversionToBase);
 
                   return (
@@ -171,17 +171,16 @@ export default function ReceivePurchaseOrderPage() {
                         />
                       </td>
                       <td style={tableStyles.td}>
-                        <input
-                          type="number"
-                          min={0}
+                        <CurrencyInput
+                          aria-label={`Harga beli ${item.productName}`}
                           value={draft?.unitCost ?? String(item.unitCost)}
-                          onChange={(e) =>
+                          onChange={(unitCost) =>
                             updateLine(item.id, {
                               purchaseOrderItemId: item.id,
-                              unitCost: e.target.value,
+                              unitCost,
                             })
                           }
-                          style={{ width: 120, padding: '0.4rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
+                          style={{ width: 120, padding: '0.4rem 0.6rem', fontSize: '0.875rem' }}
                         />
                         <span style={{ marginLeft: '0.35rem', fontSize: '0.82rem', color: '#64748b' }}>
                           / {item.unitSymbol ?? 'unit'}
