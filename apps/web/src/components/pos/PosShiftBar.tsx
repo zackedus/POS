@@ -31,6 +31,7 @@ const MODE_BADGE: Record<PosChannelMode, { label: string; bg: string; color: str
 function resolveMode(pathname: string): PosChannelMode {
   if (pathname.startsWith('/pos/marketplace-orders')) return 'marketplace';
   if (pathname.startsWith('/pos/online-orders')) return 'web';
+  if (pathname.startsWith('/pos/deliveries')) return 'store';
   return 'store';
 }
 
@@ -44,6 +45,7 @@ export interface PosShiftBarProps {
   activeShift: ShiftSummary | null;
   onlineOrderCount?: number;
   marketplaceOrderCount?: number;
+  deliveryCount?: number;
   outlets?: PosOutletOption[];
   selectedOutletId?: string | null;
   needsOutletPick?: boolean;
@@ -61,6 +63,7 @@ export function PosShiftBar({
   activeShift,
   onlineOrderCount,
   marketplaceOrderCount,
+  deliveryCount,
   outlets = [],
   selectedOutletId,
   needsOutletPick = false,
@@ -280,6 +283,28 @@ export function PosShiftBar({
                 }}
               >
                 {marketplaceOrderCount}
+              </span>
+            ) : null}
+          </Link>
+          <Link
+            href="/pos/deliveries"
+            style={navLinkStyle(pathname.startsWith('/pos/deliveries'))}
+            aria-current={pathname.startsWith('/pos/deliveries') ? 'page' : undefined}
+          >
+            🚚 Pengiriman
+            {deliveryCount && deliveryCount > 0 ? (
+              <span
+                style={{
+                  marginLeft: 6,
+                  background: '#6b21a8',
+                  color: '#fff',
+                  borderRadius: 999,
+                  padding: '0 6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                }}
+              >
+                {deliveryCount}
               </span>
             ) : null}
           </Link>

@@ -26,6 +26,10 @@ export class DeliveryListQueryDto {
   @IsString()
   search?: string;
 
+  @IsOptional()
+  @IsString()
+  channel?: string;
+
   @Type(() => Number)
   @IsOptional()
   @IsInt({ message: 'Halaman harus bilangan bulat' })
@@ -44,4 +48,12 @@ export class DeliveryQueueSummaryQueryDto {
   @IsOptional()
   @IsUUID('4', { message: 'Outlet ID tidak valid' })
   outletId?: string;
+
+  @IsOptional()
+  @IsString()
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  dateTo?: string;
 }

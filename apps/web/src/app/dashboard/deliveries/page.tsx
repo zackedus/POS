@@ -10,9 +10,13 @@ import {
   formatCurrencyIDR,
   getTodayDate,
   ONLINE_ORDER_CHANNEL_BADGE,
+  type DeliveryOrderDetail,
+  type DeliveryOrderListItem,
+  type DeliveryQueueSummary,
+  type DeliveryStatus,
+  type DeliveryType,
   type OnlineOrderChannel,
 } from '@barokah/shared';
-import type { DeliveryOrderDetail, DeliveryOrderListItem, DeliveryStatus, DeliveryType } from '@barokah/shared';
 import { Button, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -24,9 +28,13 @@ import {
   TablePagination,
 } from '@/components/dashboard/dashboard-ui';
 import { mapApiError } from '@/lib/api-client';
+import { deliveryStatusExtraStyle, deliveryStatusVariant } from '@/lib/delivery-status-ui';
+import { publishDeliveryUpdated } from '@/lib/delivery-sync';
 import {
   fetchDeliveries,
   fetchDeliveryDetail,
+  fetchDeliveryQueueSummary,
+  fetchDeliveryShippingLabel,
   updateDeliveryStatus,
   type PaginatedDeliveries,
 } from '@/lib/deliveries-api';
@@ -49,12 +57,57 @@ const TYPE_TABS: Array<{ value: DeliveryType | 'ALL'; label: string }> = [
   { value: 'ONLINE_ORDER', label: DELIVERY_TYPE_LABELS.ONLINE_ORDER },
 ];
 
-function statusVariant(status: DeliveryStatus): 'neutral' | 'warning' | 'success' | 'error' {
-  if (status === 'SELESAI') return 'success';
-  if (status === 'BATAL') return 'error';
-  if (status === 'MENUNGGU') return 'warning';
-  return 'neutral';
+const CHANNEL_TABS: Array<{ value: OnlineOrderChannel | 'ALL'; label: string }> = [
+  { value: 'ALL', label: 'Semua channel' },
+  { value: 'WEB', label: 'Order Web' },
+  { value: 'TOKOPEDIA', label: 'Tokopedia' },
+  { value: 'SHOPEE', label: 'Shopee' },
+];
+
+function DeliveryStatusBadge({ status, label }: { status: DeliveryStatus; label: string }) {
+  const extra = deliveryStatusExtraStyle(status);
+  if (extra) {
+    return (
+      <span
+        style={{
+          display: 'inline-block',
+          padding: '0.15rem 0.5rem',
+          borderRadius: '999px',
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          ...extra,
+        }}
+      >
+        {label}
+      </span>
+    );
+  }
+  return <StatusBadge label={label} variant={deliveryStatusVariant(status)} />;
 }
+
+function ChannelBadgePill({ channel, channelLabel }: { channel: string; channelLabel: string }) {
+  const style = ONLINE_ORDER_CHANNEL_BADGE[channel as OnlineOrderChannel] ?? ONLINE_ORDER_CHANNEL_BADGE.OTHER;
+  return (
+    <span
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: style.bg,
+        color: style.color,
+      }}
+    >
+      {style.icon ? `${style.icon} ` : ''}
+      {channelLabel}
+    </span>
+  );
+}
+
+type PendingAction = {
+  order: DeliveryOrderListItem | DeliveryOrderDetail;
+  nextStatus: DeliveryStatus;
+};
 
 export default function DashboardDeliveriesPage() {
   const { outlets, selectedOutletId } = useOutletSelection();
@@ -62,10 +115,12 @@ export default function DashboardDeliveriesPage() {
   const [outletFilter, setOutletFilter] = useState<string>('ALL');
   const [activeTab, setActiveTab] = useState<DeliveryStatus | 'ALL'>('ALL');
   const [typeTab, setTypeTab] = useState<DeliveryType | 'ALL'>('ALL');
+  const [channelTab, setChannelTab] = useState<OnlineOrderChannel | 'ALL'>('ALL');
   const [dateFrom, setDateFrom] = useState(() => getTodayDate());
   const [dateTo, setDateTo] = useState(() => getTodayDate());
   const [search, setSearch] = useState('');
   const [orders, setOrders] = useState<DeliveryOrderListItem[]>([]);
+  const [summary, setSummary] = useState<DeliveryQueueSummary | null>(null);
   const [meta, setMeta] = useState<PaginatedDeliveries['meta']>({
     page: 1,
     limit: 20,
@@ -82,6 +137,7 @@ export default function DashboardDeliveriesPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [labelData, setLabelData] = useState<ShippingLabelData | null>(null);
   const [printingLabel, setPrintingLabel] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   const statusFilter = useMemo(() => {
     if (activeTab === 'ALL') return 'MENUNGGU,DISIAPKAN,DIKIRIM';
@@ -93,6 +149,12 @@ export default function DashboardDeliveriesPage() {
     return outletFilter;
   }, [outletFilter]);
 
+  const channelFilter = useMemo(() => {
+    if (typeTab === 'STORE_DIRECT') return undefined;
+    if (channelTab === 'ALL') return undefined;
+    return channelTab;
+  }, [typeTab, channelTab]);
+
   const detailOutletId = queryOutletId ?? selectedOutletId ?? undefined;
 
   useEffect(() => {
@@ -100,6 +162,19 @@ export default function DashboardDeliveriesPage() {
       setOutletFilter(selectedOutletId);
     }
   }, [multiOutlet, selectedOutletId]);
+
+  const loadSummary = useCallback(async () => {
+    try {
+      const data = await fetchDeliveryQueueSummary({
+        outletId: queryOutletId,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+      setSummary(data);
+    } catch {
+      setSummary(null);
+    }
+  }, [queryOutletId, dateFrom, dateTo]);
 
   const loadOrders = useCallback(
     async (page = 1) => {
@@ -109,6 +184,7 @@ export default function DashboardDeliveriesPage() {
         const result = await fetchDeliveries({
           outletId: queryOutletId,
           deliveryType: typeTab === 'ALL' ? undefined : typeTab,
+          channel: channelFilter,
           status: statusFilter,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
@@ -118,13 +194,14 @@ export default function DashboardDeliveriesPage() {
         });
         setOrders(result.items);
         setMeta(result.meta);
+        await loadSummary();
       } catch (err) {
         setError(mapApiError(err, 'Gagal memuat antrian pengiriman.'));
       } finally {
         setLoading(false);
       }
     },
-    [queryOutletId, statusFilter, typeTab, dateFrom, dateTo, search],
+    [queryOutletId, statusFilter, typeTab, channelFilter, dateFrom, dateTo, search, loadSummary],
   );
 
   const loadDetail = useCallback(
@@ -163,15 +240,21 @@ export default function DashboardDeliveriesPage() {
     void loadDetail(selectedId);
   }, [selectedId, loadDetail]);
 
-  async function handleAdvance(order: DeliveryOrderListItem, nextStatus: DeliveryStatus) {
+  function requestAdvance(order: DeliveryOrderListItem | DeliveryOrderDetail, nextStatus: DeliveryStatus) {
+    if (nextStatus === 'BATAL' && cancelReason.trim().length < 3) {
+      setError('Alasan pembatalan wajib diisi (min. 3 karakter).');
+      return;
+    }
+    setPendingAction({ order, nextStatus });
+  }
+
+  async function confirmAdvance() {
+    if (!pendingAction) return;
+    const { order, nextStatus } = pendingAction;
     setActionLoading(true);
     setError(null);
     try {
-      if (nextStatus === 'BATAL' && !cancelReason.trim()) {
-        setError('Alasan pembatalan wajib diisi.');
-        return;
-      }
-      await updateDeliveryStatus(
+      const updated = await updateDeliveryStatus(
         order.id,
         {
           status: nextStatus,
@@ -180,7 +263,14 @@ export default function DashboardDeliveriesPage() {
         },
         detailOutletId,
       );
+      publishDeliveryUpdated({
+        deliveryNo: updated.deliveryNo,
+        deliveryId: updated.id,
+        outletId: updated.outlet.id,
+        status: updated.status,
+      });
       setCancelReason('');
+      setPendingAction(null);
       await loadOrders(meta.page);
       if (selectedId === order.id) {
         await loadDetail(order.id);
@@ -192,10 +282,15 @@ export default function DashboardDeliveriesPage() {
     }
   }
 
-  async function handlePrintLabel(onlineOrderId: string) {
+  async function handlePrintLabel(order: DeliveryOrderDetail) {
     setPrintingLabel(true);
     try {
-      const data = await fetchShippingLabel(onlineOrderId, detailOutletId);
+      let data: ShippingLabelData;
+      if (order.deliveryType === 'ONLINE_ORDER' && order.onlineOrder) {
+        data = await fetchShippingLabel(order.onlineOrder.id, detailOutletId);
+      } else {
+        data = await fetchDeliveryShippingLabel(order.id, detailOutletId);
+      }
       setLabelData(data);
       window.setTimeout(() => printShippingLabel(), 150);
     } catch (err) {
@@ -207,6 +302,12 @@ export default function DashboardDeliveriesPage() {
 
   const activeOrder = detail ?? orders.find((row) => row.id === selectedId) ?? null;
 
+  const summaryCards = [
+    { key: 'MENUNGGU' as const, label: DELIVERY_STATUS_LABELS.MENUNGGU, color: '#fef3c7', text: '#92400e' },
+    { key: 'DISIAPKAN' as const, label: DELIVERY_STATUS_LABELS.DISIAPKAN, color: '#dbeafe', text: '#1e40af' },
+    { key: 'DIKIRIM' as const, label: DELIVERY_STATUS_LABELS.DIKIRIM, color: '#f3e8ff', text: '#6b21a8' },
+  ];
+
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <PageHeader
@@ -215,6 +316,27 @@ export default function DashboardDeliveriesPage() {
       />
 
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
+
+      {summary ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+          {summaryCards.map((card) => (
+            <div
+              key={card.key}
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                background: card.color,
+                color: card.text,
+                border: '1px solid rgba(0,0,0,0.06)',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{card.label}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.2 }}>{summary[card.key]}</div>
+              <div style={{ fontSize: 11, opacity: 0.85 }}>hari ini (WIB)</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <SectionCard title="Filter">
         {multiOutlet ? (
@@ -247,12 +369,31 @@ export default function DashboardDeliveriesPage() {
               key={tab.value}
               type="button"
               variant={typeTab === tab.value ? 'primary' : 'secondary'}
-              onClick={() => setTypeTab(tab.value)}
+              onClick={() => {
+                setTypeTab(tab.value);
+                if (tab.value === 'STORE_DIRECT') setChannelTab('ALL');
+              }}
+              style={{ minHeight: 44 }}
             >
               {tab.label}
             </Button>
           ))}
         </div>
+        {typeTab !== 'STORE_DIRECT' ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {CHANNEL_TABS.map((tab) => (
+              <Button
+                key={tab.value}
+                type="button"
+                variant={channelTab === tab.value ? 'primary' : 'secondary'}
+                onClick={() => setChannelTab(tab.value)}
+                style={{ minHeight: 44 }}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {STATUS_TABS.map((tab) => (
             <Button
@@ -260,6 +401,7 @@ export default function DashboardDeliveriesPage() {
               type="button"
               variant={activeTab === tab.value ? 'primary' : 'secondary'}
               onClick={() => setActiveTab(tab.value)}
+              style={{ minHeight: 44 }}
             >
               {tab.label}
             </Button>
@@ -269,11 +411,14 @@ export default function DashboardDeliveriesPage() {
           <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
           <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
           <Input
-            placeholder="Cari no. pengiriman / pelanggan / alamat"
+            placeholder="Cari no. DLV / pelanggan / struk / order"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void loadOrders(1);
+            }}
           />
-          <Button type="button" onClick={() => void loadOrders(1)}>
+          <Button type="button" onClick={() => void loadOrders(1)} style={{ minHeight: 44 }}>
             Terapkan
           </Button>
         </div>
@@ -300,15 +445,22 @@ export default function DashboardDeliveriesPage() {
           />
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
-            {orders.map((order) => {
+            {orders.map((order, index) => {
               const nextStatuses = DELIVERY_STATUS_TRANSITIONS[order.status] ?? [];
               const isSelected = selectedId === order.id;
+              const zebra = index % 2 === 1 ? '#f8fafc' : '#fff';
               return (
                 <SectionCard key={order.id} title={`${order.deliveryNo} · ${order.customer.name}`}>
-                  <div style={{ display: 'grid', gap: 8 }}>
+                  <div style={{ display: 'grid', gap: 8, background: zebra, margin: '-0.5rem', padding: '0.5rem', borderRadius: 8 }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                      <StatusBadge label={order.statusLabel} variant={statusVariant(order.status)} />
+                      <DeliveryStatusBadge status={order.status} label={order.statusLabel} />
                       <StatusBadge label={order.deliveryTypeLabel} variant="neutral" />
+                      {order.onlineOrder?.channelLabel && order.onlineOrder.channel ? (
+                        <ChannelBadgePill
+                          channel={order.onlineOrder.channel}
+                          channelLabel={order.onlineOrder.channelLabel}
+                        />
+                      ) : null}
                       {multiOutlet ? (
                         <span style={{ color: '#64748b', fontSize: 13 }}>{order.outlet.name}</span>
                       ) : null}
@@ -321,27 +473,9 @@ export default function DashboardDeliveriesPage() {
                         </Link>
                       ) : null}
                       {order.onlineOrder ? (
-                        <>
-                          {order.onlineOrder.channelLabel ? (
-                            <span
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                padding: '2px 8px',
-                                borderRadius: 999,
-                                background:
-                                  ONLINE_ORDER_CHANNEL_BADGE[order.onlineOrder.channel as OnlineOrderChannel]?.bg ??
-                                  '#f1f5f9',
-                                color:
-                                  ONLINE_ORDER_CHANNEL_BADGE[order.onlineOrder.channel as OnlineOrderChannel]?.color ??
-                                  '#334155',
-                              }}
-                            >
-                              {order.onlineOrder.channelLabel}
-                            </span>
-                          ) : null}
-                          <Link href={`/dashboard/online-orders`}>Order {order.onlineOrder.orderNo}</Link>
-                        </>
+                        <Link href={`/dashboard/online-orders?id=${order.onlineOrder.id}`}>
+                          Order {order.onlineOrder.orderNo}
+                        </Link>
                       ) : null}
                     </div>
                     <p style={{ margin: 0 }}>{order.addressSnippet}</p>
@@ -359,24 +493,23 @@ export default function DashboardDeliveriesPage() {
                         type="button"
                         variant={isSelected ? 'primary' : 'secondary'}
                         onClick={() => setSelectedId(isSelected ? null : order.id)}
+                        style={{ minHeight: 44 }}
                       >
                         {isSelected ? 'Tutup detail' : 'Detail'}
                       </Button>
-                      {nextStatuses
-                        .filter((status) => status !== 'BATAL')
-                        .map((status) => (
-                          <Button
-                            key={status}
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() => void handleAdvance(order, status)}
-                            style={{ minHeight: 44 }}
-                          >
-                            → {DELIVERY_STATUS_LABELS[status]}
-                          </Button>
-                        ))}
+                      {nextStatuses.map((status) => (
+                        <Button
+                          key={status}
+                          type="button"
+                          variant={status === 'BATAL' ? 'secondary' : undefined}
+                          disabled={actionLoading}
+                          onClick={() => requestAdvance(order, status)}
+                          style={{ minHeight: 44 }}
+                        >
+                          {status === 'BATAL' ? 'Batalkan' : `→ ${DELIVERY_STATUS_LABELS[status]}`}
+                        </Button>
+                      ))}
                     </div>
-
                   </div>
                 </SectionCard>
               );
@@ -396,130 +529,154 @@ export default function DashboardDeliveriesPage() {
             {detailLoading ? (
               <LoadingSkeleton rows={4} />
             ) : activeOrder && detail ? (
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  <StatusBadge label={detail.statusLabel} variant={statusVariant(detail.status)} />
-                  <StatusBadge label={detail.deliveryTypeLabel} variant="neutral" />
-                </div>
-
-                <div style={{ fontSize: 14 }}>
-                  <p style={{ margin: '0 0 4px' }}>
-                    <strong>{detail.customer.name}</strong> · {detail.customer.phone}
-                  </p>
-                  <p style={{ margin: 0, color: '#475569' }}>
-                    {detail.address.label}: {detail.address.addressLine1}
-                    {detail.address.addressLine2 ? `, ${detail.address.addressLine2}` : ''}, {detail.address.city}
-                    {detail.address.province ? `, ${detail.address.province}` : ''}
-                  </p>
-                </div>
-
-                {detail.transaction ? (
-                  <p style={{ margin: 0, fontSize: 13 }}>
-                    Transaksi:{' '}
-                    <Link href={`/dashboard/transactions?id=${detail.transaction.id}`}>
-                      {detail.transaction.receiptNo}
-                    </Link>{' '}
-                    · {formatCurrencyIDR(detail.transaction.total)}
-                  </p>
-                ) : null}
-
-                {detail.onlineOrder ? (
-                  <p style={{ margin: 0, fontSize: 13 }}>
-                    Order online:{' '}
-                    {detail.onlineOrder.channelLabel ? (
-                      <strong>{detail.onlineOrder.channelLabel} · </strong>
+              <div style={{ display: 'grid', gap: 12, gridTemplateRows: '1fr auto' }}>
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <DeliveryStatusBadge status={detail.status} label={detail.statusLabel} />
+                    <StatusBadge label={detail.deliveryTypeLabel} variant="neutral" />
+                    {detail.onlineOrder?.channelLabel && detail.onlineOrder.channel ? (
+                      <ChannelBadgePill
+                        channel={detail.onlineOrder.channel}
+                        channelLabel={detail.onlineOrder.channelLabel}
+                      />
                     ) : null}
-                    <Link href="/dashboard/online-orders">{detail.onlineOrder.orderNo}</Link>
-                    {detail.onlineOrder.externalOrderRef ? (
-                      <span> (ref: {detail.onlineOrder.externalOrderRef})</span>
-                    ) : null}
-                  </p>
-                ) : null}
+                  </div>
 
-                {detail.deliveryType === 'ONLINE_ORDER' && detail.onlineOrder ? (
+                  <div style={{ fontSize: 14 }}>
+                    <p style={{ margin: '0 0 4px' }}>
+                      <strong>{detail.customer.name}</strong> · {detail.customer.phone}
+                    </p>
+                    <p style={{ margin: 0, color: '#475569' }}>
+                      {detail.address.label}: {detail.address.addressLine1}
+                      {detail.address.addressLine2 ? `, ${detail.address.addressLine2}` : ''}, {detail.address.city}
+                      {detail.address.province ? `, ${detail.address.province}` : ''}
+                    </p>
+                  </div>
+
+                  {detail.transaction ? (
+                    <p style={{ margin: 0, fontSize: 13 }}>
+                      Transaksi:{' '}
+                      <Link href={`/dashboard/transactions?id=${detail.transaction.id}`}>
+                        {detail.transaction.receiptNo}
+                      </Link>{' '}
+                      · {formatCurrencyIDR(detail.transaction.total)}
+                    </p>
+                  ) : null}
+
+                  {detail.onlineOrder ? (
+                    <p style={{ margin: 0, fontSize: 13 }}>
+                      Order online:{' '}
+                      <Link href={`/dashboard/online-orders?id=${detail.onlineOrder.id}`}>
+                        {detail.onlineOrder.orderNo}
+                      </Link>
+                      {detail.onlineOrder.externalOrderRef ? (
+                        <span> (ref: {detail.onlineOrder.externalOrderRef})</span>
+                      ) : null}
+                    </p>
+                  ) : null}
+
                   <Button
                     type="button"
                     variant="secondary"
                     disabled={printingLabel}
-                    onClick={() => void handlePrintLabel(detail.onlineOrder!.id)}
+                    onClick={() => void handlePrintLabel(detail)}
                     style={{ minHeight: 44 }}
                   >
                     {printingLabel ? 'Menyiapkan…' : 'Cetak Label'}
                   </Button>
-                ) : null}
 
-                {detail.items.length > 0 ? (
-                  <div>
-                    <strong style={{ fontSize: 13 }}>Item ({detail.items.length})</strong>
-                    <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13 }}>
-                      {detail.items.map((item, index) => (
-                        <li key={`${item.productName}-${index}`}>
-                          {item.productName} — {item.quantity}
-                          {item.sellUnitSymbol ? ` ${item.sellUnitSymbol}` : ''} (
-                          {formatCurrencyIDR(item.subtotal)})
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                  {detail.items.length > 0 ? (
+                    <div>
+                      <strong style={{ fontSize: 13 }}>Item ({detail.items.length})</strong>
+                      <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                        {detail.items.map((item, itemIndex) => (
+                          <li key={`${item.productName}-${itemIndex}`}>
+                            {item.productName} — {item.quantity}
+                            {item.sellUnitSymbol ? ` ${item.sellUnitSymbol}` : ''} (
+                            {formatCurrencyIDR(item.subtotal)})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {detail.notes ? (
-                  <p style={{ margin: 0, fontSize: 13 }}>Catatan: {detail.notes}</p>
-                ) : null}
+                  {detail.notes ? <p style={{ margin: 0, fontSize: 13 }}>Catatan: {detail.notes}</p> : null}
 
-                {detail.statusHistory.length > 0 ? (
-                  <div>
-                    <strong style={{ fontSize: 13 }}>Riwayat status</strong>
-                    <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: '#475569' }}>
-                      {detail.statusHistory.map((log) => (
-                        <li key={log.id} style={{ marginBottom: 4 }}>
-                          {log.fromStatusLabel ? `${log.fromStatusLabel} → ` : ''}
-                          <strong>{log.toStatusLabel}</strong> · {log.changedByName} ·{' '}
-                          {new Date(log.createdAt).toLocaleString('id-ID')}
-                          {log.notes ? ` — ${log.notes}` : ''}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                ) : null}
+                  {detail.status === 'BATAL' && detail.cancelReason ? (
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                      Alasan batal: <strong>{detail.cancelReason}</strong>
+                    </p>
+                  ) : null}
 
-                <Input
-                  placeholder="Nama driver (opsional)"
-                  value={driverName}
-                  onChange={(event) => setDriverName(event.target.value)}
-                />
-                <Input
-                  placeholder="Alasan batal (wajib jika batalkan)"
-                  value={cancelReason}
-                  onChange={(event) => setCancelReason(event.target.value)}
-                />
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? [])
-                    .filter((status) => status !== 'BATAL')
-                    .map((status) => (
-                      <Button
-                        key={status}
-                        type="button"
-                        disabled={actionLoading}
-                        onClick={() => void handleAdvance(detail, status)}
-                        style={{ minHeight: 44, flex: '1 1 auto' }}
-                      >
-                        → {DELIVERY_STATUS_LABELS[status]}
-                      </Button>
-                    ))}
-                  {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? []).includes('BATAL') ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={actionLoading}
-                      onClick={() => void handleAdvance(detail, 'BATAL')}
-                      style={{ minHeight: 44, width: '100%' }}
-                    >
-                      Batalkan pengiriman
-                    </Button>
+                  {detail.statusHistory.length > 0 ? (
+                    <div>
+                      <strong style={{ fontSize: 13 }}>Riwayat status</strong>
+                      <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: '#475569' }}>
+                        {detail.statusHistory.map((log) => (
+                          <li key={log.id} style={{ marginBottom: 4 }}>
+                            {log.fromStatusLabel ? `${log.fromStatusLabel} → ` : ''}
+                            <strong>{log.toStatusLabel}</strong> · {log.changedByName} ·{' '}
+                            {new Date(log.createdAt).toLocaleString('id-ID')}
+                            {log.notes ? ` — ${log.notes}` : ''}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
                   ) : null}
                 </div>
+
+                {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? []).length > 0 ? (
+                  <div
+                    style={{
+                      position: 'sticky',
+                      bottom: 0,
+                      background: '#fff',
+                      borderTop: '1px solid #e2e8f0',
+                      paddingTop: 12,
+                      display: 'grid',
+                      gap: 8,
+                    }}
+                  >
+                    <Input
+                      placeholder="Nama driver (opsional)"
+                      value={driverName}
+                      onChange={(event) => setDriverName(event.target.value)}
+                    />
+                    {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? []).includes('BATAL') ? (
+                      <Input
+                        placeholder="Alasan batal (wajib min. 3 karakter)"
+                        value={cancelReason}
+                        onChange={(event) => setCancelReason(event.target.value)}
+                      />
+                    ) : null}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? [])
+                        .filter((status) => status !== 'BATAL')
+                        .map((status) => (
+                          <Button
+                            key={status}
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => requestAdvance(detail, status)}
+                            style={{ minHeight: 44, flex: '1 1 auto' }}
+                          >
+                            → {DELIVERY_STATUS_LABELS[status]}
+                          </Button>
+                        ))}
+                      {(DELIVERY_STATUS_TRANSITIONS[detail.status] ?? []).includes('BATAL') ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={actionLoading}
+                          onClick={() => requestAdvance(detail, 'BATAL')}
+                          style={{ minHeight: 44, width: '100%' }}
+                        >
+                          Batalkan pengiriman
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <p style={{ margin: 0, color: '#64748b' }}>Detail tidak tersedia.</p>
@@ -527,6 +684,59 @@ export default function DashboardDeliveriesPage() {
           </SectionCard>
         ) : null}
       </div>
+
+      {pendingAction ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-delivery-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            padding: 16,
+          }}
+          onClick={() => !actionLoading && setPendingAction(null)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 12,
+              padding: 20,
+              maxWidth: 400,
+              width: '100%',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="confirm-delivery-title" style={{ margin: '0 0 8px', fontSize: 16 }}>
+              {pendingAction.nextStatus === 'BATAL' ? 'Batalkan pengiriman?' : 'Ubah status pengiriman?'}
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 14, color: '#475569' }}>
+              {pendingAction.order.deliveryNo} →{' '}
+              <strong>{DELIVERY_STATUS_LABELS[pendingAction.nextStatus]}</strong>
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={actionLoading}
+                onClick={() => setPendingAction(null)}
+                style={{ minHeight: 44 }}
+              >
+                Batal
+              </Button>
+              <Button type="button" disabled={actionLoading} onClick={() => void confirmAdvance()} style={{ minHeight: 44 }}>
+                {actionLoading ? 'Menyimpan…' : 'Ya, lanjutkan'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {labelData ? (
         <div aria-hidden style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none' }}>

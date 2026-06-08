@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getTodayDate } from '@barokah/shared';
 import { fetchDeliveryQueueSummary } from '@/lib/deliveries-api';
 import { useDeliverySyncRefresh } from './useDeliverySyncRefresh';
 
@@ -7,7 +8,12 @@ export function useDeliveryBadge(enabled: boolean, outletId?: string | null): nu
 
   const refresh = useCallback(async () => {
     try {
-      const summary = await fetchDeliveryQueueSummary(outletId ?? undefined);
+      const today = getTodayDate();
+      const summary = await fetchDeliveryQueueSummary({
+        outletId: outletId ?? undefined,
+        dateFrom: today,
+        dateTo: today,
+      });
       const active = summary.MENUNGGU + summary.DISIAPKAN + summary.DIKIRIM;
       setCount(active);
     } catch {

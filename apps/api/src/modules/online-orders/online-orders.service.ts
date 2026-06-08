@@ -522,8 +522,12 @@ export class OnlineOrdersService {
         },
       });
 
-      if (order.fulfillmentType === 'DELIVERY' && dto.status !== 'CANCELLED') {
-        await this.syncDeliveryInTransaction(tx, user, order, dto.status);
+      if (order.fulfillmentType === 'DELIVERY') {
+        if (dto.status === 'CANCELLED') {
+          await this.cancelDeliveryInTransaction(tx, user, order, dto.note);
+        } else {
+          await this.syncDeliveryInTransaction(tx, user, order, dto.status);
+        }
       }
 
       return saved;
@@ -606,6 +610,14 @@ export class OnlineOrdersService {
       },
     });
 
+    this.realtime.emitDeliveryUpdated({
+      deliveryId: updatedDelivery.id,
+      deliveryNo: updatedDelivery.deliveryNo,
+      outletId: order.outletId,
+      tenantId: order.tenantId,
+      status: updatedDelivery.status,
+    });
+
     return {
       id: order.id,
       orderNo: order.orderNo,
@@ -680,6 +692,39 @@ export class OnlineOrdersService {
       })),
       notes: order.customerNotes,
     };
+  }
+
+  private async cancelDeliveryInTransaction(
+    tx: Prisma.TransactionClient,
+    user: AuthJwtPayload,
+    order: {
+      orderNo: string;
+      deliveryOrder: { id: string; status: string } | null;
+    },
+    cancelNote?: string,
+  ) {
+    if (!order.deliveryOrder) {
+      return;
+    }
+    if (order.deliveryOrder.status === 'BATAL' || order.deliveryOrder.status === 'SELESAI') {
+      return;
+    }
+    const reason = cancelNote?.trim() || `Order online ${order.orderNo} dibatalkan`;
+    await tx.deliveryOrder.update({
+      where: { id: order.deliveryOrder.id },
+      data: {
+        status: 'BATAL',
+        cancelReason: reason,
+        statusHistory: {
+          create: {
+            fromStatus: order.deliveryOrder.status as never,
+            toStatus: 'BATAL',
+            notes: reason,
+            changedById: user.sub,
+          },
+        },
+      },
+    });
   }
 
   private async syncDeliveryInTransaction(

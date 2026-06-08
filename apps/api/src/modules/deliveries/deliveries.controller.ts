@@ -25,6 +25,15 @@ export class DeliveriesController {
     return this.deliveriesService.queueSummary(user, query);
   }
 
+  @Get(':id/shipping-label')
+  getShippingLabel(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('id') id: string,
+    @Query('outletId') outletId?: string,
+  ) {
+    return this.deliveriesService.getShippingLabel(user, id, outletId);
+  }
+
   @Get(':id')
   getById(
     @CurrentUser() user: AuthJwtPayload,

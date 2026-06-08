@@ -39,6 +39,7 @@ import { OfflineBanner } from '@/components/pos/OfflineBanner';
 import { SyncConflictModal } from '@/components/pos/SyncConflictModal';
 import { QrisPaymentModal } from '@/components/pos/QrisPaymentModal';
 import { initiateQrisPayment, type QrisInitiateResult } from '@/lib/qris-payment';
+import { useDeliveryBadge } from '@/hooks/useDeliveryBadge';
 import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
 import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
@@ -474,7 +475,7 @@ export default function PosPage() {
   }
 
   function formatDeliverySuccessSuffix(deliveryNo: string): string {
-    return ` Masuk antrian pengiriman ${deliveryNo}. Lihat di Dashboard → Pengiriman (/dashboard/deliveries).`;
+    return ` Masuk antrian pengiriman ${deliveryNo}. Lihat di tab Pengiriman (/pos/deliveries) atau Dashboard → Pengiriman.`;
   }
 
   function buildCustomerCheckoutPayload() {
@@ -560,6 +561,7 @@ export default function PosPage() {
     outletId: activeOutletId ?? undefined,
     channel: 'MARKETPLACE',
   });
+  const deliveryCount = useDeliveryBadge(isOnline && Boolean(user), activeOutletId);
   const useServerCatalogFilter = catalogTotal > POS_SERVER_FILTER_THRESHOLD;
 
   const categoriesQuery = useQuery({
@@ -1739,6 +1741,7 @@ export default function PosPage() {
           activeShift={activeShift}
           onlineOrderCount={onlineOrderCount}
           marketplaceOrderCount={marketplaceOrderCount}
+          deliveryCount={deliveryCount}
           outlets={outlets}
           selectedOutletId={activeOutletId}
           needsOutletPick={needsOutletPick}

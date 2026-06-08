@@ -3,7 +3,9 @@ import { waitFor } from '@testing-library/react';
 import {
   DELIVERY_BROADCAST_CHANNEL,
   DELIVERY_CREATED_EVENT,
+  DELIVERY_UPDATED_EVENT,
   publishDeliveryCreated,
+  publishDeliveryUpdated,
   subscribeDeliverySync,
 } from './delivery-sync';
 
@@ -49,5 +51,22 @@ describe('delivery-sync', () => {
     });
 
     unsubscribe();
+  });
+
+  it('dispatches window event on publishDeliveryUpdated', () => {
+    const handler = vi.fn();
+    window.addEventListener(DELIVERY_UPDATED_EVENT, handler as EventListener);
+
+    publishDeliveryUpdated({ deliveryNo: 'DLV-20260609-0003', outletId: 'outlet-1', status: 'DIKIRIM' });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const event = handler.mock.calls[0]?.[0] as CustomEvent;
+    expect(event.detail).toEqual({
+      deliveryNo: 'DLV-20260609-0003',
+      outletId: 'outlet-1',
+      status: 'DIKIRIM',
+    });
+
+    window.removeEventListener(DELIVERY_UPDATED_EVENT, handler as EventListener);
   });
 });

@@ -10,6 +10,7 @@ import { mapApiError } from '@/lib/api-client';
 import { fetchMe, tokenStorage, type AuthUser } from '@/lib/auth';
 import { fetchFulfillmentQueue, type FulfillmentOrder } from '@/lib/online-orders-api';
 import { fetchActiveShift, type ShiftSummary } from '@/lib/shifts-api';
+import { useDeliveryBadge } from '@/hooks/useDeliveryBadge';
 import { useOnlineOrderBadge, ONLINE_ORDERS_POLL_MS } from '@/hooks/useOnlineOrderBadge';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 
@@ -35,6 +36,7 @@ export default function OnlineOrdersFulfillmentPage() {
     outletId: selectedOutletId ?? undefined,
     channel: 'MARKETPLACE',
   });
+  const deliveryCount = useDeliveryBadge(Boolean(user), selectedOutletId);
 
   useEffect(() => {
     void fetchMe()
@@ -97,6 +99,7 @@ export default function OnlineOrdersFulfillmentPage() {
           activeShift={activeShift}
           onlineOrderCount={onlineOrderCount}
           marketplaceOrderCount={marketplaceOrderCount}
+          deliveryCount={deliveryCount}
           outlets={outlets}
           selectedOutletId={selectedOutletId}
           needsOutletPick={needsOutletPick}

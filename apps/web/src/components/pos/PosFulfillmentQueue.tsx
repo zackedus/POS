@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { formatCurrency, formatPhoneDisplay, ONLINE_ORDER_CHANNEL_BADGE, type OnlineOrderChannel } from '@barokah/shared';
 import { Button, colors } from '@barokah/ui';
 import { ShippingLabelPrint, printShippingLabel } from '@/components/pos/ShippingLabelPrint';
@@ -287,8 +288,13 @@ export function PosFulfillmentQueue({
                   {order.delivery ? (
                     <p style={{ margin: '0.5rem 0 0', fontSize: '0.8125rem' }}>
                       Pengiriman:{' '}
-                      <strong style={{ fontFamily: 'ui-monospace, monospace' }}>{order.delivery.deliveryNo}</strong> ·{' '}
-                      {order.delivery.statusLabel}
+                      <Link
+                        href={`/pos/deliveries`}
+                        style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700 }}
+                      >
+                        {order.delivery.deliveryNo}
+                      </Link>{' '}
+                      · {order.delivery.statusLabel}
                     </p>
                   ) : null}
 

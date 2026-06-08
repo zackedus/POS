@@ -23,6 +23,7 @@ type DeliveryTypeValue = PrismaDeliveryType | DeliveryType;
 import { PrismaService } from '../../common/database/prisma.service';
 import { buildOutletWhere, resolveListOutletScope, resolveOutletId } from '../../common/utils/outlet.util';
 import { CustomersService } from '../customers/customers.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { CreateDeliveryOrderDto } from './dto/delivery.dto';
@@ -44,6 +45,7 @@ export class DeliveriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly customersService: CustomersService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async list(user: AuthJwtPayload, query: DeliveryListQueryDto) {
@@ -60,12 +62,19 @@ export class DeliveriesService {
     const createdAt = resolveDeliveryListCreatedAtFilter(query.dateFrom, query.dateTo);
 
     const deliveryTypeFilter = query.deliveryType?.trim() as DeliveryTypeValue | undefined;
+    const channelFilter = query.channel
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     const where = {
       tenantId: user.tenantId,
       ...buildOutletWhere(outletScope),
       status: { in: statusFilter },
       ...(deliveryTypeFilter ? { deliveryType: deliveryTypeFilter } : {}),
+      ...(channelFilter && channelFilter.length > 0
+        ? { onlineOrder: { channel: { in: channelFilter as never[] } } }
+        : {}),
       ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
       ...(query.search?.trim()
         ? {
@@ -74,6 +83,8 @@ export class DeliveriesService {
               { customer: { name: { contains: query.search.trim(), mode: 'insensitive' as const } } },
               { customer: { phone: { contains: query.search.trim() } } },
               { addressLine1: { contains: query.search.trim(), mode: 'insensitive' as const } },
+              { transaction: { receiptNo: { contains: query.search.trim(), mode: 'insensitive' as const } } },
+              { onlineOrder: { orderNo: { contains: query.search.trim(), mode: 'insensitive' as const } } },
             ],
           }
         : {}),
@@ -119,6 +130,8 @@ export class DeliveriesService {
           select: {
             id: true,
             orderNo: true,
+            channel: true,
+            externalOrderRef: true,
             items: {
               select: {
                 productName: true,
@@ -282,6 +295,14 @@ export class DeliveriesService {
       });
     }
 
+    const deliveryType = (dto.deliveryType ?? 'STORE_DIRECT') as DeliveryTypeValue;
+    if (deliveryType === 'ONLINE_ORDER') {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.INVALID_INPUT,
+        message: 'Pengiriman order online dibuat otomatis saat konfirmasi order web/marketplace.',
+      });
+    }
+
     await this.assertCustomer(user.tenantId, customerId);
     const addressFields = await this.resolveAddress(user.tenantId, customerId, dto);
 
@@ -294,8 +315,6 @@ export class DeliveriesService {
         update: { lastValue: { increment: 1 } },
       });
       const deliveryNo = buildDeliveryNo(dateKey, sequence.lastValue);
-
-      const deliveryType = (dto.deliveryType ?? 'STORE_DIRECT') as DeliveryTypeValue;
 
       const order = await tx.deliveryOrder.create({
         data: {
@@ -342,6 +361,14 @@ export class DeliveriesService {
       });
 
       return order;
+    });
+
+    this.realtime.emitDeliveryCreated({
+      deliveryId: created.id,
+      deliveryNo: created.deliveryNo,
+      outletId: created.outletId,
+      tenantId: user.tenantId,
+      status: created.status,
     });
 
     return this.toListItem(created);
@@ -420,17 +447,110 @@ export class DeliveriesService {
       },
     });
 
+    this.realtime.emitDeliveryUpdated({
+      deliveryId: updated.id,
+      deliveryNo: updated.deliveryNo,
+      outletId: updated.outletId,
+      tenantId: user.tenantId,
+      status: updated.status,
+    });
+
     return this.toListItem(updated);
+  }
+
+  async getShippingLabel(user: AuthJwtPayload, id: string, outletIdParam?: string) {
+    const outletId = resolveOutletId(user, outletIdParam);
+    const order = await this.prisma.deliveryOrder.findFirst({
+      where: { id, tenantId: user.tenantId, outletId },
+      include: {
+        customer: { select: { name: true, phone: true } },
+        outlet: { select: { name: true, address: true, phone: true } },
+        tenant: { select: { name: true, contactPhone: true } },
+        transaction: {
+          select: {
+            receiptNo: true,
+            items: { select: { productName: true, quantity: true, productId: true } },
+          },
+        },
+        onlineOrder: {
+          select: {
+            orderNo: true,
+            channel: true,
+            customerNotes: true,
+            items: { select: { productName: true, quantity: true, sku: true } },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException({
+        code: ErrorCodes.DELIVERY_NOT_FOUND,
+        message: 'Pesanan pengiriman tidak ditemukan.',
+      });
+    }
+
+    const isOnline = order.deliveryType === 'ONLINE_ORDER';
+    const channelLabel = order.onlineOrder?.channel
+      ? ONLINE_ORDER_CHANNEL_LABELS[order.onlineOrder.channel as keyof typeof ONLINE_ORDER_CHANNEL_LABELS]
+      : DELIVERY_TYPE_LABELS.STORE_DIRECT;
+
+    const items = isOnline
+      ? (order.onlineOrder?.items ?? []).map((item) => ({
+          productName: item.productName,
+          quantity: Number(item.quantity),
+          sku: item.sku,
+        }))
+      : (order.transaction?.items ?? []).map((item) => ({
+          productName: item.productName,
+          quantity: Number(item.quantity),
+          sku: item.productId.slice(0, 8),
+        }));
+
+    const addressParts = [
+      order.addressLine1,
+      order.addressLine2,
+      order.addressCity,
+      order.addressProvince,
+      order.addressPostalCode,
+    ].filter(Boolean);
+
+    return {
+      orderNo: order.onlineOrder?.orderNo ?? order.transaction?.receiptNo ?? order.deliveryNo,
+      orderDate: order.createdAt.toISOString(),
+      serviceName: isOnline ? 'Pengiriman Order Online' : 'Pengiriman Toko Langsung',
+      deliveryTypeLabel: channelLabel,
+      from: {
+        storeName: order.tenant.name,
+        outletName: order.outlet.name,
+        address: order.outlet.address ?? '',
+        phone: order.outlet.phone ?? order.tenant.contactPhone ?? null,
+      },
+      to: {
+        name: order.customer.name,
+        phone: order.customer.phone,
+        address: addressParts.join(', '),
+      },
+      delivery: {
+        deliveryNo: order.deliveryNo,
+        status: order.status,
+        statusLabel: deliveryStatusLabel(order.status),
+      },
+      items,
+      notes: order.notes ?? order.onlineOrder?.customerNotes ?? null,
+    };
   }
 
   async queueSummary(user: AuthJwtPayload, query: DeliveryQueueSummaryQueryDto): Promise<DeliveryQueueSummary> {
     const outletScope = resolveListOutletScope(user, query.outletId);
+    const createdAt = resolveDeliveryListCreatedAtFilter(query.dateFrom, query.dateTo);
     const rows = await this.prisma.deliveryOrder.groupBy({
       by: ['status'],
       where: {
         tenantId: user.tenantId,
         ...buildOutletWhere(outletScope),
         status: { in: ['MENUNGGU', 'DISIAPKAN', 'DIKIRIM', 'SELESAI', 'BATAL'] },
+        ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
       },
       _count: { _all: true },
     });

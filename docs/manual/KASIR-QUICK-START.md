@@ -70,6 +70,7 @@ Kasir punya **3 mode** lewat tab header (`PosShiftBar`):
 | **🏪 Toko** | `/pos` | Penjualan Toko | Scan/manual checkout, pelanggan walk-in/terdaftar, pembayaran tunai/transfer/QRIS/tempo/deposit |
 | **🌐 Order Web** | `/pos/online-orders` | Order Web | Antrian order storefront web (`/store/*`) setelah pembayaran Midtrans |
 | **🛒 Marketplace** | `/pos/marketplace-orders` | Marketplace | Entri manual order Tokopedia/Shopee (scaffold Fase 2 — bukan integrasi API otomatis) |
+| **🚚 Pengiriman** | `/pos/deliveries` | Pengiriman | Antrian baca saja — lihat status DLV hari ini (ubah status: Manager di Dashboard) |
 
 ### Mode A — Penjualan Toko (Offline)
 
@@ -113,7 +114,7 @@ Kasir punya **3 mode** lewat tab header (`PosShiftBar`):
 2. Di kartu **Pengiriman**, tap **Kirim ke alamat**
 3. Pilih alamat CRM atau **alamat sekali pakai** + catatan
 4. Checkout di kartu **Pembayaran** — sukses menampilkan *"Masuk antrian pengiriman DLV-…"*
-5. Kelola antrian di **Dashboard → Pengiriman** (`/dashboard/deliveries`)
+5. Lihat antrian di tab **Pengiriman** (`/pos/deliveries`) — Manager mengubah status di **Dashboard → Pengiriman**
 
 ### Pelanggan walk-in
 1. Isi **nama** (min. 2 karakter) dan **no. HP** di kartu Pelanggan (badge *Walk-in*)
@@ -131,7 +132,7 @@ Kasir punya **3 mode** lewat tab header (`PosShiftBar`):
 | Margin negatif | Warning kuning — transaksi tetap bisa |
 | Split payment | Cash + Transfer harus = total persis |
 | Offline | Transaksi antre; sync saat online kembali |
-| Checkout kirim sukses tapi antrian kosong di dashboard | Pastikan **Dashboard → Pengiriman** memakai filter **Semua cabang** (multi-outlet) dan tab **Semua aktif** — default hanya menampilkan Menunggu/Disiapkan/Dikirim. Pastikan cabang kasir POS sama dengan filter cabang. Jika muncul pesan error setelah checkout, buat pengiriman manual dari struk. |
+| Checkout kirim sukses tapi antrian kosong | Buka tab **Pengiriman** di POS (`/pos/deliveries`) — filter otomatis hari ini. Manager: pastikan **Dashboard → Pengiriman** memakai **Semua cabang** (multi-outlet) dan tab **Semua aktif**. Pastikan cabang kasir sama dengan filter. |
 
 ## Bantuan
 

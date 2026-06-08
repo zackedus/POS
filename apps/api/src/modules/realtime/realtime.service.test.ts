@@ -55,3 +55,25 @@ test('RealtimeService: emitOnlineOrderPaid sends to outlet room', () => {
   assert.equal(events[0]?.room, 'tenant:tenant-x:outlet:outlet-a');
   assert.equal(events[0]?.event, 'online-order:paid');
 });
+
+test('RealtimeService: emitDeliveryUpdated sends to outlet room', () => {
+  const service = new RealtimeService(createConfig() as never);
+  const events: Array<{ room: string; event: string; payload: unknown }> = [];
+  service.registerEmitter({
+    to: (room: string) => ({
+      emit: (event: string, payload: unknown) => {
+        events.push({ room, event, payload });
+      },
+    }),
+  });
+  service.emitDeliveryUpdated({
+    deliveryId: 'dlv-1',
+    deliveryNo: 'DLV-20260609-0001',
+    outletId: 'outlet-a',
+    tenantId: 'tenant-x',
+    status: 'DISIAPKAN',
+  });
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.room, 'tenant:tenant-x:outlet:outlet-a');
+  assert.equal(events[0]?.event, 'delivery:updated');
+});

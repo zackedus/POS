@@ -1,49 +1,71 @@
 export const DELIVERY_CREATED_EVENT = 'barokah:delivery-created';
+export const DELIVERY_UPDATED_EVENT = 'barokah:delivery-updated';
 export const DELIVERY_BROADCAST_CHANNEL = 'barokah:deliveries';
 
 export type DeliverySyncDetail = {
   deliveryNo: string;
   deliveryId?: string;
   outletId?: string | null;
+  status?: string;
 };
 
-/** Notify same-tab listeners and other browser tabs that a delivery was created. */
-export function publishDeliveryCreated(detail: DeliverySyncDetail): void {
+type BroadcastMessage = DeliverySyncDetail & { type: 'created' | 'updated' };
+
+function publishDeliveryEvent(type: BroadcastMessage['type'], detail: DeliverySyncDetail): void {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.dispatchEvent(new CustomEvent<DeliverySyncDetail>(DELIVERY_CREATED_EVENT, { detail }));
+  const eventName = type === 'created' ? DELIVERY_CREATED_EVENT : DELIVERY_UPDATED_EVENT;
+  window.dispatchEvent(new CustomEvent<DeliverySyncDetail>(eventName, { detail }));
 
   try {
     const channel = new BroadcastChannel(DELIVERY_BROADCAST_CHANNEL);
-    channel.postMessage({ type: 'created', ...detail });
+    channel.postMessage({ type, ...detail });
     channel.close();
   } catch {
     // BroadcastChannel unsupported (SSR, older browsers).
   }
 }
 
-/** Subscribe to delivery-created signals from POS (same tab + cross-tab). */
+/** Notify same-tab listeners and other browser tabs that a delivery was created. */
+export function publishDeliveryCreated(detail: DeliverySyncDetail): void {
+  publishDeliveryEvent('created', detail);
+}
+
+/** Notify listeners that delivery status changed (dashboard / POS). */
+export function publishDeliveryUpdated(detail: DeliverySyncDetail): void {
+  publishDeliveryEvent('updated', detail);
+}
+
+/** Subscribe to delivery sync signals (same tab + cross-tab). */
 export function subscribeDeliverySync(onEvent: (detail: DeliverySyncDetail) => void): () => void {
-  const onWindow = (event: Event) => {
+  const onWindowCreated = (event: Event) => {
+    const detail = (event as CustomEvent<DeliverySyncDetail>).detail;
+    if (detail?.deliveryNo) {
+      onEvent(detail);
+    }
+  };
+  const onWindowUpdated = (event: Event) => {
     const detail = (event as CustomEvent<DeliverySyncDetail>).detail;
     if (detail?.deliveryNo) {
       onEvent(detail);
     }
   };
 
-  window.addEventListener(DELIVERY_CREATED_EVENT, onWindow);
+  window.addEventListener(DELIVERY_CREATED_EVENT, onWindowCreated);
+  window.addEventListener(DELIVERY_UPDATED_EVENT, onWindowUpdated);
 
   let channel: BroadcastChannel | null = null;
   try {
     channel = new BroadcastChannel(DELIVERY_BROADCAST_CHANNEL);
-    channel.onmessage = (message: MessageEvent<{ type?: string; deliveryNo?: string; deliveryId?: string; outletId?: string | null }>) => {
-      if (message.data?.type === 'created' && message.data.deliveryNo) {
+    channel.onmessage = (message: MessageEvent<BroadcastMessage>) => {
+      if ((message.data?.type === 'created' || message.data?.type === 'updated') && message.data.deliveryNo) {
         onEvent({
           deliveryNo: message.data.deliveryNo,
           deliveryId: message.data.deliveryId,
           outletId: message.data.outletId,
+          status: message.data.status,
         });
       }
     };
@@ -52,7 +74,8 @@ export function subscribeDeliverySync(onEvent: (detail: DeliverySyncDetail) => v
   }
 
   return () => {
-    window.removeEventListener(DELIVERY_CREATED_EVENT, onWindow);
+    window.removeEventListener(DELIVERY_CREATED_EVENT, onWindowCreated);
+    window.removeEventListener(DELIVERY_UPDATED_EVENT, onWindowUpdated);
     channel?.close();
   };
 }

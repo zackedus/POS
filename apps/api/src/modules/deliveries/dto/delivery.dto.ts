@@ -94,9 +94,11 @@ export class CreateDeliveryOrderDto {
   notes?: string;
 }
 
+const DELIVERY_STATUSES = ['MENUNGGU', 'DISIAPKAN', 'DIKIRIM', 'SELESAI', 'BATAL'] as const;
+
 export class UpdateDeliveryStatusDto {
-  @IsString()
-  status!: string;
+  @IsIn(DELIVERY_STATUSES, { message: 'Status pengiriman tidak valid' })
+  status!: (typeof DELIVERY_STATUSES)[number];
 
   @IsOptional()
   @IsString()

@@ -16,6 +16,7 @@ export interface PaginatedDeliveries {
 export async function fetchDeliveries(params: {
   outletId?: string;
   deliveryType?: string;
+  channel?: string;
   status?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -26,6 +27,7 @@ export async function fetchDeliveries(params: {
   const query = new URLSearchParams();
   if (params.outletId) query.set('outletId', params.outletId);
   if (params.deliveryType) query.set('deliveryType', params.deliveryType);
+  if (params.channel) query.set('channel', params.channel);
   if (params.status) query.set('status', params.status);
   if (params.dateFrom) query.set('dateFrom', params.dateFrom);
   if (params.dateTo) query.set('dateTo', params.dateTo);
@@ -40,12 +42,32 @@ export async function fetchDeliveries(params: {
   );
 }
 
-export async function fetchDeliveryQueueSummary(outletId?: string): Promise<DeliveryQueueSummary> {
-  const params = outletId ? `?outletId=${outletId}` : '';
+export async function fetchDeliveryQueueSummary(params?: {
+  outletId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<DeliveryQueueSummary> {
+  const query = new URLSearchParams();
+  if (params?.outletId) query.set('outletId', params.outletId);
+  if (params?.dateFrom) query.set('dateFrom', params.dateFrom);
+  if (params?.dateTo) query.set('dateTo', params.dateTo);
+  const qs = query.toString();
   return authApiJson<DeliveryQueueSummary>(
-    `${BASE}/queue/summary${params}`,
+    `${BASE}/queue/summary${qs ? `?${qs}` : ''}`,
     undefined,
     'Gagal memuat ringkasan pengiriman.',
+  );
+}
+
+export async function fetchDeliveryShippingLabel(
+  deliveryId: string,
+  outletId?: string,
+): Promise<import('./online-orders-api').ShippingLabelData> {
+  const params = outletId ? `?outletId=${outletId}` : '';
+  return authApiJson(
+    `${BASE}/${deliveryId}/shipping-label${params}`,
+    undefined,
+    'Gagal menyiapkan label pengiriman.',
   );
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { subscribeDeliverySync } from '@/lib/delivery-sync';
+import { connectRealtimeSocket, isSocketEnabled, subscribeDeliveryEvents } from '@/lib/socket-client';
 
 export interface DeliverySyncRefreshOptions {
   enabled: boolean;
@@ -76,4 +77,27 @@ export function useDeliverySyncRefresh(options: DeliverySyncRefreshOptions): voi
 
     return () => window.clearInterval(timer);
   }, [enabled, pollMs]);
+
+  useEffect(() => {
+    if (!enabled || !isSocketEnabled()) {
+      return;
+    }
+
+    const socket = connectRealtimeSocket(outletId);
+    if (!socket) {
+      return;
+    }
+
+    const unsubscribe = subscribeDeliveryEvents(socket, (event) => {
+      if (event.outletId && !matchesOutletFilter(event.outletId, outletId)) {
+        return;
+      }
+      void onRefreshRef.current();
+    });
+
+    return () => {
+      unsubscribe();
+      socket.disconnect();
+    };
+  }, [enabled, outletId]);
 }

@@ -156,6 +156,10 @@ vi.mock('@/lib/online-orders-api', () => ({
   fetchFulfillmentQueue: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('@/hooks/useDeliveryBadge', () => ({
+  useDeliveryBadge: () => 0,
+}));
+
 vi.mock('@/hooks/useOnlineOrderBadge', () => ({
   ONLINE_ORDERS_POLL_MS: 15_000,
   useOnlineOrderBadge: () => 0,

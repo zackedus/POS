@@ -5,6 +5,7 @@ import DashboardDeliveriesPage from './page';
 
 
 const fetchDeliveriesMock = vi.fn();
+const fetchDeliveryQueueSummaryMock = vi.fn();
 
 vi.mock('@/hooks/useDeliverySyncRefresh', () => ({
   useDeliverySyncRefresh: vi.fn(),
@@ -12,7 +13,9 @@ vi.mock('@/hooks/useDeliverySyncRefresh', () => ({
 
 vi.mock('@/lib/deliveries-api', () => ({
   fetchDeliveries: (...args: unknown[]) => fetchDeliveriesMock(...args),
+  fetchDeliveryQueueSummary: (...args: unknown[]) => fetchDeliveryQueueSummaryMock(...args),
   fetchDeliveryDetail: vi.fn(),
+  fetchDeliveryShippingLabel: vi.fn(),
   updateDeliveryStatus: vi.fn(),
 }));
 
@@ -40,6 +43,15 @@ vi.mock('@/lib/outlet-selection-state', () => ({
 describe('DashboardDeliveriesPage', () => {
   beforeEach(() => {
     fetchDeliveriesMock.mockReset();
+    fetchDeliveryQueueSummaryMock.mockReset();
+    fetchDeliveryQueueSummaryMock.mockResolvedValue({
+      MENUNGGU: 2,
+      DISIAPKAN: 1,
+      DIKIRIM: 0,
+      SELESAI: 0,
+      BATAL: 0,
+      total: 3,
+    });
     fetchDeliveriesMock.mockResolvedValue({
       items: [
         {
@@ -80,6 +92,7 @@ describe('DashboardDeliveriesPage', () => {
 
     expect(await screen.findByText(/DLV-20260609-0001/i)).toBeInTheDocument();
     expect(screen.getByText('Cabang Selatan')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('uses today WIB date filter on initial load', async () => {

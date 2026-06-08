@@ -23,13 +23,18 @@ function ownerUser(): AuthJwtPayload {
   return { ...cashierUser(), sub: 'owner-1', role: 'OWNER', outletIds: ['outlet-1', 'outlet-2'] };
 }
 
+const noopRealtime = {
+  emitDeliveryCreated: () => undefined,
+  emitDeliveryUpdated: () => undefined,
+};
+
 function makeService(
   prisma: object,
   customersService: { resolveOptionalCustomerId: (...args: unknown[]) => Promise<string | null> } = {
     resolveOptionalCustomerId: async () => null,
   },
 ) {
-  return new DeliveriesService(prisma as never, customersService as never);
+  return new DeliveriesService(prisma as never, customersService as never, noopRealtime as never);
 }
 
 test('Deliveries: updateStatus rejects invalid transition', async () => {
@@ -517,6 +522,47 @@ test('Deliveries: createForCompletedTransaction is idempotent for existing deliv
     delivery: { deliveryRequired: true, deliveryAddressId: 'addr-1' },
   });
   assert.deepEqual(result, { deliveryNo: 'DLV-20260609-0099' });
+});
+
+test('Deliveries: create rejects ONLINE_ORDER type via POST', async () => {
+  const prisma = {
+    customer: { findFirst: async () => ({ id: 'cust-1' }) },
+  };
+  const service = makeService(prisma);
+  await assert.rejects(
+    () =>
+      service.create(cashierUser(), {
+        customerId: 'cust-1',
+        deliveryType: 'ONLINE_ORDER',
+        addressSnapshot: { label: 'Rumah', addressLine1: 'Jl. A', city: 'Jakarta' },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof UnprocessableEntityException);
+      return true;
+    },
+  );
+});
+
+test('Deliveries: queueSummary applies WIB date filter', async () => {
+  const prisma = {
+    deliveryOrder: {
+      groupBy: async ({
+        where,
+      }: {
+        where: { createdAt?: { gte?: Date; lt?: Date } };
+      }) => {
+        assert.ok(where.createdAt?.gte);
+        assert.ok(where.createdAt?.lt);
+        return [{ status: 'MENUNGGU', _count: { _all: 3 } }];
+      },
+    },
+  };
+  const service = makeService(prisma);
+  const summary = await service.queueSummary(managerUser(), {
+    dateFrom: '2026-06-09',
+    dateTo: '2026-06-09',
+  });
+  assert.equal(summary.MENUNGGU, 3);
 });
 
 test('Deliveries: createForCompletedTransaction skips when delivery not required', async () => {

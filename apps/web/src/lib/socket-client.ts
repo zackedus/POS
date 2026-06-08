@@ -13,7 +13,7 @@ export function connectRealtimeSocket(outletId?: string | null): Socket | null {
   if (!SOCKET_ENABLED || typeof window === 'undefined') {
     return null;
   }
-  const token = tokenStorage.getAccessToken();
+  const token = tokenStorage.getAccessToken?.();
   if (!token) return null;
 
   return io(`${API_HOST}/realtime`, {
@@ -30,6 +30,29 @@ export function connectRealtimeSocket(outletId?: string | null): Socket | null {
 export type OnlineOrderSocketEvent =
   | { type: 'paid'; orderId: string; orderNo: string; outletId: string; status?: string }
   | { type: 'updated'; orderId: string; orderNo: string; outletId: string; status?: string };
+
+export type DeliverySocketEvent = {
+  deliveryId: string;
+  deliveryNo: string;
+  outletId: string;
+  status?: string;
+};
+
+export function subscribeDeliveryEvents(
+  socket: Socket,
+  handler: (event: DeliverySocketEvent) => void,
+): () => void {
+  const onCreated = (payload: DeliverySocketEvent) => handler(payload);
+  const onUpdated = (payload: DeliverySocketEvent) => handler(payload);
+
+  socket.on('delivery:created', onCreated);
+  socket.on('delivery:updated', onUpdated);
+
+  return () => {
+    socket.off('delivery:created', onCreated);
+    socket.off('delivery:updated', onUpdated);
+  };
+}
 
 export function subscribeOnlineOrderEvents(
   socket: Socket,
