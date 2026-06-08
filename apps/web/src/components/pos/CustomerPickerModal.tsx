@@ -8,9 +8,17 @@ import { fetchCustomers, type CustomerListItem } from '@/lib/customers-api';
 interface CustomerPickerModalProps {
   onSelect: (customer: CustomerListItem) => void;
   onClose: () => void;
+  purpose?: 'CREDIT' | 'DEPOSIT' | null;
 }
 
-export function CustomerPickerModal({ onSelect, onClose }: CustomerPickerModalProps) {
+export function CustomerPickerModal({ onSelect, onClose, purpose = null }: CustomerPickerModalProps) {
+  const dialogLabel =
+    purpose === 'CREDIT'
+      ? 'Pilih pelanggan — bayar tempo'
+      : purpose === 'DEPOSIT'
+        ? 'Pilih pelanggan — bayar deposit'
+        : 'Pilih pelanggan';
+
   const [search, setSearch] = useState('');
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,7 +46,7 @@ export function CustomerPickerModal({ onSelect, onClose }: CustomerPickerModalPr
   return (
     <div
       role="dialog"
-      aria-label="Pilih pelanggan"
+      aria-label={dialogLabel}
       style={{
         position: 'fixed',
         inset: 0,
@@ -61,7 +69,18 @@ export function CustomerPickerModal({ onSelect, onClose }: CustomerPickerModalPr
           maxHeight: '80vh',
         }}
       >
-        <h3 style={{ margin: 0 }}>Pilih Pelanggan</h3>
+        <h3 style={{ margin: 0 }}>
+          {purpose === 'CREDIT'
+            ? 'Pilih Pelanggan — Bayar Tempo'
+            : purpose === 'DEPOSIT'
+              ? 'Pilih Pelanggan — Bayar Deposit'
+              : 'Pilih Pelanggan'}
+        </h3>
+        {purpose ? (
+          <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
+            Tempo dan deposit wajib terhubung ke pelanggan terdaftar.
+          </p>
+        ) : null}
         <input
           type="search"
           value={search}

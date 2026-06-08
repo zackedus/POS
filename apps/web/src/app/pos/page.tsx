@@ -44,10 +44,13 @@ import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { fetchCartValidation, type CartMarginWarning, type CartStockIssue } from '@/lib/cart-margin';
 import { fetchActivePromos, previewPromoLocally, type PromoValidationResult } from '@/lib/promo-checkout-api';
 import { fetchTenantSettings } from '@/lib/settings-api';
-import { lookupCustomerByPhone, lookupCustomerByMemberCode, type CustomerListItem } from '@/lib/customers-api';
+import { lookupCustomerByPhone, lookupCustomerByMemberCode, fetchCustomerFinanceSummaryFromCustomers, type CustomerListItem } from '@/lib/customers-api';
 import {
+  buildDepositPlusCreditPayments,
   canSelectFinancePaymentMode,
+  computeDepositShortfall,
   FINANCE_CUSTOMER_REQUIRED_MESSAGE,
+  needsCustomerPickerForFinance,
 } from '@/lib/pos-finance-payment';
 import type { PromoRuleView } from '@/lib/promotions-api';
 import { mapRecallItemsToCart } from '@/lib/recall-cart';
@@ -199,6 +202,7 @@ export default function PosPage() {
   const [customerCreditAvailable, setCustomerCreditAvailable] = useState<number | null>(null);
   const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState('');
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [pendingFinancePaymentMode, setPendingFinancePaymentMode] = useState<'CREDIT' | 'DEPOSIT' | null>(null);
   const [showCreditApproval, setShowCreditApproval] = useState(false);
   const [managerApprovalToken, setManagerApprovalToken] = useState<string | null>(null);
 
@@ -301,6 +305,29 @@ export default function PosPage() {
     };
   }, [memberScanInput]);
 
+  async function refreshCustomerFinanceSummary(id: string) {
+    try {
+      const summary = await fetchCustomerFinanceSummaryFromCustomers(id);
+      if (!summary.finance) {
+        return;
+      }
+      setCustomerReceivableOutstanding(summary.finance.receivableOutstanding);
+      setCustomerDepositBalance(summary.finance.depositBalance);
+      setCustomerCreditLimit(summary.finance.creditLimit);
+      setCustomerCreditAvailable(summary.finance.creditAvailable);
+    } catch {
+      /* keep last known values */
+    }
+  }
+
+  function handleCustomerSelect(customer: CustomerListItem) {
+    applyCustomerLookup(customer);
+    if (pendingFinancePaymentMode) {
+      setPaymentMode(pendingFinancePaymentMode);
+      setPendingFinancePaymentMode(null);
+    }
+  }
+
   function buildCustomerCheckoutPayload() {
     const name = customerName.trim();
     const phone = customerPhone.trim();
@@ -323,11 +350,20 @@ export default function PosPage() {
   }
 
   function handlePaymentModeChange(mode: PaymentMode) {
+    if (needsCustomerPickerForFinance(mode, customerId)) {
+      setPendingFinancePaymentMode(mode as 'CREDIT' | 'DEPOSIT');
+      setShowCustomerPicker(true);
+      setError(null);
+      return;
+    }
     if (!canSelectFinancePaymentMode(mode, customerId)) {
       setError(FINANCE_CUSTOMER_REQUIRED_MESSAGE);
       return;
     }
     setPaymentMode(mode);
+    if (mode !== 'CREDIT') {
+      setManagerApprovalToken(null);
+    }
   }
 
   useEffect(() => {
@@ -470,6 +506,18 @@ export default function PosPage() {
     if (code === 'CUSTOMER_REQUIRED_FOR_DEPOSIT') {
       return fallback ?? 'Pilih pelanggan terlebih dahulu untuk bayar deposit.';
     }
+    if (code === 'CREDIT_LIMIT_EXCEEDED') {
+      return fallback ?? 'Limit kredit terlampaui. Minta persetujuan manager atau kurangi nominal tempo.';
+    }
+    if (code === 'CREDIT_NOT_ALLOWED') {
+      return fallback ?? 'Pelanggan ini tidak diizinkan transaksi tempo.';
+    }
+    if (code === 'DEPOSIT_INSUFFICIENT_BALANCE') {
+      return fallback ?? 'Saldo deposit tidak mencukupi untuk nominal yang diminta.';
+    }
+    if (code === 'CREDIT_APPROVAL_REQUIRED') {
+      return fallback ?? 'Transaksi tempo melebihi limit — minta persetujuan manager.';
+    }
     return fallback ?? 'Checkout split payment gagal. Silakan coba lagi.';
   }
 
@@ -569,6 +617,12 @@ export default function PosPage() {
   );
   const taxAmount = taxPreview.tax;
   const total = taxPreview.total;
+  const depositShortfall = useMemo(
+    () => computeDepositShortfall(customerDepositBalance ?? 0, total),
+    [customerDepositBalance, total],
+  );
+  const creditApprovalAmount =
+    paymentMode === 'DEPOSIT' && depositShortfall > 0 ? depositShortfall : total;
 
   useEffect(() => {
     setManagerApprovalToken(null);
@@ -1045,6 +1099,9 @@ export default function PosPage() {
       setCashReceived('');
       setLoyaltyPointsToRedeem('');
       await loadRecentTransactions();
+      if (customerId) {
+        void refreshCustomerFinanceSummary(customerId);
+      }
       void openReceipt(json.data.id);
     } catch (err) {
       const action = () => {
@@ -1256,6 +1313,9 @@ export default function PosPage() {
       setTransferReference('');
       setLastSplitAttempt(null);
       await loadRecentTransactions();
+      if (customerId) {
+        void refreshCustomerFinanceSummary(customerId);
+      }
       void openReceipt(json.data.id);
     } catch (err) {
       const action = () => {
@@ -1290,10 +1350,94 @@ export default function PosPage() {
       setNonCashReference('');
       setLoyaltyPointsToRedeem('');
       void loadRecentTransactions();
+      if (customerId) {
+        void refreshCustomerFinanceSummary(customerId);
+      }
       void openReceipt(transactionId);
     },
-    [activeOutletId],
+    [activeOutletId, customerId],
   );
+
+  async function submitFinanceCheckout(
+    payments: Array<{ method: 'TRANSFER' | 'QRIS' | 'CREDIT' | 'DEPOSIT'; amount: number; reference?: string }>,
+    successLabel: string,
+  ) {
+    if (cart.length === 0 || total <= 0) {
+      return;
+    }
+    if (checkoutBlockedByOutlet) {
+      setError(checkoutOutletHint);
+      return;
+    }
+
+    const cartItems = mapCartItemsForCheckout(cart);
+
+    if (!isOnline) {
+      setProcessingSplit(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        const requestId = await queueSplitCheckout({ items: cartItems, payments });
+        setSuccess(
+          `${successLabel} offline tersimpan (antrean). ID: ${requestId.slice(0, 8)}… — akan disinkronkan saat online.`,
+        );
+        setCart([]);
+        setNonCashReference('');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Gagal menyimpan pembayaran offline.');
+      } finally {
+        setProcessingSplit(false);
+      }
+      return;
+    }
+
+    setProcessingSplit(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/checkout-split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cartItems,
+          payments,
+          clientRequestId: createClientRequestId(),
+          ...buildOutletScope(activeOutletId),
+          ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
+          ...buildCustomerCheckoutPayload(),
+          ...(managerApprovalToken ? { managerApprovalToken } : {}),
+        }),
+      });
+      const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
+      if (!res.ok || !json.success || !json.data) {
+        throw new ApiRequestError(
+          getSplitErrorMessage(json.error?.code, json.error?.message),
+          json.error?.code,
+        );
+      }
+
+      setSuccess(`${successLabel} berhasil (${json.data.receiptNo}). Total: ${formatCurrencyIDR(json.data.total)}.`);
+      setCart([]);
+      setNonCashReference('');
+      setLoyaltyPointsToRedeem('');
+      setManagerApprovalToken(null);
+      await loadRecentTransactions();
+      if (customerId) {
+        void refreshCustomerFinanceSummary(customerId);
+      }
+      void openReceipt(json.data.id);
+    } catch (err) {
+      if (err instanceof ApiRequestError) {
+        setNetworkAwareError(getSplitErrorMessage(err.code, err.message), err);
+      } else if (err instanceof Error) {
+        setNetworkAwareError(err.message, err);
+      } else {
+        setError(`${successLabel} gagal. Silakan coba lagi.`);
+      }
+    } finally {
+      setProcessingSplit(false);
+    }
+  }
 
   async function handleCheckoutNonCash(method: 'TRANSFER' | 'QRIS' | 'CREDIT' | 'DEPOSIT') {
     if (cart.length === 0 || total <= 0) {
@@ -1301,7 +1445,9 @@ export default function PosPage() {
     }
 
     if ((method === 'CREDIT' || method === 'DEPOSIT') && !customerId) {
-      setError(FINANCE_CUSTOMER_REQUIRED_MESSAGE);
+      setPendingFinancePaymentMode(method);
+      setShowCustomerPicker(true);
+      setError(null);
       return;
     }
 
@@ -1336,76 +1482,34 @@ export default function PosPage() {
       return;
     }
 
-    const payments = [
-      {
-        method,
-        amount: total,
-        reference: nonCashReference.trim() || undefined,
-      },
-    ];
+    const methodLabels: Record<'TRANSFER' | 'QRIS' | 'CREDIT' | 'DEPOSIT', string> = {
+      TRANSFER: 'Checkout transfer',
+      QRIS: 'Checkout QRIS',
+      CREDIT: 'Checkout tempo',
+      DEPOSIT: 'Checkout deposit',
+    };
 
-    if (!isOnline) {
-      setProcessingSplit(true);
+    await submitFinanceCheckout(
+      [
+        {
+          method,
+          amount: total,
+          reference: nonCashReference.trim() || undefined,
+        },
+      ],
+      methodLabels[method],
+    );
+  }
+
+  async function handleCheckoutDepositPlusCredit() {
+    if (!customerId) {
+      setPendingFinancePaymentMode('DEPOSIT');
+      setShowCustomerPicker(true);
       setError(null);
-      setSuccess(null);
-      try {
-        const requestId = await queueSplitCheckout({ items: cartItems, payments });
-        setSuccess(
-          `Pembayaran ${method} offline tersimpan (antrean). ID: ${requestId.slice(0, 8)}… — akan disinkronkan saat online.`,
-        );
-        setCart([]);
-        setNonCashReference('');
-      } catch (err) {
-        setError(err instanceof Error ? err.message : `Gagal menyimpan pembayaran ${method} offline.`);
-      } finally {
-        setProcessingSplit(false);
-      }
       return;
     }
-
-    setProcessingSplit(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/checkout-split`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: cartItems,
-          payments,
-          clientRequestId: createClientRequestId(),
-          ...buildOutletScope(activeOutletId),
-          ...(checkoutPromoRuleId ? { promoRuleId: checkoutPromoRuleId } : {}),
-          ...buildCustomerCheckoutPayload(),
-          ...(managerApprovalToken ? { managerApprovalToken } : {}),
-        }),
-      });
-      const json = (await res.json()) as ApiEnvelope<CheckoutSplitResponse>;
-      if (!res.ok || !json.success || !json.data) {
-        throw new ApiRequestError(
-          getSplitErrorMessage(json.error?.code, json.error?.message),
-          json.error?.code,
-        );
-      }
-
-      setSuccess(`Checkout ${method} berhasil (${json.data.receiptNo}). Total: ${formatCurrencyIDR(json.data.total)}.`);
-      setCart([]);
-      setNonCashReference('');
-      setLoyaltyPointsToRedeem('');
-      setManagerApprovalToken(null);
-      await loadRecentTransactions();
-      void openReceipt(json.data.id);
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setNetworkAwareError(getSplitErrorMessage(err.code, err.message), err);
-      } else if (err instanceof Error) {
-        setNetworkAwareError(err.message, err);
-      } else {
-        setError(`Checkout ${method} gagal. Silakan coba lagi.`);
-      }
-    } finally {
-      setProcessingSplit(false);
-    }
+    const payments = buildDepositPlusCreditPayments(customerDepositBalance ?? 0, total);
+    await submitFinanceCheckout(payments, 'Checkout deposit + tempo');
   }
 
   function retrySplitWithLastAttempt() {
@@ -1592,16 +1696,24 @@ export default function PosPage() {
           customerCreditAvailable={customerCreditAvailable}
           loyaltyPointsToRedeem={loyaltyPointsToRedeem}
           onLoyaltyPointsToRedeemChange={setLoyaltyPointsToRedeem}
-          onOpenCustomerPicker={() => setShowCustomerPicker(true)}
+          onOpenCustomerPicker={() => {
+            setPendingFinancePaymentMode(null);
+            setShowCustomerPicker(true);
+          }}
           onRequestCreditApproval={() => setShowCreditApproval(true)}
           hasCreditApprovalToken={Boolean(managerApprovalToken)}
+          onCheckoutDepositPlusCredit={() => void handleCheckoutDepositPlusCredit()}
         />
       </div>
 
       {showCustomerPicker ? (
         <CustomerPickerModal
-          onClose={() => setShowCustomerPicker(false)}
-          onSelect={(customer: CustomerListItem) => applyCustomerLookup(customer)}
+          purpose={pendingFinancePaymentMode}
+          onClose={() => {
+            setShowCustomerPicker(false);
+            setPendingFinancePaymentMode(null);
+          }}
+          onSelect={handleCustomerSelect}
         />
       ) : null}
 
@@ -1609,7 +1721,7 @@ export default function PosPage() {
         <CreditApprovalModal
           customerId={customerId}
           customerName={customerName.trim() || 'Pelanggan'}
-          creditAmount={total}
+          creditAmount={creditApprovalAmount}
           userRole={user.role}
           outletId={activeOutletId}
           onApproved={(token) => {

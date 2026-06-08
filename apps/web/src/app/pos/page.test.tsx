@@ -175,6 +175,32 @@ vi.mock('@/lib/cart-margin', () => ({
   }),
 }));
 
+const fetchCustomersMock = vi.fn();
+const lookupCustomerByPhoneMock = vi.fn();
+const lookupCustomerByMemberCodeMock = vi.fn();
+const fetchCustomerFinanceSummaryMock = vi.fn();
+
+vi.mock('@/lib/customers-api', () => ({
+  fetchCustomers: (...args: unknown[]) => fetchCustomersMock(...args),
+  lookupCustomerByPhone: (...args: unknown[]) => lookupCustomerByPhoneMock(...args),
+  lookupCustomerByMemberCode: (...args: unknown[]) => lookupCustomerByMemberCodeMock(...args),
+  fetchCustomerFinanceSummaryFromCustomers: (...args: unknown[]) =>
+    fetchCustomerFinanceSummaryMock(...args),
+}));
+
+const sampleCustomer = {
+  id: 'cust-1',
+  name: 'Pak Budi',
+  phone: '081234567890',
+  memberCode: 'MBR-001',
+  points: 120,
+  updatedAt: '2026-06-02T08:00:00.000Z',
+  creditLimit: 1_000_000,
+  receivableOutstanding: 200_000,
+  depositBalance: 50_000,
+  creditAvailable: 800_000,
+};
+
 function mockReceiptResponse(id: string, receiptNo: string) {
   return {
     receipt: {
@@ -226,6 +252,20 @@ describe('PosPage', () => {
       tenantId: 'tenant-1',
       tenantName: 'Barokah',
       outletIds: ['outlet-1'],
+    });
+    fetchCustomersMock.mockResolvedValue([sampleCustomer]);
+    lookupCustomerByPhoneMock.mockResolvedValue(null);
+    lookupCustomerByMemberCodeMock.mockResolvedValue(null);
+    fetchCustomerFinanceSummaryMock.mockResolvedValue({
+      customer: { id: 'cust-1', name: 'Pak Budi', phone: '081234567890', creditLimit: 1_000_000 },
+      finance: {
+        receivableOutstanding: 270_000,
+        depositBalance: 0,
+        creditLimit: 1_000_000,
+        creditAvailable: 730_000,
+      },
+      receivables: [],
+      deposit: null,
     });
   });
 
@@ -643,6 +683,106 @@ describe('PosPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Hold berhasil disimpan. Lanjutkan dari panel Daftar Hold kapan saja.')).toBeInTheDocument();
+    });
+  });
+
+  it('opens customer picker when tempo is selected without linked customer', async () => {
+    setCatalogState([
+      { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
+    ]);
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tempo' }));
+
+    expect(await screen.findByRole('dialog', { name: /Pilih pelanggan — bayar tempo/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetchCustomersMock).toHaveBeenCalled();
+    });
+  });
+
+  it('completes tempo checkout after customer is selected', async () => {
+    setCatalogState([
+      { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
+    ]);
+    queueAuthFetchOverride({
+      match: (url, init) => url.includes('/transactions/checkout-split') && init?.method === 'POST',
+      respond: (_url, init) => {
+        const body = JSON.parse(String(init?.body ?? '{}')) as {
+          payments?: Array<{ method: string; amount: number }>;
+          customerId?: string;
+        };
+        expect(body.customerId).toBe('cust-1');
+        expect(body.payments).toEqual([{ method: 'CREDIT', amount: 70000 }]);
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              id: 'trx-credit-1',
+              receiptNo: 'TRX-TEMPO-01',
+              total: 70000,
+              payments: { CREDIT: 70000 },
+            },
+          }),
+        };
+      },
+    });
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tempo' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Pak Budi/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Checkout Tempo/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Checkout tempo berhasil/i)).toBeInTheDocument();
+    });
+    expect(fetchCustomerFinanceSummaryMock).toHaveBeenCalledWith('cust-1');
+  });
+
+  it('offers deposit plus tempo when deposit balance is insufficient', async () => {
+    setCatalogState([
+      { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 120000, unit: { name: 'Sak', symbol: 'sak' } },
+    ]);
+    queueAuthFetchOverride({
+      match: (url, init) => url.includes('/transactions/checkout-split') && init?.method === 'POST',
+      respond: (_url, init) => {
+        const body = JSON.parse(String(init?.body ?? '{}')) as {
+          payments?: Array<{ method: string; amount: number }>;
+        };
+        expect(body.payments).toEqual([
+          { method: 'DEPOSIT', amount: 50_000 },
+          { method: 'CREDIT', amount: 70_000 },
+        ]);
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              id: 'trx-mix-1',
+              receiptNo: 'TRX-MIX-01',
+              total: 120000,
+              payments: { DEPOSIT: 50_000, CREDIT: 70_000 },
+            },
+          }),
+        };
+      },
+    });
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deposit' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Pak Budi/i }));
+
+    expect(screen.getByText(/Saldo deposit tidak mencukupi/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Pakai Deposit/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Checkout deposit \+ tempo berhasil/i)).toBeInTheDocument();
     });
   });
 });

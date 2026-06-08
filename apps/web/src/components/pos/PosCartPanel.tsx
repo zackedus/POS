@@ -9,9 +9,14 @@ import { ReceiptPanel } from '@/components/pos/ReceiptPanel';
 import { PosAccordionSection } from '@/components/pos/PosAccordionSection';
 import type { CartItem, HeldTransactionSummary, PaymentMode, ProductGridItem } from './pos-types';
 import {
+  canCheckoutDepositPlusCredit,
+  canCheckoutFullDeposit,
+  computeDepositApplyAmount,
+  computeDepositShortfall,
   FINANCE_CUSTOMER_REQUIRED_MESSAGE,
+  getCreditLimitStatus,
   isCustomerLinkedForFinance,
-  isFinancePaymentButtonDisabled,
+  needsCustomerPickerForFinance,
 } from '@/lib/pos-finance-payment';
 
 import {
@@ -133,6 +138,20 @@ export interface PosCartPanelProps {
   onOpenCustomerPicker?: () => void;
   onRequestCreditApproval?: () => void;
   hasCreditApprovalToken?: boolean;
+  onCheckoutDepositPlusCredit?: () => void;
+}
+
+const standardPaymentModes: PaymentMode[] = ['CASH', 'TRANSFER', 'QRIS'];
+const financePaymentModes: PaymentMode[] = ['CREDIT', 'DEPOSIT'];
+
+function financePanelColor(status: 'ok' | 'warning' | 'over'): { bg: string; border: string; accent: string } {
+  if (status === 'over') {
+    return { bg: '#fef2f2', border: '#fecaca', accent: '#b91c1c' };
+  }
+  if (status === 'warning') {
+    return { bg: '#fffbeb', border: '#fcd34d', accent: '#b45309' };
+  }
+  return { bg: '#eff6ff', border: '#bfdbfe', accent: '#1e40af' };
 }
 
 export function PosCartPanel({
@@ -222,20 +241,62 @@ export function PosCartPanel({
   onOpenCustomerPicker,
   onRequestCreditApproval,
   hasCreditApprovalToken = false,
+  onCheckoutDepositPlusCredit,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
   const customerLinked = isCustomerLinkedForFinance(customerId);
-  const creditOverLimit =
-    paymentMode === 'CREDIT' &&
-    customerCreditLimit !== 0 &&
-    customerCreditAvailable != null &&
-    total > customerCreditAvailable;
+  const depositApplyAmount = computeDepositApplyAmount(customerDepositBalance ?? 0, total);
+  const depositShortfall = computeDepositShortfall(customerDepositBalance ?? 0, total);
+  const creditLimitStatus = getCreditLimitStatus({
+    creditLimit: customerCreditLimit,
+    creditAvailable: customerCreditAvailable,
+    receivableOutstanding: customerReceivableOutstanding ?? 0,
+    additionalCreditAmount: paymentMode === 'CREDIT' ? total : depositShortfall,
+  });
+  const creditOverLimit = paymentMode === 'CREDIT' && creditLimitStatus === 'over';
   const creditCheckoutBlocked =
     paymentMode === 'CREDIT' &&
-    (!customerLinked ||
-      customerCreditLimit === 0 ||
-      (creditOverLimit && !hasCreditApprovalToken));
+    (!customerLinked || customerCreditLimit === 0 || (creditOverLimit && !hasCreditApprovalToken));
+  const depositFullCheckout = canCheckoutFullDeposit(customerDepositBalance, total);
+  const depositPlusCreditAvailable = canCheckoutDepositPlusCredit({
+    depositBalance: customerDepositBalance,
+    cartTotal: total,
+    creditLimit: customerCreditLimit,
+    creditAvailable: customerCreditAvailable,
+    receivableOutstanding: customerReceivableOutstanding ?? 0,
+    hasCreditApprovalToken,
+  });
+  const financePanelColors = financePanelColor(creditLimitStatus);
   const stepperStyle = { minHeight: 44, minWidth: 44, padding: 0, fontSize: '1.125rem' };
+
+  function renderPaymentModeButton(mode: PaymentMode) {
+    const active = paymentMode === mode;
+    const needsCustomer = needsCustomerPickerForFinance(mode, customerId);
+    return (
+      <button
+        key={mode}
+        type="button"
+        aria-pressed={active}
+        title={needsCustomer ? FINANCE_CUSTOMER_REQUIRED_MESSAGE : undefined}
+        onClick={() => onPaymentModeChange(mode)}
+        style={{
+          minHeight: 48,
+          minWidth: 72,
+          padding: '0 1rem',
+          borderRadius: 8,
+          borderWidth: 2,
+          borderStyle: needsCustomer && !active ? 'dashed' : 'solid',
+          borderColor: active ? '#16a34a' : needsCustomer ? '#cbd5e1' : '#e2e8f0',
+          background: active ? '#f0fdf4' : '#fff',
+          color: active ? '#15803d' : needsCustomer ? '#64748b' : '#334155',
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        {paymentLabels[mode]}
+      </button>
+    );
+  }
 
   return (
     <aside
@@ -540,13 +601,13 @@ export function PosCartPanel({
                 marginTop: '0.35rem',
                 padding: '0.65rem 0.75rem',
                 borderRadius: 8,
-                background: '#eff6ff',
-                border: '1px solid #bfdbfe',
+                background: financePanelColors.bg,
+                border: `1px solid ${financePanelColors.border}`,
                 fontSize: '0.8125rem',
                 color: '#1e3a5f',
               }}
             >
-              <strong style={{ display: 'block', marginBottom: '0.35rem', color: '#1e40af' }}>
+              <strong style={{ display: 'block', marginBottom: '0.35rem', color: financePanelColors.accent }}>
                 Info Keuangan Pelanggan
               </strong>
               {customerMemberCode ? (
@@ -563,7 +624,7 @@ export function PosCartPanel({
                 </div>
                 <div>
                   Limit kredit:{' '}
-                  <strong>
+                  <strong style={{ color: customerCreditLimit === 0 ? '#b91c1c' : undefined }}>
                     {customerCreditLimit === 0
                       ? 'Tidak diizinkan tempo'
                       : customerCreditLimit != null
@@ -571,7 +632,7 @@ export function PosCartPanel({
                         : 'Unlimited'}
                   </strong>
                 </div>
-                <div>
+                <div style={{ color: creditLimitStatus !== 'ok' ? financePanelColors.accent : undefined }}>
                   Piutang outstanding:{' '}
                   <strong>{formatCurrencyIDR(customerReceivableOutstanding ?? 0)}</strong>
                 </div>
@@ -579,8 +640,19 @@ export function PosCartPanel({
                   Saldo deposit: <strong>{formatCurrencyIDR(customerDepositBalance ?? 0)}</strong>
                 </div>
                 {customerCreditLimit !== 0 && customerCreditAvailable != null ? (
-                  <div style={{ color: '#166534' }}>
+                  <div
+                    style={{
+                      color:
+                        creditLimitStatus === 'over'
+                          ? '#b91c1c'
+                          : creditLimitStatus === 'warning'
+                            ? '#b45309'
+                            : '#166534',
+                    }}
+                  >
                     Kredit tersedia: <strong>{formatCurrencyIDR(customerCreditAvailable)}</strong>
+                    {creditLimitStatus === 'warning' ? ' (mendekati limit)' : null}
+                    {creditLimitStatus === 'over' ? ' (melebihi limit)' : null}
                   </div>
                 ) : null}
               </div>
@@ -686,39 +758,31 @@ export function PosCartPanel({
 
       {hasCartItems ? (
         <>
-          <div
-            aria-label="Metode pembayaran"
-            style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}
-          >
-            {(['CASH', 'TRANSFER', 'QRIS', 'CREDIT', 'DEPOSIT', 'SPLIT'] as PaymentMode[]).map((mode) => {
-              const active = paymentMode === mode;
-              const financeDisabled = isFinancePaymentButtonDisabled(mode, customerId);
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={active}
-                  aria-disabled={financeDisabled}
-                  disabled={financeDisabled}
-                  title={financeDisabled ? FINANCE_CUSTOMER_REQUIRED_MESSAGE : undefined}
-                  onClick={() => onPaymentModeChange(mode)}
-                  style={{
-                    minHeight: 48,
-                    minWidth: 72,
-                    padding: '0 1rem',
-                    borderRadius: 8,
-                    border: `2px solid ${active ? '#16a34a' : '#e2e8f0'}`,
-                    background: active ? '#f0fdf4' : financeDisabled ? '#f8fafc' : '#fff',
-                    color: active ? '#15803d' : financeDisabled ? '#94a3b8' : '#334155',
-                    fontWeight: 600,
-                    cursor: financeDisabled ? 'not-allowed' : 'pointer',
-                    opacity: financeDisabled ? 0.75 : 1,
-                  }}
-                >
-                  {paymentLabels[mode]}
-                </button>
-              );
-            })}
+          <div aria-label="Metode pembayaran" style={{ display: 'grid', gap: '0.65rem', marginBottom: '0.75rem' }}>
+            <div>
+              <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                Bayar Langsung
+              </p>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                {standardPaymentModes.map(renderPaymentModeButton)}
+              </div>
+            </div>
+            <div>
+              <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                Kredit &amp; Deposit <span style={{ fontWeight: 400 }}>(perlu pelanggan)</span>
+              </p>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                {financePaymentModes.map(renderPaymentModeButton)}
+              </div>
+            </div>
+            <div>
+              <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                Kombinasi
+              </p>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                {renderPaymentModeButton('SPLIT')}
+              </div>
+            </div>
           </div>
           {!customerLinked && (paymentMode === 'CREDIT' || paymentMode === 'DEPOSIT') ? (
             <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
@@ -796,22 +860,72 @@ export function PosCartPanel({
             <>
               {!customerLinked ? (
                 <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
-                  {FINANCE_CUSTOMER_REQUIRED_MESSAGE}
+                  {FINANCE_CUSTOMER_REQUIRED_MESSAGE}. Tap Tempo/Deposit lagi atau pilih pelanggan dari daftar.
                 </p>
+              ) : null}
+              {paymentMode === 'CREDIT' && customerLinked ? (
+                <div
+                  style={{
+                    marginBottom: '0.75rem',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: 8,
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    fontSize: '0.8125rem',
+                    color: '#166534',
+                  }}
+                >
+                  <strong>Masuk piutang:</strong> {formatCurrencyIDR(total)}
+                </div>
+              ) : null}
+              {paymentMode === 'DEPOSIT' && customerLinked ? (
+                <div
+                  style={{
+                    marginBottom: '0.75rem',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: 8,
+                    background: depositFullCheckout ? '#f0fdf4' : '#fffbeb',
+                    border: `1px solid ${depositFullCheckout ? '#bbf7d0' : '#fcd34d'}`,
+                    fontSize: '0.8125rem',
+                    color: depositFullCheckout ? '#166534' : '#92400e',
+                  }}
+                >
+                  <div>
+                    Saldo deposit: <strong>{formatCurrencyIDR(customerDepositBalance ?? 0)}</strong>
+                  </div>
+                  <div>
+                    Total belanja: <strong>{formatCurrencyIDR(total)}</strong>
+                  </div>
+                  {depositFullCheckout ? (
+                    <div style={{ marginTop: '0.25rem' }}>
+                      Akan dipotong dari deposit: <strong>{formatCurrencyIDR(total)}</strong>
+                    </div>
+                  ) : depositApplyAmount > 0 ? (
+                    <>
+                      <div style={{ marginTop: '0.25rem' }}>
+                        Deposit terpakai: <strong>{formatCurrencyIDR(depositApplyAmount)}</strong>
+                      </div>
+                      <div>
+                        Kurang: <strong>{formatCurrencyIDR(depositShortfall)}</strong>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ marginTop: '0.25rem', color: '#b91c1c' }}>
+                      Saldo deposit kosong — tidak bisa bayar dengan deposit.
+                    </div>
+                  )}
+                </div>
               ) : null}
               {paymentMode === 'CREDIT' && customerCreditLimit === 0 ? (
                 <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
                   Pelanggan ini tidak diizinkan transaksi tempo (limit kredit = 0).
                 </p>
               ) : null}
-              {paymentMode === 'CREDIT' &&
-              customerCreditLimit !== 0 &&
-              customerCreditAvailable != null &&
-              total > customerCreditAvailable ? (
+              {paymentMode === 'CREDIT' && customerCreditLimit !== 0 && creditOverLimit ? (
                 <>
                   <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
                     Transaksi tempo melebihi limit kredit tersedia (
-                    {formatCurrencyIDR(customerCreditAvailable)}). Outstanding:{' '}
+                    {formatCurrencyIDR(customerCreditAvailable ?? 0)}). Outstanding:{' '}
                     {formatCurrencyIDR(customerReceivableOutstanding ?? 0)}
                     {customerCreditLimit != null ? ` / Limit: ${formatCurrencyIDR(customerCreditLimit)}` : ''}.
                   </p>
@@ -831,32 +945,79 @@ export function PosCartPanel({
                   ) : null}
                 </>
               ) : null}
-              {paymentMode === 'DEPOSIT' &&
-              customerDepositBalance != null &&
-              total > customerDepositBalance ? (
-                <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
-                  Saldo deposit tidak mencukupi ({formatCurrencyIDR(customerDepositBalance)}).
-                </p>
+              {paymentMode === 'DEPOSIT' && !depositFullCheckout && depositShortfall > 0 ? (
+                <>
+                  <p style={{ fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.75rem' }}>
+                    Saldo deposit tidak mencukupi untuk total belanja. Kurang{' '}
+                    {formatCurrencyIDR(depositShortfall)}.
+                  </p>
+                  {depositPlusCreditAvailable && onCheckoutDepositPlusCredit ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={processingSplit || checkoutBlockedByStock || (!activeShift && isOnline)}
+                      onClick={onCheckoutDepositPlusCredit}
+                      style={{ minHeight: 44, width: '100%', marginBottom: '0.75rem' }}
+                    >
+                      {processingSplit
+                        ? 'Memproses…'
+                        : `Pakai Deposit ${formatCurrencyIDR(depositApplyAmount)} + Tempo ${formatCurrencyIDR(depositShortfall)}`}
+                    </Button>
+                  ) : customerCreditLimit === 0 ? (
+                    <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
+                      Pelanggan tidak diizinkan tempo — gunakan metode bayar lain untuk sisa{' '}
+                      {formatCurrencyIDR(depositShortfall)}.
+                    </p>
+                  ) : depositShortfall > (customerCreditAvailable ?? 0) && !hasCreditApprovalToken ? (
+                    <>
+                      <p style={{ fontSize: '0.8125rem', color: '#b45309', marginBottom: '0.75rem' }}>
+                        Sisa tempo {formatCurrencyIDR(depositShortfall)} melebihi kredit tersedia.
+                      </p>
+                      {onRequestCreditApproval ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={onRequestCreditApproval}
+                          style={{ minHeight: 44, width: '100%', marginBottom: '0.75rem' }}
+                        >
+                          Minta Persetujuan Manager (Sisa Tempo)
+                        </Button>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
               ) : null}
-              <Button
-                type="button"
-                disabled={
-                  processingSplit ||
-                  checkoutBlockedByStock ||
-                  (!activeShift && isOnline) ||
-                  creditCheckoutBlocked ||
-                  (paymentMode === 'DEPOSIT' &&
-                    (customerDepositBalance ?? 0) < total)
-                }
-                onClick={() => onCheckoutNonCash(paymentMode)}
-                style={{ minHeight: 48, width: '100%' }}
-              >
-                {processingSplit
-                  ? 'Memproses…'
-                  : paymentMode === 'CREDIT'
-                    ? 'Checkout Tempo (Piutang)'
-                    : 'Checkout Pakai Deposit'}
-              </Button>
+              {paymentMode === 'DEPOSIT' && depositFullCheckout ? (
+                <Button
+                  type="button"
+                  disabled={
+                    processingSplit ||
+                    checkoutBlockedByStock ||
+                    (!activeShift && isOnline) ||
+                    !customerLinked
+                  }
+                  onClick={() => onCheckoutNonCash('DEPOSIT')}
+                  style={{ minHeight: 48, width: '100%' }}
+                >
+                  {processingSplit
+                    ? 'Memproses…'
+                    : `Checkout Pakai Deposit (${formatCurrencyIDR(total)})`}
+                </Button>
+              ) : paymentMode === 'CREDIT' ? (
+                <Button
+                  type="button"
+                  disabled={
+                    processingSplit ||
+                    checkoutBlockedByStock ||
+                    (!activeShift && isOnline) ||
+                    creditCheckoutBlocked
+                  }
+                  onClick={() => onCheckoutNonCash('CREDIT')}
+                  style={{ minHeight: 48, width: '100%' }}
+                >
+                  {processingSplit ? 'Memproses…' : `Checkout Tempo (Piutang ${formatCurrencyIDR(total)})`}
+                </Button>
+              ) : null}
             </>
           ) : null}
 

@@ -128,6 +128,17 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 | H5 | Kasir → `/pos/online-orders` | Order muncul di antrian |
 | H6 | Fulfill → COMPLETED | Stok **tidak** double-deduct |
 
+### Skenario H-DLV — Pengiriman POS ke Proyek (10 menit)
+
+| # | Langkah | Expected |
+|---|---------|----------|
+| HD1 | Dashboard → **Member & Pelanggan** → buat/edit pelanggan + alamat **Proyek** | Alamat tersimpan di CRM |
+| HD2 | Kasir → pilih pelanggan → centang **Antar ke alamat** → pilih alamat proyek | Alamat tampil di panel keranjang |
+| HD3 | Checkout tunai sukses | Pesan *"Masuk antrian pengiriman DLV-…"* |
+| HD4 | Manager → `/dashboard/deliveries` | Order status **Menunggu** tampil |
+| HD5 | Advance status → **Disiapkan** → **Dikirim** → **Selesai** | Transisi sukses; badge sidebar berkurang |
+| HD6 | Coba batalkan order aktif tanpa alasan | Error: alasan wajib |
+
 ### Skenario I — Edge Cases (opsional, 5 menit)
 
 | # | Langkah | Expected |

@@ -8,6 +8,7 @@ import { Button } from '@barokah/ui';
 import type { AuthUser } from '@/lib/auth';
 import { tokenStorage } from '@/lib/auth';
 import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
+import { useDeliveryBadge } from '@/hooks/useDeliveryBadge';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { useAdminTheme } from '@/hooks/useAdminTheme';
 
@@ -17,7 +18,7 @@ type NavItem = {
   href: string;
   label: string;
   exact?: boolean;
-  badgeKey?: 'onlineOrders';
+  badgeKey?: 'onlineOrders' | 'deliveries';
 };
 
 type NavGroup = {
@@ -34,6 +35,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/pos', label: 'Kasir' },
       { href: '/pos/online-orders', label: 'Order Online', badgeKey: 'onlineOrders' },
       { href: '/dashboard/online-orders', label: 'Kelola Pesanan Web' },
+      { href: '/dashboard/deliveries', label: 'Pengiriman', badgeKey: 'deliveries' },
       { href: '/shift/open', label: 'Buka Shift' },
       { href: '/shift/close', label: 'Tutup Shift' },
       { href: '/dashboard/transactions', label: 'Void & Struk' },
@@ -82,6 +84,7 @@ const ICONS: Record<string, string> = {
   Kasir: '▣',
   'Order Online': '◎',
   'Kelola Pesanan Web': '◈',
+  Pengiriman: '➚',
   'Buka Shift': '◷',
   'Tutup Shift': '◴',
   'Void & Struk': '↩',
@@ -188,6 +191,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/master/categories')) return 'Kategori';
   if (pathname.startsWith('/dashboard/units') || pathname.startsWith('/master/units')) return 'Satuan';
   if (pathname.startsWith('/dashboard/online-orders')) return 'Kelola Pesanan Web';
+  if (pathname.startsWith('/dashboard/deliveries')) return 'Antrian Pengiriman';
   if (pathname.startsWith('/pos/online-orders')) return 'Order Online';
   if (pathname.startsWith('/shift/open')) return 'Buka Shift';
   if (pathname.startsWith('/shift/close')) return 'Tutup Shift';
@@ -208,6 +212,7 @@ export function DashboardShell({
   const { theme, tokens, toggleTheme, isDark } = useAdminTheme();
   const showOutletPicker = outlets.length > 1;
   const onlineOrderCount = useOnlineOrderBadge(true, { outletId: selectedOutletId });
+  const deliveryCount = useDeliveryBadge(true, selectedOutletId);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -242,6 +247,24 @@ export function DashboardShell({
           }}
         >
           {onlineOrderCount > 99 ? '99+' : onlineOrderCount}
+        </span>
+      );
+    }
+    if (item.badgeKey === 'deliveries' && deliveryCount > 0) {
+      return (
+        <span
+          style={{
+            marginLeft: 'auto',
+            background: '#2563eb',
+            color: '#fff',
+            borderRadius: '999px',
+            padding: '0.1rem 0.45rem',
+            fontSize: '0.6875rem',
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {deliveryCount > 99 ? '99+' : deliveryCount}
         </span>
       );
     }

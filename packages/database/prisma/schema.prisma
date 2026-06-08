@@ -46,6 +46,8 @@ model Tenant {
   payables                     Payable[]
   customerDeposits             CustomerDeposit[]
   customerCreditAuditLogs      CustomerCreditAuditLog[]
+  deliveryOrders               DeliveryOrder[]
+  deliveryOrderSequences       DeliveryOrderSequence[]
 
   @@map("tenants")
 }
@@ -98,6 +100,7 @@ model Outlet {
   expenses          Expense[]
   purchaseOrders    PurchaseOrder[]
   receivables       Receivable[]
+  deliveryOrders    DeliveryOrder[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -140,6 +143,8 @@ model User {
   loyaltyPointLedgerRecorded  LoyaltyPointLedger[]
   creditAuditLogsRecorded     CustomerCreditAuditLog[] @relation("CreditAuditRecordedBy")
   creditAuditLogsApproved     CustomerCreditAuditLog[] @relation("CreditAuditApprovedBy")
+  deliveryOrdersCreated       DeliveryOrder[]          @relation("DeliveryOrderCreatedBy")
+  deliveryStatusLogsChanged   DeliveryStatusLog[]      @relation("DeliveryStatusChangedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -652,6 +657,7 @@ model Customer {
   receivables    Receivable[]
   deposit        CustomerDeposit?
   creditAuditLogs CustomerCreditAuditLog[]
+  deliveryOrders  DeliveryOrder[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, memberCode])
@@ -672,7 +678,8 @@ model CustomerAddress {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  deliveryOrders DeliveryOrder[]
 
   @@index([customerId])
   @@map("customer_addresses")
@@ -769,6 +776,7 @@ model Transaction {
   receivable  Receivable?
   loyaltyLedger LoyaltyPointLedger[]
   creditAuditLogs CustomerCreditAuditLog[]
+  deliveryOrders  DeliveryOrder[]
 
   @@unique([outletId, receiptNo])
   @@index([outletId, createdAt])
@@ -1285,4 +1293,80 @@ model DepositTransaction {
   @@index([depositId, createdAt])
   @@index([referenceType, referenceId])
   @@map("deposit_transactions")
+}
+
+// ─── Delivery Management (POS shipment queue) ────────────
+
+enum DeliveryStatus {
+  MENUNGGU
+  DISIAPKAN
+  DIKIRIM
+  SELESAI
+  BATAL
+}
+
+model DeliveryOrderSequence {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  sequenceDate DateTime @map("sequence_date") @db.Date
+  lastValue    Int      @default(0) @map("last_value")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, sequenceDate])
+  @@map("delivery_order_sequences")
+}
+
+model DeliveryOrder {
+  id                String         @id @default(uuid())
+  tenantId          String         @map("tenant_id")
+  outletId          String         @map("outlet_id")
+  deliveryNo        String         @map("delivery_no")
+  transactionId     String?        @map("transaction_id")
+  customerId        String         @map("customer_id")
+  addressId         String?        @map("address_id")
+  addressLabel      String         @map("address_label")
+  addressLine1      String         @map("address_line1")
+  addressLine2      String?        @map("address_line2")
+  addressCity       String         @map("address_city")
+  addressProvince   String?        @map("address_province")
+  addressPostalCode String?        @map("address_postal_code")
+  status            DeliveryStatus @default(MENUNGGU)
+  scheduledAt       DateTime?      @map("scheduled_at")
+  driverName        String?        @map("driver_name")
+  notes             String?
+  cancelReason      String?        @map("cancel_reason")
+  createdById       String         @map("created_by_id")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  outlet        Outlet             @relation(fields: [outletId], references: [id], onDelete: Restrict)
+  transaction   Transaction?       @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  customer      Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  address       CustomerAddress?   @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  createdBy     User               @relation("DeliveryOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  statusHistory DeliveryStatusLog[]
+
+  @@unique([tenantId, deliveryNo])
+  @@index([tenantId, outletId, status])
+  @@index([outletId, createdAt])
+  @@index([transactionId])
+  @@map("delivery_orders")
+}
+
+model DeliveryStatusLog {
+  id              String          @id @default(uuid())
+  deliveryOrderId String          @map("delivery_order_id")
+  fromStatus      DeliveryStatus? @map("from_status")
+  toStatus        DeliveryStatus  @map("to_status")
+  notes           String?
+  changedById     String          @map("changed_by_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  deliveryOrder DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  changedBy     User          @relation("DeliveryStatusChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([deliveryOrderId, createdAt])
+  @@map("delivery_status_logs")
 }

@@ -49,7 +49,7 @@ describe('UsersPage', () => {
   it('renders user list for owner', async () => {
     render(<UsersPage />);
     expect(await screen.findByText('Manajemen Pengguna')).toBeInTheDocument();
-    expect(screen.getByText('Kasir Demo')).toBeInTheDocument();
+    expect(await screen.findByText('Kasir Demo')).toBeInTheDocument();
     expect(screen.getByText('Tambah Pengguna Baru')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ubah' })).toBeInTheDocument();
   });

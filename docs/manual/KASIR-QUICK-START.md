@@ -51,6 +51,16 @@ Panduan singkat shift harian toko bahan bangunan.
 - `/pos/online-orders` → fulfill pickup/delivery
 - Stok sudah terpotong saat PAID — fulfill tidak deduct ulang
 
+## Pengiriman ke Alamat (POS)
+
+1. Hubungkan **pelanggan** (daftar member / scan QR `MBR-…`)
+2. Centang **Antar ke alamat** di panel keranjang
+3. Pilih alamat tersimpan CRM atau isi **alamat sekali pakai** (proyek/lantai)
+4. Checkout seperti biasa — setelah sukses muncul *"Masuk antrian pengiriman DLV-…"*
+5. Manager/owner kelola antrian di **Dashboard → Pengiriman** (`/dashboard/deliveries`)
+
+> Pengiriman ke alamat **tidak tersedia** saat mode offline.
+
 ## Tips
 
 | Situasi | Aksi |
