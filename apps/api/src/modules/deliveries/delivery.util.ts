@@ -32,3 +32,30 @@ export function formatAddressSnippet(parts: {
   }
   return segments.join(', ');
 }
+
+export interface DeliveryListCreatedAtFilter {
+  gte?: Date;
+  lt?: Date;
+}
+
+/** Map YYYY-MM-DD calendar days (WIB) to UTC bounds for Prisma createdAt filters. */
+export function resolveDeliveryListCreatedAtFilter(
+  dateFrom?: string,
+  dateTo?: string,
+): DeliveryListCreatedAtFilter {
+  const from = dateFrom?.trim();
+  const to = dateTo?.trim();
+  if (!from && !to) {
+    return {};
+  }
+  if (from && to) {
+    const startUtc = new Date(`${from}T00:00:00+07:00`);
+    const endUtc = new Date(new Date(`${to}T00:00:00+07:00`).getTime() + 24 * 60 * 60 * 1000);
+    return { gte: startUtc, lt: endUtc };
+  }
+  if (from) {
+    return { gte: new Date(`${from}T00:00:00+07:00`) };
+  }
+  const endUtc = new Date(new Date(`${to!}T00:00:00+07:00`).getTime() + 24 * 60 * 60 * 1000);
+  return { lt: endUtc };
+}

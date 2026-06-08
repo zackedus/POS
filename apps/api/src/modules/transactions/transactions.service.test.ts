@@ -42,7 +42,7 @@ function createFinanceCheckoutStub() {
   };
 }
 
-function createTransactionsService(prisma: unknown) {
+function createTransactionsService(prisma: unknown, deliveriesService?: { createForCompletedTransaction: (...args: unknown[]) => Promise<unknown> }) {
   const source = prisma as Record<string, unknown>;
   patchInventoryUpsert(source);
   if (typeof source.$transaction === 'function') {
@@ -65,7 +65,7 @@ function createTransactionsService(prisma: unknown) {
     createCustomersServiceStub() as never,
     createFinanceCheckoutStub() as never,
     createCreditLimitServiceStub() as never,
-    createDeliveriesServiceStub() as never,
+    (deliveriesService ?? createDeliveriesServiceStub()) as never,
   );
 }
 
@@ -592,6 +592,54 @@ test('Transactions: checkoutSplit returns existing transaction by clientRequestI
 
   assert.equal(result.id, 'txn-existing');
   assert.deepEqual(result.payments, { CASH: 40000, TRANSFER: 60000 });
+});
+
+test('Transactions: checkoutSplit calls delivery create when deliveryRequired on idempotent replay', async () => {
+  let deliveryArgs: unknown = null;
+  const deliveriesService = {
+    createForCompletedTransaction: async (...args: unknown[]) => {
+      deliveryArgs = args;
+      return { deliveryNo: 'DLV-20260610-0001' };
+    },
+  };
+  const prisma = {
+    transaction: {
+      findFirst: async () => ({
+        id: 'txn-existing',
+        receiptNo: 'TRX-EXISTING',
+        outletId: 'outlet-1',
+        shiftId: 'shift-1',
+        cashierId: 'cashier-1',
+        customerId: 'cust-1',
+        subtotal: 100000,
+        total: 100000,
+        completedAt: new Date(),
+        items: [{ id: 'item-1' }],
+        payments: [{ method: PaymentMethod.CASH, amount: 100000 }],
+      }),
+    },
+    shift: { findFirst: async () => ({ id: 'shift-1' }) },
+    product: { findMany: async () => [] },
+    inventoryItem: { findMany: async () => [] },
+    $transaction: async () => {
+      throw new Error('$transaction should not be called for idempotent replay');
+    },
+  };
+
+  const service = createTransactionsService(prisma, deliveriesService);
+  const result = await service.checkoutSplit(createUser(), {
+    outletId: 'outlet-1',
+    items: [{ productId: 'prod-1', quantity: 1 }],
+    payments: [{ method: PaymentMethod.CASH, amount: 100000 }],
+    clientRequestId: 'req-delivery-001',
+    deliveryRequired: true,
+    deliveryAddressId: 'addr-1',
+  });
+
+  assert.equal(result.deliveryNo, 'DLV-20260610-0001');
+  assert.ok(Array.isArray(deliveryArgs));
+  const deliveryPayload = (deliveryArgs as [unknown, { delivery: { deliveryRequired: boolean } }])[1];
+  assert.equal(deliveryPayload.delivery.deliveryRequired, true);
 });
 
 test('Transactions: holdTransaction returns existing hold by clientRequestId', async () => {

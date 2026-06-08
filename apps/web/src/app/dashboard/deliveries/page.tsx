@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DELIVERIES_POLL_MS } from '@/hooks/useDeliveryBadge';
+import { useDeliverySyncRefresh } from '@/hooks/useDeliverySyncRefresh';
 import Link from 'next/link';
 import {
   DELIVERY_STATUS_LABELS,
   DELIVERY_STATUS_TRANSITIONS,
   DELIVERY_TYPE_LABELS,
   formatCurrencyIDR,
+  getTodayDate,
   ONLINE_ORDER_CHANNEL_BADGE,
   type OnlineOrderChannel,
 } from '@barokah/shared';
@@ -61,8 +62,8 @@ export default function DashboardDeliveriesPage() {
   const [outletFilter, setOutletFilter] = useState<string>('ALL');
   const [activeTab, setActiveTab] = useState<DeliveryStatus | 'ALL'>('ALL');
   const [typeTab, setTypeTab] = useState<DeliveryType | 'ALL'>('ALL');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => getTodayDate());
+  const [dateTo, setDateTo] = useState(() => getTodayDate());
   const [search, setSearch] = useState('');
   const [orders, setOrders] = useState<DeliveryOrderListItem[]>([]);
   const [meta, setMeta] = useState<PaginatedDeliveries['meta']>({
@@ -148,19 +149,11 @@ export default function DashboardDeliveriesPage() {
     void loadOrders(1);
   }, [loadOrders]);
 
-  useEffect(() => {
-    const onDeliveryCreated = () => {
-      void loadOrders(meta.page);
-    };
-    window.addEventListener('barokah:delivery-created', onDeliveryCreated);
-    const timer = window.setInterval(() => {
-      void loadOrders(meta.page);
-    }, DELIVERIES_POLL_MS);
-    return () => {
-      window.removeEventListener('barokah:delivery-created', onDeliveryCreated);
-      window.clearInterval(timer);
-    };
-  }, [loadOrders, meta.page]);
+  useDeliverySyncRefresh({
+    enabled: true,
+    outletId: queryOutletId ?? selectedOutletId ?? null,
+    onRefresh: () => loadOrders(meta.page),
+  });
 
   useEffect(() => {
     if (!selectedId) {

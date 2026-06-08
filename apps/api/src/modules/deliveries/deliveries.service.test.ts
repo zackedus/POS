@@ -23,10 +23,17 @@ function ownerUser(): AuthJwtPayload {
   return { ...cashierUser(), sub: 'owner-1', role: 'OWNER', outletIds: ['outlet-1', 'outlet-2'] };
 }
 
-function makeService(prisma: object, customersService: { resolveOptionalCustomerId: (...args: unknown[]) => Promise<string | null> } = {
-  resolveOptionalCustomerId: async () => null,
-}) {
-  return new DeliveriesService(prisma as never, customersService as never);
+function makeService(
+  prisma: object,
+  customersService: { resolveOptionalCustomerId: (...args: unknown[]) => Promise<string | null> } = {
+    resolveOptionalCustomerId: async () => null,
+  },
+  realtime: { emitDeliveryCreated: (...args: unknown[]) => void; emitDeliveryUpdated: (...args: unknown[]) => void } = {
+    emitDeliveryCreated: () => undefined,
+    emitDeliveryUpdated: () => undefined,
+  },
+) {
+  return new DeliveriesService(prisma as never, customersService as never, realtime as never);
 }
 
 test('Deliveries: updateStatus rejects invalid transition', async () => {
@@ -311,6 +318,183 @@ test('Deliveries: create then list includes new STORE_DIRECT order with default 
   const listed = await service.list(cashierUser(), { status: 'MENUNGGU,DISIAPKAN,DIKIRIM' });
   assert.equal(listed.items.length, 1);
   assert.equal(listed.items[0]?.deliveryNo, 'DLV-20260609-0002');
+});
+
+test('Deliveries: list date filter uses WIB calendar day bounds', async () => {
+  type CapturedWhere = { createdAt?: { gte?: Date; lt?: Date } };
+  let capturedWhere: CapturedWhere | undefined;
+  const prisma = {
+    deliveryOrder: {
+      findMany: async ({ where }: { where: CapturedWhere }) => {
+        capturedWhere = where;
+        return [];
+      },
+      count: async () => 0,
+    },
+  };
+
+  const service = makeService(prisma);
+  await service.list(cashierUser(), {
+    dateFrom: '2026-06-10',
+    dateTo: '2026-06-10',
+    status: 'MENUNGGU',
+  });
+
+  assert.ok(capturedWhere?.createdAt?.gte);
+  assert.ok(capturedWhere?.createdAt?.lt);
+  assert.equal(capturedWhere!.createdAt!.gte!.toISOString(), '2026-06-09T17:00:00.000Z');
+  assert.equal(capturedWhere!.createdAt!.lt!.toISOString(), '2026-06-10T17:00:00.000Z');
+
+  const jakartaMidnightDelivery = new Date('2026-06-09T17:30:00.000Z');
+  assert.ok(jakartaMidnightDelivery >= capturedWhere!.createdAt!.gte!);
+  assert.ok(jakartaMidnightDelivery < capturedWhere.createdAt!.lt!);
+});
+
+test('Deliveries: create emits delivery:created realtime event', async () => {
+  const emitted: unknown[] = [];
+  const realtime = {
+    emitDeliveryCreated: (payload: unknown) => emitted.push(payload),
+    emitDeliveryUpdated: () => undefined,
+  };
+  const prisma = {
+    transaction: {
+      findFirst: async () => ({
+        id: 'trx-pos-1',
+        customerId: 'cust-1',
+        outletId: 'outlet-1',
+        status: 'COMPLETED',
+      }),
+    },
+    deliveryOrder: { findFirst: async () => null },
+    customer: { findFirst: async () => ({ id: 'cust-1' }) },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        deliveryOrderSequence: {
+          upsert: async () => ({ lastValue: 3 }),
+        },
+        deliveryOrder: {
+          create: async () => ({
+            id: 'delivery-pos-emit',
+            deliveryNo: 'DLV-20260609-0003',
+            deliveryType: 'STORE_DIRECT',
+            status: 'MENUNGGU',
+            createdAt: new Date('2026-06-09T12:00:00.000Z'),
+            scheduledAt: null,
+            driverName: null,
+            notes: null,
+            addressLine1: 'Jl. POS 1',
+            addressLine2: null,
+            addressCity: 'Jakarta',
+            addressProvince: null,
+            customer: { id: 'cust-1', name: 'Budi', phone: '081234567890' },
+            outlet: { id: 'outlet-1', name: 'Toko Utama' },
+            onlineOrder: null,
+            transaction: {
+              id: 'trx-pos-1',
+              receiptNo: 'TRX-POS-1',
+              total: { toString: () => '70000' },
+              items: [{ id: 'item-1' }],
+            },
+          }),
+        },
+      }),
+  };
+
+  const service = makeService(prisma, undefined, realtime);
+  await service.create(cashierUser(), {
+    transactionId: 'trx-pos-1',
+    customerId: 'cust-1',
+    outletId: 'outlet-1',
+    addressSnapshot: {
+      label: 'Proyek',
+      addressLine1: 'Jl. POS 1',
+      city: 'Jakarta',
+    },
+  });
+
+  assert.equal(emitted.length, 1);
+  assert.deepEqual(emitted[0], {
+    tenantId: 'tenant-1',
+    outletId: 'outlet-1',
+    deliveryId: 'delivery-pos-emit',
+    deliveryNo: 'DLV-20260609-0003',
+    deliveryType: 'STORE_DIRECT',
+    status: 'MENUNGGU',
+  });
+});
+
+test('Deliveries: createForCompletedTransaction creates delivery row when required', async () => {
+  let createCalled = false;
+  const prisma = {
+    deliveryOrder: {
+      findFirst: async () => null,
+    },
+    transaction: {
+      findFirst: async () => ({
+        id: 'trx-checkout-1',
+        customerId: 'cust-1',
+        outletId: 'outlet-1',
+        status: 'COMPLETED',
+      }),
+    },
+    customer: { findFirst: async () => ({ id: 'cust-1' }) },
+    customerAddress: {
+      findFirst: async () => ({
+        id: 'addr-1',
+        label: 'Rumah',
+        addressLine1: 'Jl. Checkout 1',
+        addressLine2: null,
+        city: 'Jakarta',
+        province: null,
+        postalCode: null,
+      }),
+    },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        deliveryOrderSequence: {
+          upsert: async () => ({ lastValue: 1 }),
+        },
+        deliveryOrder: {
+          create: async () => {
+            createCalled = true;
+            return {
+              id: 'delivery-checkout-1',
+              deliveryNo: 'DLV-20260610-0001',
+              deliveryType: 'STORE_DIRECT',
+              status: 'MENUNGGU',
+              createdAt: new Date('2026-06-09T17:30:00.000Z'),
+              scheduledAt: null,
+              driverName: null,
+              notes: null,
+              addressLine1: 'Jl. Checkout 1',
+              addressLine2: null,
+              addressCity: 'Jakarta',
+              addressProvince: null,
+              customer: { id: 'cust-1', name: 'Budi', phone: '081234567890' },
+              outlet: { id: 'outlet-1', name: 'Toko Utama' },
+              onlineOrder: null,
+              transaction: {
+                id: 'trx-checkout-1',
+                receiptNo: 'TRX-CHK-1',
+                total: { toString: () => '70000' },
+                items: [{ id: 'item-1' }],
+              },
+            };
+          },
+        },
+      }),
+  };
+
+  const service = makeService(prisma);
+  const result = await service.createForCompletedTransaction(cashierUser(), {
+    transactionId: 'trx-checkout-1',
+    outletId: 'outlet-1',
+    customerId: 'cust-1',
+    delivery: { deliveryRequired: true, deliveryAddressId: 'addr-1' },
+  });
+
+  assert.equal(createCalled, true);
+  assert.deepEqual(result, { deliveryNo: 'DLV-20260610-0001' });
 });
 
 test('Deliveries: create resolves walk-in customer from checkout snapshot when transaction has no customerId', async () => {

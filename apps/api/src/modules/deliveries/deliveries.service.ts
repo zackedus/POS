@@ -23,6 +23,7 @@ type DeliveryTypeValue = PrismaDeliveryType | DeliveryType;
 import { PrismaService } from '../../common/database/prisma.service';
 import { buildOutletWhere, resolveListOutletScope, resolveOutletId } from '../../common/utils/outlet.util';
 import { CustomersService } from '../customers/customers.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { CreateDeliveryOrderDto } from './dto/delivery.dto';
@@ -34,6 +35,7 @@ import {
   deliveryStatusLabel,
   formatAddressSnippet,
   getJakartaDateKey,
+  resolveDeliveryListCreatedAtFilter,
 } from './delivery.util';
 
 type AddressFields = DeliveryAddressSnapshot & { addressId?: string | null };
@@ -43,6 +45,7 @@ export class DeliveriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly customersService: CustomersService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async list(user: AuthJwtPayload, query: DeliveryListQueryDto) {
@@ -56,15 +59,7 @@ export class DeliveriesService {
       .map((s) => s.trim())
       .filter(Boolean) as DeliveryStatus[];
 
-    const createdAt: { gte?: Date; lte?: Date } = {};
-    if (query.dateFrom) {
-      createdAt.gte = new Date(query.dateFrom);
-    }
-    if (query.dateTo) {
-      const end = new Date(query.dateTo);
-      end.setHours(23, 59, 59, 999);
-      createdAt.lte = end;
-    }
+    const createdAt = resolveDeliveryListCreatedAtFilter(query.dateFrom, query.dateTo);
 
     const deliveryTypeFilter = query.deliveryType?.trim() as DeliveryTypeValue | undefined;
 
@@ -351,7 +346,16 @@ export class DeliveriesService {
       return order;
     });
 
-    return this.toListItem(created);
+    const listItem = this.toListItem(created);
+    this.realtime.emitDeliveryCreated({
+      tenantId: user.tenantId,
+      outletId,
+      deliveryId: listItem.id,
+      deliveryNo: listItem.deliveryNo,
+      deliveryType: listItem.deliveryType,
+      status: listItem.status,
+    });
+    return listItem;
   }
 
   async updateStatus(
@@ -427,7 +431,16 @@ export class DeliveriesService {
       },
     });
 
-    return this.toListItem(updated);
+    const listItem = this.toListItem(updated);
+    this.realtime.emitDeliveryUpdated({
+      tenantId: user.tenantId,
+      outletId,
+      deliveryId: listItem.id,
+      deliveryNo: listItem.deliveryNo,
+      deliveryType: listItem.deliveryType,
+      status: listItem.status,
+    });
+    return listItem;
   }
 
   async queueSummary(user: AuthJwtPayload, query: DeliveryQueueSummaryQueryDto): Promise<DeliveryQueueSummary> {

@@ -60,6 +60,7 @@ import { isOutOfStock } from '@/lib/pos-stock-display';
 import type { DeliverySelection } from '@/components/pos/PosDeliverySelector';
 import { isDeliverySelectionValid } from '@/components/pos/PosDeliverySelector';
 import { createDeliveryOrder } from '@/lib/deliveries-api';
+import { publishDeliveryCreated } from '@/lib/delivery-sync';
 import {
   buildCheckoutDeliveryPayload,
   buildDeliveryOrderPayload,
@@ -468,13 +469,7 @@ export default function PosPage() {
   }
 
   function notifyDeliveryCreated(deliveryNo: string) {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('barokah:delivery-created', {
-          detail: { deliveryNo, outletId: activeOutletId },
-        }),
-      );
-    }
+    publishDeliveryCreated({ deliveryNo, outletId: activeOutletId });
   }
 
   function formatDeliverySuccessSuffix(deliveryNo: string): string {

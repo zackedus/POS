@@ -1,8 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { getTodayDate } from '@barokah/shared';
 import DashboardDeliveriesPage from './page';
 
+
 const fetchDeliveriesMock = vi.fn();
+
+vi.mock('@/hooks/useDeliverySyncRefresh', () => ({
+  useDeliverySyncRefresh: vi.fn(),
+}));
 
 vi.mock('@/lib/deliveries-api', () => ({
   fetchDeliveries: (...args: unknown[]) => fetchDeliveriesMock(...args),
@@ -74,5 +80,19 @@ describe('DashboardDeliveriesPage', () => {
 
     expect(await screen.findByText(/DLV-20260609-0001/i)).toBeInTheDocument();
     expect(screen.getByText('Cabang Selatan')).toBeInTheDocument();
+  });
+
+  it('uses today WIB date filter on initial load', async () => {
+    const today = getTodayDate();
+    render(<DashboardDeliveriesPage />);
+
+    await waitFor(() => {
+      expect(fetchDeliveriesMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dateFrom: today,
+          dateTo: today,
+        }),
+      );
+    });
   });
 });

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchDeliveryQueueSummary } from '@/lib/deliveries-api';
-
-export const DELIVERIES_POLL_MS = 30_000;
+import { useDeliverySyncRefresh } from './useDeliverySyncRefresh';
 
 export function useDeliveryBadge(enabled: boolean, outletId?: string | null): number {
   const [count, setCount] = useState(0);
@@ -22,18 +21,13 @@ export function useDeliveryBadge(enabled: boolean, outletId?: string | null): nu
       return;
     }
     void refresh();
-    const onDeliveryCreated = () => {
-      void refresh();
-    };
-    window.addEventListener('barokah:delivery-created', onDeliveryCreated);
-    const timer = window.setInterval(() => {
-      void refresh();
-    }, DELIVERIES_POLL_MS);
-    return () => {
-      window.removeEventListener('barokah:delivery-created', onDeliveryCreated);
-      window.clearInterval(timer);
-    };
   }, [enabled, refresh]);
+
+  useDeliverySyncRefresh({
+    enabled,
+    outletId,
+    onRefresh: refresh,
+  });
 
   return count;
 }
