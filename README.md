@@ -21,18 +21,17 @@ npm install
 # 2. Environment
 cp .env.example .env
 
-# 3. Start database
-npm run docker:up
+# 3. Run all apps (Docker infra + prisma migrate deploy + API + Web)
+npm run dev
 
-# 4. Database migrate & seed
-npm run db:generate
-npm run db:migrate
+# Sekali saja (data demo): setelah DB siap
 npm run db:seed
 
-# 5. Run all apps
-npm run dev
+# Lewati migrasi jika schema sudah mutakhir (start lebih cepat)
+npm run dev:skip-migrate
 ```
 
+npm run dev menjalankan Postgres/Redis (Docker jika tersedia), lalu npm run db:migrate:deploy (non-interaktif), baru API + Web. Tidak perlu prisma migrate dev untuk sekadar jalan lokal.
 ### Database migrate (production / CI)
 
 ```bash

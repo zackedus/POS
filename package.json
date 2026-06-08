@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "node scripts/dev-all-launcher.mjs",
+    "dev:skip-migrate": "node scripts/dev-all-launcher.mjs -SkipMigrate",
     "dev:all": "node scripts/dev-all-launcher.mjs",
     "dev:all:mobile": "node scripts/dev-all-launcher.mjs -WithMobile",
     "dev:turbo": "turbo run dev --filter=@barokah/api --filter=@barokah/web --filter=@barokah/shared --filter=@barokah/ui",
