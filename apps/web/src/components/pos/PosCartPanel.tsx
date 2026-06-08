@@ -57,6 +57,7 @@ export interface PosCartPanelProps {
   marginWarnings: CartMarginWarning[];
   checkoutBlockedByStock: boolean;
   checkoutStockHint: string;
+  qrisPending?: boolean;
   paymentMode: PaymentMode;
   onPaymentModeChange: (mode: PaymentMode) => void;
   cashReceived: string;
@@ -134,6 +135,7 @@ export function PosCartPanel({
   marginWarnings,
   checkoutBlockedByStock,
   checkoutStockHint,
+  qrisPending = false,
   paymentMode,
   onPaymentModeChange,
   cashReceived,
@@ -631,11 +633,20 @@ export function PosCartPanel({
               </label>
               <Button
                 type="button"
-                disabled={processingSplit || checkoutBlockedByStock || (!activeShift && isOnline)}
+                disabled={
+                  processingSplit ||
+                  qrisPending ||
+                  checkoutBlockedByStock ||
+                  (!activeShift && isOnline)
+                }
                 onClick={() => onCheckoutNonCash(paymentMode)}
                 style={{ minHeight: 48, width: '100%' }}
               >
-                {processingSplit ? 'Memproses…' : `Checkout ${paymentMode === 'QRIS' ? 'QRIS' : 'Transfer'}`}
+                {processingSplit
+                  ? 'Memproses…'
+                  : qrisPending && paymentMode === 'QRIS'
+                    ? 'Menunggu QRIS…'
+                    : `Checkout ${paymentMode === 'QRIS' ? 'QRIS' : 'Transfer'}`}
               </Button>
             </>
           ) : null}

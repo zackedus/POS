@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrencyIDR, formatEmptyStockMessage, isValidSellQuantity, parseCurrencyInput, previewLoyaltyPointsEarned, computePosTax, previewLoyaltyRedeemDiscount } from '@barokah/shared';
 import { PosCartPanel } from '@/components/pos/PosCartPanel';
@@ -1182,8 +1182,30 @@ export default function PosPage() {
     await submitCheckoutSplit(buildSplitRequestData());
   }
 
+  const handleQrisPaid = useCallback(
+    ({ transactionId, receiptNo, total: paidTotal }: { transactionId: string; receiptNo: string; total: number }) => {
+      setQrisSession(null);
+      setSuccess(`Checkout QRIS berhasil (${receiptNo}). Total: ${formatCurrencyIDR(paidTotal)}.`);
+      setCart([]);
+      setNonCashReference('');
+      setLoyaltyPointsToRedeem('');
+      void loadRecentTransactions();
+      void openReceipt(transactionId);
+    },
+    [activeOutletId],
+  );
+
   async function handleCheckoutNonCash(method: 'TRANSFER' | 'QRIS') {
     if (cart.length === 0 || total <= 0) {
+      return;
+    }
+
+    if (checkoutBlockedByOutlet) {
+      setError(checkoutOutletHint);
+      return;
+    }
+
+    if (method === 'QRIS' && qrisSession) {
       return;
     }
 
@@ -1397,6 +1419,7 @@ export default function PosPage() {
           marginWarnings={marginWarnings}
           checkoutBlockedByStock={checkoutBlocked}
           checkoutStockHint={checkoutBlockHint}
+          qrisPending={Boolean(qrisSession)}
           paymentMode={paymentMode}
           onPaymentModeChange={setPaymentMode}
           cashReceived={cashReceived}
@@ -1484,18 +1507,7 @@ export default function PosPage() {
         />
       ) : null}
 
-      <QrisPaymentModal
-        session={qrisSession}
-        onClose={() => setQrisSession(null)}
-        onPaid={({ transactionId, receiptNo, total: paidTotal }) => {
-          setQrisSession(null);
-          setSuccess(`Checkout QRIS berhasil (${receiptNo}). Total: ${formatCurrencyIDR(paidTotal)}.`);
-          setCart([]);
-          setNonCashReference('');
-          void loadRecentTransactions();
-          void openReceipt(transactionId);
-        }}
-      />
+      <QrisPaymentModal session={qrisSession} onClose={() => setQrisSession(null)} onPaid={handleQrisPaid} />
     </div>
   );
 }

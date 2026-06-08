@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@barokah/ui';
 import { formatCurrencyIDR } from '@barokah/shared';
 import {
@@ -9,6 +9,8 @@ import {
   type QrisInitiateResult,
   type QrisPaymentStatus,
 } from '@/lib/qris-payment';
+
+const QRIS_POLL_INTERVAL_MS = 1500;
 
 interface QrisPaymentModalProps {
   session: QrisInitiateResult | null;
@@ -21,43 +23,66 @@ export function QrisPaymentModal({ session, onClose, onPaid }: QrisPaymentModalP
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const paidRef = useRef(false);
+  const onPaidRef = useRef(onPaid);
 
   useEffect(() => {
-    if (!session || session.status === 'PAID') {
-      if (session?.status === 'PAID' && session.transactionId && session.receiptNo && session.total != null) {
-        onPaid({
-          transactionId: session.transactionId,
-          receiptNo: session.receiptNo,
-          total: session.total,
-        });
-      }
+    onPaidRef.current = onPaid;
+  }, [onPaid]);
+
+  const handlePaid = useCallback((result: { transactionId: string; receiptNo: string; total: number }) => {
+    if (paidRef.current) {
+      return;
+    }
+    paidRef.current = true;
+    onPaidRef.current(result);
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    if (session.status === 'PAID' && session.transactionId && session.receiptNo && session.total != null) {
+      handlePaid({
+        transactionId: session.transactionId,
+        receiptNo: session.receiptNo,
+        total: session.total,
+      });
       return;
     }
 
     setStatus(session.status);
+    setMessage(null);
     paidRef.current = false;
 
-    const intervalMs = Math.max(1500, session.mockAutoConfirmMs ?? 3000);
-    const timer = setInterval(() => {
-      void pollQrisStatus(session.paymentId)
+    const paymentId = session.paymentId;
+
+    const pollOnce = () => {
+      void pollQrisStatus(paymentId)
         .then((result) => {
           setStatus(result.status);
           if (result.status === 'PAID' && result.transactionId && result.receiptNo && result.total != null) {
-            if (!paidRef.current) {
-              paidRef.current = true;
-              onPaid({ transactionId: result.transactionId, receiptNo: result.receiptNo, total: result.total });
-            }
-          } else if (result.status === 'EXPIRED' || result.status === 'FAILED') {
+            handlePaid({
+              transactionId: result.transactionId,
+              receiptNo: result.receiptNo,
+              total: result.total,
+            });
+            return;
+          }
+          if (result.status === 'EXPIRED' || result.status === 'FAILED') {
             setMessage('Pembayaran QRIS gagal atau kedaluwarsa. Coba lagi.');
           }
         })
         .catch((err: unknown) => {
           setMessage(err instanceof Error ? err.message : 'Polling QRIS gagal.');
         });
-    }, intervalMs);
+    };
+
+    pollOnce();
+    const timer = setInterval(pollOnce, QRIS_POLL_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, [session, onPaid]);
+  }, [session, handlePaid]);
 
   if (!session) {
     return null;
@@ -129,7 +154,13 @@ export function QrisPaymentModal({ session, onClose, onPaid }: QrisPaymentModalP
                 .then((result) => {
                   setStatus(result.status);
                   if (result.transactionId && result.receiptNo && result.total != null) {
-                    onPaid({ transactionId: result.transactionId, receiptNo: result.receiptNo, total: result.total });
+                    handlePaid({
+                      transactionId: result.transactionId,
+                      receiptNo: result.receiptNo,
+                      total: result.total,
+                    });
+                  } else if (result.status === 'FAILED' || result.status === 'EXPIRED') {
+                    setMessage('Pembayaran QRIS gagal atau kedaluwarsa. Coba lagi.');
                   }
                 })
                 .catch((err: unknown) => {

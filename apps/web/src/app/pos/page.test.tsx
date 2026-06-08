@@ -335,6 +335,63 @@ describe('PosPage', () => {
     });
   });
 
+  it('completes QRIS checkout via mock polling', async () => {
+    setCatalogState([
+      { id: 'prod-cat-25l', name: 'Cat Tembok Interior — 25 Liter', sku: 'CAT-25L', price: 332500, unit: { name: 'Liter', symbol: 'L' } },
+    ]);
+
+    queueAuthFetchOverride({
+      match: (url, init) => url.includes('/transactions/qris/initiate') && init?.method === 'POST',
+      respond: () => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            paymentId: 'QRIS-TEST-1',
+            status: 'PENDING',
+            amount: 332500,
+            qrPayload: 'ID.QRIS.MOCK|QRIS-TEST-1|332500|BAROKAH-CORE-POS',
+            mockAutoConfirmMs: 3000,
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          },
+        }),
+      }),
+    });
+
+    queueAuthFetchOverride({
+      match: (url) => url.includes('/transactions/qris/QRIS-TEST-1/status'),
+      respond: () => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            paymentId: 'QRIS-TEST-1',
+            status: 'PAID',
+            amount: 332500,
+            qrPayload: 'ID.QRIS.MOCK|QRIS-TEST-1|332500|BAROKAH-CORE-POS',
+            transactionId: 'trx-qris-1',
+            receiptNo: 'TRX-QRIS-1',
+            total: 332500,
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          },
+        }),
+      }),
+    });
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Cat Tembok Interior/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'QRIS' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Checkout QRIS' })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout QRIS' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Checkout QRIS berhasil \(TRX-QRIS-1\)/i)).toBeInTheDocument();
+    });
+  });
+
   it('opens unit picker for multi-satuan products and adds selected unit', async () => {
     setCatalogState([
       {

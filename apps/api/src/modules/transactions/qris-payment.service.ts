@@ -36,6 +36,7 @@ const MOCK_AUTO_CONFIRM_MS = 3000;
 export class QrisPaymentService {
   private readonly logger = new Logger(QrisPaymentService.name);
   private readonly sessions = new Map<string, QrisSession>();
+  private readonly mockConfirmTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private readonly transactionsService: TransactionsService) {}
 
@@ -84,6 +85,7 @@ export class QrisPaymentService {
     };
 
     this.sessions.set(paymentId, session);
+    this.scheduleMockAutoConfirm(paymentId, user);
     this.logger.log(`QRIS session ${paymentId} initiated — ${preview.total} IDR (mock)`);
 
     return {
@@ -101,7 +103,7 @@ export class QrisPaymentService {
     this.expireIfNeeded(session);
 
     if (session.status === 'PENDING' && this.shouldAutoConfirmMock(session)) {
-      await this.completeCheckout(session, user);
+      await this.tryCompleteCheckout(session, user);
     }
 
     return this.mapStatusResponse(session);
@@ -122,12 +124,16 @@ export class QrisPaymentService {
       return this.mapStatusResponse(session);
     }
 
-    await this.completeCheckout(session, user);
+    await this.tryCompleteCheckout(session, user);
     return this.mapStatusResponse(session);
   }
 
   /** Test helper — clears in-memory sessions. */
   clearSessionsForTests(): void {
+    for (const timer of this.mockConfirmTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.mockConfirmTimers.clear();
     this.sessions.clear();
   }
 
@@ -152,8 +158,52 @@ export class QrisPaymentService {
     return Date.now() - session.createdAt.getTime() >= MOCK_AUTO_CONFIRM_MS;
   }
 
+  private scheduleMockAutoConfirm(paymentId: string, user: AuthJwtPayload): void {
+    const existing = this.mockConfirmTimers.get(paymentId);
+    if (existing) {
+      clearTimeout(existing);
+    }
+
+    const timer = setTimeout(() => {
+      this.mockConfirmTimers.delete(paymentId);
+      void this.runMockAutoConfirm(paymentId, user);
+    }, MOCK_AUTO_CONFIRM_MS);
+
+    this.mockConfirmTimers.set(paymentId, timer);
+  }
+
+  private async runMockAutoConfirm(paymentId: string, user: AuthJwtPayload): Promise<void> {
+    const session = this.sessions.get(paymentId);
+    if (!session || session.status !== 'PENDING' || session.tenantId !== user.tenantId) {
+      return;
+    }
+    this.expireIfNeeded(session);
+    if (session.status !== 'PENDING' || !this.shouldAutoConfirmMock(session)) {
+      return;
+    }
+    await this.tryCompleteCheckout(session, user);
+  }
+
+  private async tryCompleteCheckout(session: QrisSession, user: AuthJwtPayload): Promise<void> {
+    if (session.status === 'PAID' || session.status === 'EXPIRED') {
+      return;
+    }
+    try {
+      await this.completeCheckout(session, user);
+    } catch {
+      // completeCheckout marks session FAILED; callers return mapped status instead of throwing.
+    }
+  }
+
   private async completeCheckout(session: QrisSession, user: AuthJwtPayload): Promise<void> {
     try {
+      const preview = await this.transactionsService.previewCheckoutTotal(user, {
+        outletId: session.outletId,
+        items: session.checkoutPayload.items,
+        promoRuleId: session.checkoutPayload.promoRuleId,
+      });
+      session.amount = preview.total;
+
       const result = await this.transactionsService.checkoutSplit(user, {
         outletId: session.outletId,
         items: session.checkoutPayload.items,
@@ -162,7 +212,7 @@ export class QrisPaymentService {
         payments: [
           {
             method: PaymentMethod.QRIS,
-            amount: session.amount,
+            amount: preview.total,
             reference: session.id,
           },
         ],
@@ -172,10 +222,20 @@ export class QrisPaymentService {
       session.transactionId = result.id;
       session.receiptNo = result.receiptNo;
       session.total = result.total;
+      this.clearMockConfirmTimer(session.id);
     } catch (error) {
       session.status = 'FAILED';
+      this.clearMockConfirmTimer(session.id);
       this.logger.warn(`QRIS checkout failed for ${session.id}: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
+    }
+  }
+
+  private clearMockConfirmTimer(paymentId: string): void {
+    const timer = this.mockConfirmTimers.get(paymentId);
+    if (timer) {
+      clearTimeout(timer);
+      this.mockConfirmTimers.delete(paymentId);
     }
   }
 

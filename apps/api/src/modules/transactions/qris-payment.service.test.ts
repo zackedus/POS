@@ -63,3 +63,60 @@ test('QRIS: checkoutSplit uses QRIS method and reference', async () => {
   assert.ok(capturedPayments[0]?.reference?.startsWith('QRIS-'));
   service.clearSessionsForTests();
 });
+
+test('QRIS: getStatus auto-confirms pending mock session after delay', async () => {
+  let checkoutCalled = false;
+  const transactionsService = {
+    findExistingTransactionByRequestPublic: async () => null,
+    previewCheckoutTotal: async () => ({ subtotal: 332500, discount: 0, tax: 0, total: 332500 }),
+    checkoutSplit: async () => {
+      checkoutCalled = true;
+      return { id: 'txn-qris-auto', receiptNo: 'TRX-QRIS-AUTO', total: 332500 };
+    },
+  };
+
+  const service = new QrisPaymentService(transactionsService as never);
+  const initiated = await service.initiate(createUser(), {
+    items: [{ productId: 'prod-cat-25l', quantity: 1 }],
+    clientRequestId: 'req-qris-auto',
+  });
+
+  assert.equal(initiated.status, 'PENDING');
+
+  const realDateNow = Date.now;
+  Date.now = () => realDateNow() + 4000;
+  try {
+    const status = await service.getStatus(createUser(), initiated.paymentId);
+    assert.equal(status.status, 'PAID');
+    assert.equal(status.total, 332500);
+    assert.equal(checkoutCalled, true);
+  } finally {
+    Date.now = realDateNow;
+    service.clearSessionsForTests();
+  }
+});
+
+test('QRIS: getStatus returns FAILED instead of throwing when checkout fails', async () => {
+  const transactionsService = {
+    findExistingTransactionByRequestPublic: async () => null,
+    previewCheckoutTotal: async () => ({ subtotal: 100000, discount: 0, tax: 0, total: 100000 }),
+    checkoutSplit: async () => {
+      throw new Error('Shift belum dibuka');
+    },
+  };
+
+  const service = new QrisPaymentService(transactionsService as never);
+  const initiated = await service.initiate(createUser(), {
+    items: [{ productId: 'prod-1', quantity: 1 }],
+  });
+
+  const realDateNow = Date.now;
+  Date.now = () => realDateNow() + 4000;
+  try {
+    const status = await service.getStatus(createUser(), initiated.paymentId);
+    assert.equal(status.status, 'FAILED');
+  } finally {
+    Date.now = realDateNow;
+    service.clearSessionsForTests();
+  }
+});
