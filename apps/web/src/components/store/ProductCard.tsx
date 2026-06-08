@@ -30,33 +30,35 @@ export function ProductCard({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        borderRadius: 8,
+        borderRadius: 10,
         border: `1px solid ${colors.light.border.default}`,
         overflow: 'hidden',
         textDecoration: 'none',
         color: colors.light.text.primary,
-        opacity: outOfStock ? 0.6 : 1,
-        minHeight: 200,
+        opacity: outOfStock ? 0.55 : 1,
+        minHeight: 132,
+        background: colors.light.bg.base,
       }}
     >
       <div
         style={{
-          aspectRatio: '1',
+          height: 56,
           background: colors.light.bg.muted,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '2rem',
+          fontSize: '1.25rem',
         }}
+        aria-hidden
       >
         🏗️
       </div>
-      <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+      <div style={{ padding: '0.625rem 0.7rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
         <span
           style={{
-            fontSize: '0.9375rem',
+            fontSize: '0.8125rem',
             fontWeight: 600,
-            lineHeight: 1.3,
+            lineHeight: 1.25,
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
@@ -65,20 +67,29 @@ export function ProductCard({
         >
           {name}
         </span>
-        <span style={{ fontSize: '1rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+        <span
+          style={{
+            marginTop: 'auto',
+            fontSize: '0.9375rem',
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            color: colors.primary[700],
+          }}
+        >
           {formatCurrency(price)}
-          <span style={{ fontSize: '0.75rem', fontWeight: 400, color: colors.light.text.secondary }}>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: colors.light.text.secondary }}>
             {' '}
             /{unitSymbol}
           </span>
         </span>
         <span
           style={{
-            fontSize: '0.75rem',
+            fontSize: '0.6875rem',
+            fontWeight: 600,
             color: outOfStock ? colors.light.text.secondary : colors.semantic.success,
           }}
         >
-          {outOfStock ? '○ Habis' : '● Tersedia'}
+          {outOfStock ? 'Habis' : 'Tersedia'}
         </span>
       </div>
     </Link>

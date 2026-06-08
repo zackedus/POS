@@ -29,7 +29,7 @@ import {
   type VariantDraft,
 } from '@barokah/shared';
 import { Button, CurrencyInput, Input, QuantityInput } from '@barokah/ui';
-import { AutoGenerateBadge, AutoGenerateHelper, autoFieldLabelStyle } from './AutoGenerateHints';
+import { AutoGenerateBadge, autoFieldLabelStyle } from './AutoGenerateHints';
 import { UnitConversionPreview } from './UnitConversionPreview';
 
 export interface UnitOption {
@@ -54,13 +54,14 @@ const stepStyle = {
 };
 
 const stepButtonStyle = (active: boolean, done: boolean) => ({
-  padding: '0.4rem 0.75rem',
+  padding: '0.45rem 0.75rem',
+  minHeight: 44,
   borderRadius: 999,
   border: `1px solid ${active ? '#2563eb' : done ? '#86efac' : '#e2e8f0'}`,
   background: active ? '#eff6ff' : done ? '#f0fdf4' : '#fff',
   color: active ? '#1d4ed8' : done ? '#166534' : '#64748b',
-  fontSize: '0.8rem',
-  fontWeight: active ? 600 : 400,
+  fontSize: '0.8125rem',
+  fontWeight: active ? 600 : 500,
   cursor: 'pointer' as const,
 });
 
@@ -535,7 +536,6 @@ export function ProductFormWizard({
                 disabled={disabled}
                 error={fieldErrors.sku}
               />
-              <AutoGenerateHelper>SKU dibuat otomatis, bisa diubah manual</AutoGenerateHelper>
               <Button
                 type="button"
                 variant="ghost"
@@ -586,42 +586,8 @@ export function ProductFormWizard({
                   />
                 ) : null}
               </>
-            ) : form.productType === ProductType.MULTI_UNIT ? (
-              <div
-                style={{
-                  gridColumn: 'span 2',
-                  padding: '0.625rem 0.75rem',
-                  borderRadius: 8,
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  fontSize: '0.8125rem',
-                  color: '#475569',
-                }}
-              >
-                Harga jual & beli diatur di langkah <strong>Satuan</strong> setelah satuan stok dan beli dipilih.
-              </div>
-            ) : (
-              <div
-                style={{
-                  gridColumn: 'span 2',
-                  padding: '0.625rem 0.75rem',
-                  borderRadius: 8,
-                  background: '#eff6ff',
-                  border: '1px solid #bfdbfe',
-                  fontSize: '0.8125rem',
-                  color: '#1e3a8a',
-                }}
-              >
-                Produk induk varian tidak dijual langsung. Atur <strong>harga per ukuran</strong> di langkah Satuan
-                (contoh: 5 Liter Rp 85.000, 25 Liter Rp 350.000).
-              </div>
-            )}
+            ) : null}
           </div>
-          {form.productType === ProductType.SIMPLE && !selectedUnit ? (
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-              Satuan stok dipilih di langkah berikutnya — harga di atas selalu per satuan stok (kg, m, pcs, dll.).
-            </p>
-          ) : null}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <label style={{ display: 'grid', gap: '0.375rem' }}>
               <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Kategori</span>
@@ -680,10 +646,7 @@ export function ProductFormWizard({
       ) : null}
 
       {step === 'Tipe produk' ? (
-        <div style={{ display: 'grid', gap: '0.625rem' }}>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>
-            Pilih tipe produk terlebih dahulu. Field satuan akan menyesuaikan — varian dan konversi satuan tidak dicampur.
-          </p>
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
           {(Object.values(ProductType) as ProductType[]).map((type) => (
             <label key={type} style={radioCardStyle(form.productType === type)}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -701,12 +664,6 @@ export function ProductFormWizard({
               </span>
             </label>
           ))}
-          {form.productType === ProductType.VARIANT && !isVariantChild ? (
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#1e40af', background: '#eff6ff', padding: '0.625rem', borderRadius: 8 }}>
-              Tiap ukuran punya SKU &amp; harga sendiri — bukan konversi satuan seperti multi-satuan (paku dus→kg).
-              {mode === 'create' ? ' Tambahkan varian di langkah Satuan.' : ' Kelola varian lewat panel "Kelola varian".'}
-            </p>
-          ) : null}
         </div>
       ) : null}
 
@@ -728,19 +685,8 @@ export function ProductFormWizard({
             {fieldErrors.unitId ? <span style={{ color: '#b45309', fontSize: '0.8125rem' }}>{fieldErrors.unitId}</span> : null}
           </label>
 
-          {form.productType === ProductType.SIMPLE ? (
-            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
-              Produk sederhana: beli dan jual menggunakan satuan dasar yang sama ({selectedUnit?.symbol ?? '—'}).
-            </p>
-          ) : null}
-
           {form.productType === ProductType.MULTI_UNIT ? (
-            <div style={{ display: 'grid', gap: '0.875rem' }}>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
-                Stok dihitung dalam <strong>{selectedUnit?.symbol ?? 'satuan dasar'}</strong>.
-                Atur cara beli dari supplier dan cara jual ke pelanggan.
-              </p>
-
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
               <fieldset
                 style={{
                   margin: 0,
@@ -799,11 +745,8 @@ export function ProductFormWizard({
                 }}
               >
                 <legend style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0 0.25rem' }}>
-                  Satuan jual ke pelanggan
+                  Satuan jual
                 </legend>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-                  Ecer per {selectedUnit?.symbol ?? 'satuan stok'} selalu tersedia di kasir.
-                </p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                   <QuantityInput
                     label={`Min. jual ecer (${selectedUnit?.symbol ?? 'stok'})`}
@@ -848,12 +791,8 @@ export function ProductFormWizard({
                 }}
               >
                 <legend style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0 0.25rem' }}>
-                  Harga jual & beli
+                  Harga
                 </legend>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-                  Harga ecer disimpan per <strong>{baseUnitSymbol}</strong> (satuan stok).
-                  Harga paket {purchaseUnit?.symbol ?? 'beli'} dihitung otomatis untuk kasir.
-                </p>
                 <CurrencyInput
                   label={`Harga jual ecer per ${baseUnitSymbol}`}
                   value={form.price}
@@ -911,12 +850,9 @@ export function ProductFormWizard({
                   </>
                 ) : null}
                 {purchaseUnit && purchaseConversion > 0 && baseSellPrice > 0 ? (
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#1e40af' }}>
-                    Harga jual per {purchaseUnit.symbol} (otomatis):{' '}
-                    <strong>{formatCurrencyIDR(derivedPackageSellPrice)}</strong>
-                    {multiUnitConfig.sellInPurchaseUnit
-                      ? ' — tersedia di kasir'
-                      : ` — aktifkan "Juga jual per ${purchaseUnit.symbol}" untuk jual paket`}
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
+                    Per {purchaseUnit.symbol}: <strong>{formatCurrencyIDR(derivedPackageSellPrice)}</strong>
+                    {!multiUnitConfig.sellInPurchaseUnit ? ' (nonaktif di kasir)' : null}
                   </p>
                 ) : null}
                 {purchaseUnit && purchaseConversion > 0 && (baseSellPrice > 0 || baseCostPrice > 0) ? (
@@ -933,43 +869,6 @@ export function ProductFormWizard({
             </div>
           ) : null}
 
-          {form.productType === ProductType.SIMPLE && selectedUnit ? (
-            <fieldset
-              style={{
-                margin: 0,
-                padding: '0.75rem',
-                border: '1px solid #e2e8f0',
-                borderRadius: 10,
-                display: 'grid',
-                gap: '0.625rem',
-              }}
-            >
-              <legend style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0 0.25rem' }}>
-                Harga jual & beli
-              </legend>
-              <CurrencyInput
-                label={`Harga jual per ${baseUnitSymbol}`}
-                value={form.price}
-                onChange={(price) => patch({ price })}
-                placeholder="75.000"
-                fullWidth
-                disabled={disabled}
-                error={fieldErrors.price}
-              />
-              {showCostFields ? (
-                <CurrencyInput
-                  label={`Harga beli per ${baseUnitSymbol} (HPP)`}
-                  value={form.costPrice ?? ''}
-                  onChange={(costPrice) => patch({ costPrice })}
-                  placeholder="70.000"
-                  fullWidth
-                  disabled={disabled}
-                  error={fieldErrors.costPrice}
-                />
-              ) : null}
-            </fieldset>
-          ) : null}
-
           {mode === 'create' && !isVariantChild && form.productType !== ProductType.VARIANT ? (
             <fieldset
               style={{
@@ -982,11 +881,8 @@ export function ProductFormWizard({
               }}
             >
               <legend style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0 0.25rem' }}>
-                Stok awal (opsional)
+                Stok awal
               </legend>
-              <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-                Qty dalam satuan dasar untuk cabang yang sedang dipilih di header dashboard.
-              </p>
               <QuantityInput
                 label={`Stok awal (${baseUnitSymbol})`}
                 value={form.initialStockQty ?? ''}
@@ -1000,9 +896,6 @@ export function ProductFormWizard({
 
           {form.productType === ProductType.VARIANT && !isVariantChild ? (
             <div style={{ display: 'grid', gap: '0.75rem' }}>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
-                Satuan dasar induk: {getUnitLabel(selectedUnit)} — diwarisi ke semua SKU anak. Stok &amp; harga per varian.
-              </p>
               {mode === 'create' ? (
                 <fieldset
                   style={{
@@ -1015,11 +908,8 @@ export function ProductFormWizard({
                   }}
                 >
                   <legend style={{ fontSize: '0.875rem', fontWeight: 600, padding: '0 0.25rem' }}>
-                    Daftar varian (ukuran &amp; harga)
+                    Varian
                   </legend>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-                    Contoh: 5 Liter Rp 85.000, 25 Liter Rp 350.000 — masing-masing jadi item terpisah di kasir.
-                  </p>
                   {fieldErrors.variantDrafts ? (
                     <p style={{ margin: 0, color: '#b45309', fontSize: '0.8125rem' }}>{fieldErrors.variantDrafts}</p>
                   ) : null}
@@ -1109,8 +999,8 @@ export function ProductFormWizard({
                   </Button>
                 </fieldset>
               ) : (
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#1e40af' }}>
-                  Varian yang sudah ada dikelola lewat panel &quot;Kelola varian&quot; di daftar produk.
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
+                  Kelola varian lewat panel &quot;Kelola varian&quot; di daftar produk.
                 </p>
               )}
             </div>
@@ -1162,9 +1052,6 @@ export function ProductFormWizard({
                       </li>
                     ))}
                 </ul>
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: '#64748b' }}>
-                  Induk tidak muncul di kasir — tiap varian tampil sebagai item terpisah.
-                </p>
               </div>
             ) : null}
           </div>

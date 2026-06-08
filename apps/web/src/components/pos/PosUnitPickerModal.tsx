@@ -45,20 +45,26 @@ export function PosUnitPickerModal({ product, onClose, onSelect }: PosUnitPicker
         }}
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 id="pos-unit-picker-title" style={{ margin: '0 0 0.25rem', fontSize: '1.05rem' }}>
-          Pilih satuan jual
-        </h3>
-        <p style={{ margin: '0 0 0.75rem', color: '#64748b', fontSize: '0.875rem' }}>
+        <h3 id="pos-unit-picker-title" style={{ margin: '0 0 0.75rem', fontSize: '1rem', lineHeight: 1.35 }}>
           {product.name}
-          {product.variantLabel ? ` · ${product.variantLabel}` : ''}
-        </p>
+          {product.variantLabel ? (
+            <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: '#64748b', marginTop: '0.15rem' }}>
+              {product.variantLabel} · Pilih satuan
+            </span>
+          ) : (
+            <span style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, color: '#64748b', marginTop: '0.15rem' }}>
+              Pilih satuan jual
+            </span>
+          )}
+        </h3>
 
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
+        <div style={{ display: 'grid', gap: '0.45rem' }}>
           {product.sellUnits.map((unit) => (
             <button
               key={unit.id}
               type="button"
               disabled={outOfStock}
+              aria-label={`${unit.name} (${unit.symbol}), ${formatCurrencyIDR(unit.price)}`}
               onClick={() => {
                 onSelect(unit.id);
                 onClose();
@@ -69,7 +75,7 @@ export function PosUnitPickerModal({ product, onClose, onSelect }: PosUnitPicker
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '0.75rem',
-                padding: '0.75rem 1rem',
+                padding: '0.65rem 0.875rem',
                 borderRadius: 10,
                 border: '1px solid #e2e8f0',
                 background: outOfStock ? '#f8fafc' : '#fff',
@@ -78,12 +84,12 @@ export function PosUnitPickerModal({ product, onClose, onSelect }: PosUnitPicker
               }}
             >
               <span>
-                <strong style={{ color: '#0f172a' }}>{unit.name}</strong>
-                <span style={{ marginLeft: '0.35rem', color: '#64748b', fontSize: '0.8125rem' }}>
-                  ({unit.symbol})
+                <strong style={{ color: '#0f172a', fontSize: '0.9375rem' }}>{unit.name}</strong>
+                <span style={{ marginLeft: '0.35rem', color: '#94a3b8', fontSize: '0.75rem' }}>
+                  {unit.symbol}
                 </span>
               </span>
-              <strong style={{ color: '#15803d', fontVariantNumeric: 'tabular-nums' }}>
+              <strong style={{ color: '#15803d', fontVariantNumeric: 'tabular-nums', fontSize: '0.9375rem' }}>
                 {formatCurrencyIDR(unit.price)}
               </strong>
             </button>

@@ -97,14 +97,31 @@ interface ApiEnvelope<T> {
   error?: { message?: string };
 }
 
-const pageStyle = { maxWidth: '1000px' } as const;
+const pageStyle = { maxWidth: '960px' } as const;
 const cardStyle = {
   border: '1px solid #e2e8f0',
   borderRadius: '12px',
   background: '#ffffff',
-  padding: '1rem',
+  padding: '0.875rem 1rem',
 } as const;
-const stateBoxStyle = { marginBottom: '0.75rem', borderRadius: '10px', padding: '0.75rem 0.875rem' } as const;
+const stateBoxStyle = { marginBottom: '0.75rem', borderRadius: '10px', padding: '0.625rem 0.75rem' } as const;
+const badgeStyle = (bg: string, color: string) =>
+  ({
+    fontSize: '0.6875rem',
+    fontWeight: 600,
+    padding: '0.125rem 0.45rem',
+    borderRadius: 999,
+    background: bg,
+    color,
+    whiteSpace: 'nowrap',
+  }) as const;
+const filterInputStyle = {
+  padding: '0.5rem 0.65rem',
+  borderRadius: 8,
+  border: '1px solid #e2e8f0',
+  minHeight: 44,
+  fontSize: '0.875rem',
+} as const;
 
 function productToWizardForm(product: Product, _showCost: boolean): ProductWizardFormState {
   const productType = inferProductType({
@@ -628,8 +645,9 @@ export default function ProductsPage() {
 
   return (
     <main style={pageStyle}>
-      <h1 style={{ marginBottom: '0.5rem' }}>Master Produk</h1>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.875rem' }}>
+        <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Master Produk</h1>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
         <Button type="button" variant="secondary" onClick={() => void handleDownloadImportTemplate()}>
           Unduh Template CSV
         </Button>
@@ -659,6 +677,7 @@ export default function ProductsPage() {
             {importing ? 'Mengimport…' : 'Import CSV'}
           </span>
         </label>
+        </div>
       </div>
       {importResult && importResult.errors.length > 0 ? (
         <div style={{ ...stateBoxStyle, background: '#fff7ed', border: '1px solid #fdba74', marginBottom: '0.75rem' }}>
@@ -672,60 +691,48 @@ export default function ProductsPage() {
           </ul>
         </div>
       ) : null}
-      <p style={{ color: '#64748b', marginTop: 0, marginBottom: '1rem' }}>
-        Pilih <strong>tipe produk</strong> terlebih dahulu: Sederhana, Multi-satuan, atau Induk varian.
-        Varian (SKU berbeda) dan konversi satuan (dus → kg) tidak dicampur.
-      </p>
 
-      <div style={{ ...cardStyle, marginBottom: '1rem', display: 'grid', gap: '0.75rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Filter Produk</h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-          <input
-            type="search"
-            placeholder="Cari nama / SKU…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ padding: '0.45rem 0.65rem', borderRadius: 8, border: '1px solid #e2e8f0', minWidth: 200 }}
-          />
-          <select
-            value={filterCategoryId}
-            onChange={(e) => setFilterCategoryId(e.target.value)}
-            style={{ padding: '0.45rem 0.65rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-          >
-            <option value="">Semua kategori</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as typeof filterType)}
-            style={{ padding: '0.45rem 0.65rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-          >
-            <option value="ALL">Semua tipe</option>
-            <option value="SIMPLE">Sederhana</option>
-            <option value="MULTI_UNIT">Multi-satuan</option>
-            <option value="VARIANT">Varian</option>
-          </select>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-            Tampilkan nonaktif
-          </label>
-        </div>
-        {selectedOutletId ? (
-          <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-            Badge stok rendah berdasarkan cabang aktif di header.
-          </p>
-        ) : null}
+      <div style={{ ...cardStyle, marginBottom: '0.875rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+        <input
+          type="search"
+          placeholder="Cari nama / SKU…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Cari produk"
+          style={{ ...filterInputStyle, flex: '1 1 180px', minWidth: 160 }}
+        />
+        <select
+          value={filterCategoryId}
+          onChange={(e) => setFilterCategoryId(e.target.value)}
+          aria-label="Filter kategori"
+          style={{ ...filterInputStyle, flex: '0 1 auto' }}
+        >
+          <option value="">Semua kategori</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value as typeof filterType)}
+          aria-label="Filter tipe produk"
+          style={{ ...filterInputStyle, flex: '0 1 auto' }}
+        >
+          <option value="ALL">Semua tipe</option>
+          <option value="SIMPLE">Sederhana</option>
+          <option value="MULTI_UNIT">Multi-satuan</option>
+          <option value="VARIANT">Varian</option>
+        </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', minHeight: 44 }}>
+          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+          Nonaktif
+        </label>
       </div>
 
-      <section style={{ ...cardStyle, marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Tambah Produk Baru</h2>
-        <p style={{ margin: '0.4rem 0 1rem', color: '#64748b', fontSize: '0.9rem' }}>
-          Ikuti langkah wizard: info dasar → tipe → satuan → pratinjau.
-        </p>
+      <section style={{ ...cardStyle, marginBottom: '0.875rem' }}>
+        <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Tambah Produk</h2>
 
         <ProductFormWizard
           form={form}
@@ -763,9 +770,7 @@ export default function ProductsPage() {
         </div>
       ) : null}
       {loading ? (
-        <div style={{ ...stateBoxStyle, color: '#1e3a8a', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-          Memuat produk…
-        </div>
+        <p style={{ margin: '0 0 0.75rem', color: '#64748b', fontSize: '0.875rem' }}>Memuat produk…</p>
       ) : null}
 
       <div style={{ ...cardStyle, marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -850,44 +855,66 @@ export default function ProductsPage() {
                   ) : null}
                 </div>
               ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-                  <div>
-                    <strong>{product.name}</strong> — {product.sku}
-                    <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', background: '#f1f5f9', padding: '0.15rem 0.5rem', borderRadius: 999, color: '#475569' }}>
-                      {getProductTypeLabel(product)}
-                    </span>
-                    {product.isActive === false ? (
-                      <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', background: '#fef2f2', padding: '0.15rem 0.5rem', borderRadius: 999, color: '#b91c1c' }}>
-                        Nonaktif
-                      </span>
-                    ) : null}
-                    {stockInfo?.isLowStock ? (
-                      <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', background: '#fffbeb', padding: '0.15rem 0.5rem', borderRadius: 999, color: '#b45309' }}>
-                        Stok rendah
-                      </span>
-                    ) : null}
-                    <p style={{ margin: '0.2rem 0 0', color: '#334155' }}>
-                      {formatCurrencyIDR(product.price)} / {getUnitLabel(product.unit)}
-                      {showCostFields && product.costPrice != null && product.costPrice > 0
-                        ? ` · Modal ${formatCurrencyIDR(product.costPrice)}`
-                        : ''}
-                      {product.category?.name ? ` · ${product.category.name}` : ''}
-                      {product.hasVariants && product.variantCount != null ? ` · ${product.variantCount} varian` : ''}
-                      {product.parentProduct?.name ? ` · Varian dari ${product.parentProduct.name}` : ''}
-                      {product.variantLabel ? ` · ${product.variantLabel}` : ''}
-                      {product.sellOnline ? ' · Online' : ''}
-                      {stockInfo ? ` · Stok: ${stockInfo.quantity}` : ''}
-                      {product.purchaseUnit
-                        ? ` · Beli: ${product.purchaseUnit.symbol} (1=${product.purchaseUnit.conversionToBase} ${product.unit?.symbol ?? 'base'})`
-                        : ''}
-                      {product.moq != null && product.orderStep != null && product.orderStep < 1
-                        ? ` · Jual step ${product.orderStep} ${product.unit?.symbol ?? ''}`
-                        : ''}
-                      {product.sellUnits && product.sellUnits.length > 1 ? ` · Multi-satuan (${product.sellUnits.length} opsi jual)` : ''}
-                      {product.bundleItems && product.bundleItems.length > 0 ? ` · Bundling (${product.bundleItems.length} komponen)` : ''}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <strong style={{ fontSize: '0.9375rem', lineHeight: 1.3 }}>{product.name}</strong>
+                      <span style={badgeStyle('#f1f5f9', '#475569')}>{getProductTypeLabel(product)}</span>
+                      {product.isActive === false ? (
+                        <span style={badgeStyle('#fef2f2', '#b91c1c')}>Nonaktif</span>
+                      ) : null}
+                      {stockInfo?.isLowStock ? (
+                        <span style={badgeStyle('#fffbeb', '#b45309')}>Stok rendah</span>
+                      ) : null}
+                      {product.sellOnline ? (
+                        <span style={badgeStyle('#eff6ff', '#1d4ed8')}>Online</span>
+                      ) : null}
+                    </div>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>
+                      {product.sku}
                     </p>
+                    <div
+                      style={{
+                        marginTop: '0.35rem',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'baseline',
+                        gap: '0.35rem 0.65rem',
+                        fontSize: '0.8125rem',
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, color: '#15803d', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatCurrencyIDR(product.price)}
+                      </span>
+                      <span style={{ color: '#64748b' }}>/ {getUnitLabel(product.unit)}</span>
+                      {stockInfo ? <span style={{ color: '#475569' }}>Stok {stockInfo.quantity}</span> : null}
+                      {product.category?.name ? (
+                        <span style={{ color: '#64748b' }}>{product.category.name}</span>
+                      ) : null}
+                    </div>
+                    {(product.hasVariants ||
+                      product.parentProduct?.name ||
+                      product.variantLabel ||
+                      (showCostFields && product.costPrice != null && product.costPrice > 0) ||
+                      (product.sellUnits && product.sellUnits.length > 1) ||
+                      (product.bundleItems && product.bundleItems.length > 0)) ? (
+                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                        {product.hasVariants && product.variantCount != null ? `${product.variantCount} varian` : null}
+                        {product.parentProduct?.name ? `Varian dari ${product.parentProduct.name}` : null}
+                        {product.variantLabel ? ` · ${product.variantLabel}` : null}
+                        {showCostFields && product.costPrice != null && product.costPrice > 0
+                          ? ` · Modal ${formatCurrencyIDR(product.costPrice)}`
+                          : ''}
+                        {product.sellUnits && product.sellUnits.length > 1
+                          ? ` · ${product.sellUnits.length} satuan jual`
+                          : ''}
+                        {product.bundleItems && product.bundleItems.length > 0
+                          ? ` · Paket ${product.bundleItems.length} item`
+                          : ''}
+                      </p>
+                    ) : null}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {product.hasVariants ? (
                       <Button
                         type="button"

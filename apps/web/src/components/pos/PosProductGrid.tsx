@@ -30,7 +30,7 @@ const chipBase: CSSProperties = {
   minHeight: 44,
   padding: '0 0.875rem',
   borderRadius: 999,
-  fontSize: '0.875rem',
+  fontSize: '0.8125rem',
   fontWeight: 600,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
@@ -77,13 +77,13 @@ export function PosProductGrid({
   }, [products, search, selectedCategoryId, useServerFilter]);
 
   return (
-    <section style={{ padding: '0.75rem 1rem 1rem', background: '#f1f5f9', overflow: 'auto', minHeight: 0 }}>
+    <section style={{ padding: '0.625rem 0.875rem 0.875rem', background: '#f8fafc', overflow: 'auto', minHeight: 0 }}>
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '0.75rem',
-          marginBottom: '0.75rem',
+          gap: '0.625rem',
+          marginBottom: '0.625rem',
           flexWrap: 'wrap',
         }}
       >
@@ -117,7 +117,7 @@ export function PosProductGrid({
             />
           </label>
         </div>
-        <span style={{ fontSize: '0.8125rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap' }}>
           {loading ? 'Memuat…' : `${filteredProducts.length} produk`}
         </span>
       </div>
@@ -128,10 +128,10 @@ export function PosProductGrid({
           aria-label="Filter kategori"
           style={{
             display: 'flex',
-            gap: '0.4rem',
+            gap: '0.35rem',
             overflowX: 'auto',
-            paddingBottom: '0.5rem',
-            marginBottom: '0.5rem',
+            paddingBottom: '0.4rem',
+            marginBottom: '0.4rem',
             WebkitOverflowScrolling: 'touch',
           }}
         >
@@ -174,13 +174,13 @@ export function PosProductGrid({
         <div
           role="alert"
           style={{
-            marginBottom: '0.75rem',
+            marginBottom: '0.625rem',
             color: '#991b1b',
             background: '#fef2f2',
             border: '1px solid #fecaca',
             borderRadius: 8,
-            padding: '0.625rem 0.75rem',
-            fontSize: '0.875rem',
+            padding: '0.5rem 0.65rem',
+            fontSize: '0.8125rem',
           }}
         >
           {stockAlert}
@@ -190,12 +190,12 @@ export function PosProductGrid({
       {error ? (
         <div
           style={{
-            marginBottom: '0.75rem',
+            marginBottom: '0.625rem',
             color: '#b91c1c',
             background: '#fee2e2',
             borderRadius: 8,
-            padding: '0.625rem 0.75rem',
-            fontSize: '0.875rem',
+            padding: '0.5rem 0.65rem',
+            fontSize: '0.8125rem',
           }}
         >
           {error}
@@ -223,13 +223,13 @@ export function PosProductGrid({
       ) : null}
 
       {loading ? (
-        <p style={{ color: '#64748b', fontSize: '0.875rem' }}>Memuat produk…</p>
+        <p style={{ color: '#64748b', fontSize: '0.8125rem' }}>Memuat produk…</p>
       ) : (
         <div
           style={{
             display: 'grid',
-            gap: '0.625rem',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))',
+            gap: '0.5rem',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(152px, 1fr))',
           }}
         >
           {filteredProducts.map((product) => {
@@ -251,18 +251,17 @@ export function PosProductGrid({
                 aria-disabled={productOutOfStock}
                 aria-label={`${product.name}${product.variantLabel ? ` ${product.variantLabel}` : ''}, ${formatCurrencyIDR(displayUnit.price)}${displayUnit.unitSymbol ? ` per ${displayUnit.unitSymbol}` : ''}`}
                 style={{
-                  border: `1px solid ${productOutOfStock ? '#e2e8f0' : '#e2e8f0'}`,
-                  borderRadius: 12,
-                  padding: '0.75rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 10,
+                  padding: '0.625rem 0.7rem',
                   background: productOutOfStock ? '#f8fafc' : '#fff',
                   textAlign: 'left',
                   cursor: productOutOfStock ? 'not-allowed' : 'pointer',
-                  minHeight: 108,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                  opacity: productOutOfStock ? 0.65 : 1,
+                  minHeight: 96,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.35rem',
+                  gap: '0.25rem',
+                  opacity: productOutOfStock ? 0.6 : 1,
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem', alignItems: 'flex-start' }}>
@@ -270,9 +269,9 @@ export function PosProductGrid({
                     <div
                       style={{
                         fontWeight: 700,
-                        fontSize: '0.875rem',
+                        fontSize: '0.8125rem',
                         color: productOutOfStock ? '#64748b' : '#0f172a',
-                        lineHeight: 1.3,
+                        lineHeight: 1.25,
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
@@ -285,11 +284,11 @@ export function PosProductGrid({
                       <span
                         style={{
                           display: 'inline-block',
-                          marginTop: '0.2rem',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          padding: '0.1rem 0.4rem',
-                          borderRadius: 6,
+                          marginTop: '0.15rem',
+                          fontSize: '0.6875rem',
+                          fontWeight: 600,
+                          padding: '0.05rem 0.35rem',
+                          borderRadius: 4,
                           background: '#eff6ff',
                           color: '#1d4ed8',
                         }}
@@ -301,9 +300,9 @@ export function PosProductGrid({
                   {stockBadge ? (
                     <span
                       style={{
-                        fontSize: '0.68rem',
+                        fontSize: '0.625rem',
                         fontWeight: 700,
-                        padding: '0.12rem 0.4rem',
+                        padding: '0.1rem 0.35rem',
                         borderRadius: 999,
                         background: stockBadge.isOutOfStock ? '#fee2e2' : '#ecfdf5',
                         color: stockBadge.isOutOfStock ? '#b91c1c' : '#166534',
@@ -320,40 +319,65 @@ export function PosProductGrid({
                   <p
                     style={{
                       margin: 0,
-                      fontSize: '0.9375rem',
+                      fontSize: '0.875rem',
                       fontWeight: 700,
                       color: '#15803d',
                       fontVariantNumeric: 'tabular-nums',
+                      lineHeight: 1.2,
                     }}
                   >
                     {formatCurrencyIDR(displayUnit.price)}
                     {displayUnit.unitSymbol ? (
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#64748b' }}>
                         {' '}
-                        / {displayUnit.unitSymbol}
+                        /{displayUnit.unitSymbol}
                       </span>
                     ) : null}
                   </p>
-                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
-                    {multiUnit ? (
-                      <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Multi-satuan</span>
-                    ) : null}
-                    {isBundle ? (
-                      <span
-                        style={{
-                          fontSize: '0.68rem',
-                          fontWeight: 600,
-                          color: '#7c3aed',
-                          background: '#f5f3ff',
-                          padding: '0.05rem 0.35rem',
-                          borderRadius: 4,
-                        }}
-                      >
-                        Paket
-                      </span>
-                    ) : null}
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{formatShortSku(product.sku)}</span>
-                  </div>
+                  {(isBundle || multiUnit) ? (
+                    <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.15rem' }}>
+                      {isBundle ? (
+                        <span
+                          style={{
+                            fontSize: '0.625rem',
+                            fontWeight: 600,
+                            color: '#7c3aed',
+                            background: '#f5f3ff',
+                            padding: '0.05rem 0.3rem',
+                            borderRadius: 4,
+                          }}
+                        >
+                          Paket
+                        </span>
+                      ) : null}
+                      {multiUnit ? (
+                        <span
+                          style={{
+                            fontSize: '0.625rem',
+                            fontWeight: 600,
+                            color: '#64748b',
+                            background: '#f1f5f9',
+                            padding: '0.05rem 0.3rem',
+                            borderRadius: 4,
+                          }}
+                        >
+                          Multi
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span
+                      style={{
+                        display: 'block',
+                        marginTop: '0.1rem',
+                        fontSize: '0.625rem',
+                        color: '#cbd5e1',
+                        fontFamily: 'ui-monospace, monospace',
+                      }}
+                    >
+                      {formatShortSku(product.sku)}
+                    </span>
+                  )}
                 </div>
               </button>
             );
@@ -362,8 +386,8 @@ export function PosProductGrid({
       )}
 
       {!loading && filteredProducts.length === 0 ? (
-        <p style={{ color: '#64748b', marginTop: '0.75rem', fontSize: '0.875rem' }}>
-          Produk tidak ditemukan. Coba kata kunci lain atau reset filter.
+        <p style={{ color: '#64748b', marginTop: '0.625rem', fontSize: '0.8125rem' }}>
+          Produk tidak ditemukan.
         </p>
       ) : null}
     </section>

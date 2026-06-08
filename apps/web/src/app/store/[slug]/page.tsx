@@ -19,11 +19,6 @@ export default function StoreCatalogPage() {
   const [products, setProducts] = useState<CatalogProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [cacheHint, setCacheHint] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCacheHint(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
-  }, []);
 
   useEffect(() => {
     if (!outletId) return;
@@ -64,17 +59,37 @@ export default function StoreCatalogPage() {
   }
 
   return (
-    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 720, margin: '0 auto' }}>
-      <div>
-        <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.25rem', color: colors.light.text.primary }}>Katalog Produk</h1>
-        <p style={{ margin: 0, fontSize: '0.875rem', color: colors.light.text.secondary }}>
-          Pilih cabang untuk melihat stok tersedia, lalu tambahkan ke keranjang.
-        </p>
+    <div style={{ padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: 720, margin: '0 auto' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+        <h1 style={{ margin: 0, fontSize: '1.125rem', color: colors.light.text.primary }}>Katalog</h1>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
+          Cabang
+          <select
+            value={outletId}
+            onChange={(e) => setOutletId(e.target.value)}
+            disabled={outletLoading}
+            aria-label="Pilih cabang"
+            style={{
+              padding: '0.375rem 0.5rem',
+              borderRadius: 8,
+              border: `1px solid ${colors.light.border.default}`,
+              minHeight: 44,
+              fontSize: '0.8125rem',
+              background: colors.light.bg.base,
+            }}
+          >
+            {outlets.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <Input
         label=""
-        placeholder="Cari semen, pipa, SKU..."
+        placeholder="Cari produk…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         fullWidth
@@ -115,45 +130,6 @@ export default function StoreCatalogPage() {
         ))}
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.5rem',
-          padding: '0.75rem',
-          borderRadius: 8,
-          background: colors.light.bg.muted ?? '#f1f5f9',
-        }}
-      >
-        <label style={{ fontSize: '0.875rem', flex: 1 }}>
-          Stok per cabang:{' '}
-          <select
-            value={outletId}
-            onChange={(e) => setOutletId(e.target.value)}
-            disabled={outletLoading}
-            style={{
-              marginLeft: '0.25rem',
-              padding: '0.375rem 0.5rem',
-              borderRadius: 6,
-              border: `1px solid ${colors.light.border.default}`,
-              minHeight: 36,
-            }}
-          >
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {cacheHint ? (
-          <span style={{ fontSize: '0.75rem', color: colors.light.text.secondary }} title="Terakhir diperbarui">
-            ↻ {cacheHint}
-          </span>
-        ) : null}
-      </div>
-
       {loadError ? (
         <div
           role="alert"
@@ -176,19 +152,16 @@ export default function StoreCatalogPage() {
         <div
           style={{
             textAlign: 'center',
-            padding: '2.5rem 1rem',
+            padding: '2rem 1rem',
             color: colors.light.text.secondary,
-            borderRadius: 12,
+            borderRadius: 10,
             border: `1px dashed ${colors.light.border.default}`,
           }}
         >
-          <p style={{ margin: 0, fontSize: '1.5rem' }} aria-hidden>
-            🔍
-          </p>
-          <p style={{ margin: '0.5rem 0 0', fontWeight: 600 }}>Tidak ada produk ditemukan</p>
-          <p style={{ fontSize: '0.875rem', margin: '0.25rem 0 0' }}>
-            {query ? `Untuk "${query}"` : 'Coba pilih kategori lain'}
-          </p>
+          <p style={{ margin: 0, fontWeight: 600 }}>Tidak ada produk</p>
+          {query ? (
+            <p style={{ fontSize: '0.8125rem', margin: '0.25rem 0 0' }}>Coba kata kunci lain</p>
+          ) : null}
         </div>
       ) : null}
 
@@ -196,8 +169,8 @@ export default function StoreCatalogPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-            gap: '1rem',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+            gap: '0.625rem',
           }}
         >
           {products.map((product) => (

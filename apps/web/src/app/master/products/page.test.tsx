@@ -253,7 +253,7 @@ describe('ProductsPage', () => {
 
 
 
-    expect(await screen.findByText(/Tambah Produk Baru/)).toBeInTheDocument();
+    expect(await screen.findByText(/Tambah Produk/)).toBeInTheDocument();
 
     expect(screen.getByText('1. Info dasar')).toBeInTheDocument();
 
@@ -311,9 +311,9 @@ describe('ProductsPage', () => {
 
 
 
-    expect(await screen.findByText(/Multi-satuan \(2 opsi jual\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/2 satuan jual/)).toBeInTheDocument();
 
-    expect(screen.getByText(/Bundling \(2 komponen\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Paket 2 item/)).toBeInTheDocument();
 
   });
 
@@ -329,7 +329,7 @@ describe('ProductsPage', () => {
 
 
 
-    await screen.findByText(/Tambah Produk Baru/);
+    await screen.findByText(/Tambah Produk/);
 
     fireEvent.click(screen.getByText('4. Pratinjau'));
 
@@ -349,7 +349,7 @@ describe('ProductsPage', () => {
 
 
 
-    await screen.findByText(/Tambah Produk Baru/);
+    await screen.findByText(/Tambah Produk/);
 
 
 

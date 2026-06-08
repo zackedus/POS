@@ -144,10 +144,9 @@ describe('ProductFormWizard', () => {
     );
 
     expect(screen.queryByLabelText(/Harga jual per/)).not.toBeInTheDocument();
-    expect(screen.getByText(/harga per ukuran/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('3. Satuan'));
-    expect(screen.getByText(/Daftar varian \(ukuran & harga\)/)).toBeInTheDocument();
+    expect(screen.getByText('Varian')).toBeInTheDocument();
     expect(screen.getByLabelText('Ukuran varian 1')).toHaveValue('5 Liter');
     expect(screen.getByLabelText('Harga jual varian 1')).toBeInTheDocument();
   });
@@ -170,7 +169,6 @@ describe('ProductFormWizard', () => {
     );
 
     expect(screen.queryByLabelText(/Harga jual per/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Harga jual & beli diatur di langkah/)).toBeInTheDocument();
   });
 
   it('switches to unit step fields for MULTI_UNIT type', () => {
@@ -207,7 +205,6 @@ describe('ProductFormWizard', () => {
     );
 
     fireEvent.click(screen.getByText('3. Satuan'));
-    expect(screen.getByText(/Stok dihitung dalam/)).toBeInTheDocument();
     expect(screen.getByText('Satuan beli ke supplier')).toBeInTheDocument();
     expect(screen.getByLabelText(/Min\. jual ecer/)).toBeInTheDocument();
   });
@@ -350,7 +347,6 @@ describe('ProductFormWizard', () => {
     const skuInput = screen.getByLabelText('SKU') as HTMLInputElement;
     expect(skuInput.value.length).toBeGreaterThan(0);
     expect(screen.getByText('Otomatis')).toBeInTheDocument();
-    expect(screen.getByText('SKU dibuat otomatis, bisa diubah manual')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Nama produk'), { target: { value: 'Semen Test' } });
     expect(skuInput.value.toUpperCase()).toMatch(/SEMEN/);
