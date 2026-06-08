@@ -16,9 +16,12 @@ import {
   needsCustomerPickerForFinance,
   type CreditLimitStatus,
 } from '@/lib/pos-finance-payment';
+import { isWalkInDeliveryEligible } from '@/lib/pos-checkout-delivery';
 
 export interface PosCheckoutContextInput {
   customerId: string | null;
+  walkInCustomerName?: string;
+  walkInCustomerPhone?: string;
   customerDepositBalance: number | null;
   customerCreditLimit: number | null;
   customerCreditAvailable: number | null;
@@ -34,6 +37,7 @@ export interface PosCheckoutContextInput {
 export interface PosCheckoutContext {
   customerLinked: boolean;
   isWalkIn: boolean;
+  isWalkInDeliveryEligible: boolean;
   creditLimitStatus: CreditLimitStatus;
   depositApplyAmount: number;
   depositShortfall: number;
@@ -53,6 +57,8 @@ export interface PosCheckoutContext {
 export function usePosCheckoutContext(input: PosCheckoutContextInput): PosCheckoutContext {
   const {
     customerId,
+    walkInCustomerName = '',
+    walkInCustomerPhone = '',
     customerDepositBalance,
     customerCreditLimit,
     customerCreditAvailable,
@@ -68,6 +74,7 @@ export function usePosCheckoutContext(input: PosCheckoutContextInput): PosChecko
   return useMemo(() => {
     const customerLinked = isCustomerLinkedForFinance(customerId);
     const isWalkIn = !customerLinked;
+    const walkInDeliveryEligible = isWalkInDeliveryEligible(walkInCustomerName, walkInCustomerPhone);
     const depositBalance = customerDepositBalance ?? 0;
     const receivableOutstanding = customerReceivableOutstanding ?? 0;
     const depositApplyAmount = computeDepositApplyAmount(depositBalance, total);
@@ -104,14 +111,14 @@ export function usePosCheckoutContext(input: PosCheckoutContextInput): PosChecko
       isFinancePaymentMode(paymentMode) && needsCustomerPickerForFinance(paymentMode, customerId);
 
     const canUseFinancePayment = customerLinked;
-    const canUseDelivery = customerLinked && isOnline;
+    const canUseDelivery = (customerLinked || walkInDeliveryEligible) && isOnline;
 
     let deliveryBlockedReason: string | null = null;
     if (deliveryEnabled) {
       if (!isOnline) {
         deliveryBlockedReason = 'Pengiriman tidak tersedia saat offline.';
-      } else if (!customerLinked) {
-        deliveryBlockedReason = 'Pilih pelanggan terlebih dahulu untuk pengiriman.';
+      } else if (!customerLinked && !walkInDeliveryEligible) {
+        deliveryBlockedReason = 'Isi nama (min. 2 karakter) dan no. HP pelanggan walk-in untuk pengiriman.';
       } else if (!isDeliverySelectionValid(deliverySelection)) {
         deliveryBlockedReason = 'Lengkapi alamat pengiriman (min. 3 karakter jalan, 2 karakter kota).';
       }
@@ -150,6 +157,7 @@ export function usePosCheckoutContext(input: PosCheckoutContextInput): PosChecko
     return {
       customerLinked,
       isWalkIn,
+      isWalkInDeliveryEligible: walkInDeliveryEligible,
       creditLimitStatus,
       depositApplyAmount,
       depositShortfall,
@@ -167,6 +175,8 @@ export function usePosCheckoutContext(input: PosCheckoutContextInput): PosChecko
     };
   }, [
     customerId,
+    walkInCustomerName,
+    walkInCustomerPhone,
     customerDepositBalance,
     customerCreditLimit,
     customerCreditAvailable,

@@ -858,7 +858,7 @@ describe('PosPage', () => {
     });
   });
 
-  it('shows walk-in badge and hides delivery for unlinked customer', async () => {
+  it('shows walk-in badge and delivery hint until name and phone filled', async () => {
     setCatalogState([
       { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
     ]);
@@ -868,8 +868,63 @@ describe('PosPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
 
     expect(screen.getByText('Walk-in')).toBeInTheDocument();
-    expect(screen.getByText(/Walk-in — ambil di toko/i)).toBeInTheDocument();
+    expect(screen.getByText(/Isi nama \(min\. 2 karakter\) dan no\. HP untuk opsi kirim/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Kirim ke alamat' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Nama pelanggan'), { target: { value: 'Pak Joko' } });
+    fireEvent.change(screen.getByLabelText('No. HP pelanggan'), { target: { value: '0812987654321' } });
+
+    expect(await screen.findByRole('button', { name: 'Kirim ke alamat' })).toBeInTheDocument();
+  });
+
+  it('creates delivery queue after walk-in cash checkout with manual address', async () => {
+    lookupCustomerByPhoneMock.mockResolvedValue(null);
+    setCatalogState([
+      { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
+    ]);
+    queueAuthFetchOverride({
+      match: (url, init) => url.includes('/transactions/checkout-cash') && init?.method === 'POST',
+      respond: () => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            id: 'trx-walkin-dlv-1',
+            receiptNo: 'TRX-WLK-01',
+            total: 70000,
+            cashReceived: 100000,
+            change: 30000,
+          },
+        }),
+      }),
+    });
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
+    fireEvent.change(screen.getByLabelText('Nama pelanggan'), { target: { value: 'Pak Joko' } });
+    fireEvent.change(screen.getByLabelText('No. HP pelanggan'), { target: { value: '0812987654321' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Kirim ke alamat' }));
+
+    fireEvent.change(await screen.findByLabelText('Alamat lengkap pengiriman'), {
+      target: { value: 'Jl. Merdeka 10' },
+    });
+    fireEvent.change(screen.getByLabelText('Kota pengiriman'), { target: { value: 'Jakarta' } });
+    fireEvent.change(screen.getByLabelText('Tunai diterima (IDR)'), { target: { value: '100000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout Tunai' }));
+
+    await waitFor(() => {
+      expect(createDeliveryOrderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transactionId: 'trx-walkin-dlv-1',
+          addressSnapshot: expect.objectContaining({
+            addressLine1: 'Jl. Merdeka 10',
+            city: 'Jakarta',
+          }),
+        }),
+      );
+      expect(screen.getByText(/Masuk antrian pengiriman DLV-20260609-0001/i)).toBeInTheDocument();
+    });
   });
 
   it('keeps registered customer after picker when API stores 62-prefixed phone', async () => {

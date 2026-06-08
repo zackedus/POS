@@ -33,6 +33,31 @@ describe('pos-checkout-delivery', () => {
     expect(payload.addressSnapshot).toBeUndefined();
   });
 
+  it('builds manual address snapshot payload without customerId for walk-in delivery', () => {
+    const payload = buildDeliveryOrderPayload({
+      transactionId: 'trx-walkin-1',
+      selection: {
+        mode: 'manual',
+        snapshot: {
+          id: 'manual',
+          label: 'Proyek',
+          addressLine1: 'Jl. Proyek 5',
+          addressLine2: 'Kel. Sukamaju',
+          city: 'Bekasi',
+          province: null,
+          postalCode: '17121',
+          isDefault: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+      },
+    });
+
+    expect(payload.customerId).toBeUndefined();
+    expect(payload.transactionId).toBe('trx-walkin-1');
+    expect(payload.addressSnapshot?.addressLine2).toBe('Kel. Sukamaju');
+  });
+
   it('builds manual address snapshot payload', () => {
     const payload = buildDeliveryOrderPayload({
       transactionId: 'trx-2',

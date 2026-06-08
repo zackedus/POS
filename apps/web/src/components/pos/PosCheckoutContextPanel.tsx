@@ -188,6 +188,8 @@ export function PosCheckoutContextPanel(props: PosCheckoutContextPanelProps) {
 
   const ctx = usePosCheckoutContext({
     customerId,
+    walkInCustomerName: customerName,
+    walkInCustomerPhone: customerPhone,
     customerDepositBalance,
     customerCreditLimit,
     customerCreditAvailable,
@@ -350,8 +352,8 @@ export function PosCheckoutContextPanel(props: PosCheckoutContextPanelProps) {
 
         {ctx.isWalkIn && isValidIndonesianMobilePhone(customerPhone) ? (
           <p role="status" style={{ margin: 0, fontSize: '0.8125rem', color: '#475569' }}>
-            No. HP belum terdaftar. Checkout tunai/transfer/QRIS tetap bisa — pilih pelanggan dari daftar
-            untuk tempo, deposit, atau pengiriman.
+            No. HP belum terdaftar. Checkout tunai/transfer/QRIS tetap bisa — isi alamat di kartu
+            Pengiriman untuk kirim barang, atau pilih pelanggan untuk tempo/deposit.
           </p>
         ) : null}
 
@@ -461,7 +463,7 @@ export function PosCheckoutContextPanel(props: PosCheckoutContextPanelProps) {
         <h3 style={sectionTitleStyle()}>Pengiriman</h3>
         {!ctx.canUseDelivery && ctx.isWalkIn ? (
           <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-            Walk-in — ambil di toko. Pilih pelanggan untuk opsi kirim.
+            Walk-in — ambil di toko. Isi nama (min. 2 karakter) dan no. HP untuk opsi kirim.
           </p>
         ) : (
           <PosDeliverySelector
@@ -469,6 +471,8 @@ export function PosCheckoutContextPanel(props: PosCheckoutContextPanelProps) {
             onEnabledChange={onDeliveryEnabledChange}
             customerId={customerId}
             customerName={customerName}
+            customerPhone={customerPhone}
+            isWalkIn={ctx.isWalkIn}
             selection={deliverySelection}
             onSelectionChange={onDeliverySelectionChange}
             notes={deliveryNotes}

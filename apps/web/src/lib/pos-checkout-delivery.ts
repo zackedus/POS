@@ -1,9 +1,14 @@
+import { isValidIndonesianMobilePhone } from '@barokah/shared';
 import type { DeliverySelection } from '@/components/pos/PosDeliverySelector';
 import type { CreateDeliveryPayload } from '@/lib/deliveries-api';
 
+export function isWalkInDeliveryEligible(customerName: string, customerPhone: string): boolean {
+  return customerName.trim().length >= 2 && isValidIndonesianMobilePhone(customerPhone.trim());
+}
+
 export function buildDeliveryOrderPayload(params: {
   transactionId: string;
-  customerId: string;
+  customerId?: string | null;
   outletId?: string | null;
   selection: DeliverySelection;
   notes?: string;
@@ -11,7 +16,7 @@ export function buildDeliveryOrderPayload(params: {
   const { transactionId, customerId, outletId, selection, notes } = params;
   const payload: CreateDeliveryPayload = {
     transactionId,
-    customerId,
+    ...(customerId ? { customerId } : {}),
     deliveryType: 'STORE_DIRECT',
     ...(outletId ? { outletId } : {}),
     ...(notes?.trim() ? { notes: notes.trim() } : {}),

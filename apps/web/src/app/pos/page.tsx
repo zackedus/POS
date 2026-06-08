@@ -60,7 +60,7 @@ import { isOutOfStock } from '@/lib/pos-stock-display';
 import type { DeliverySelection } from '@/components/pos/PosDeliverySelector';
 import { isDeliverySelectionValid } from '@/components/pos/PosDeliverySelector';
 import { createDeliveryOrder } from '@/lib/deliveries-api';
-import { buildDeliveryOrderPayload } from '@/lib/pos-checkout-delivery';
+import { buildDeliveryOrderPayload, isWalkInDeliveryEligible } from '@/lib/pos-checkout-delivery';
 
 function buildOutletScope(outletId: string | null): { outletId?: string } {
   return outletId ? { outletId } : {};
@@ -292,17 +292,23 @@ export default function PosPage() {
     if (!isOnline) {
       return 'Pengiriman tidak tersedia saat offline.';
     }
-    if (!customerId) {
-      return 'Pilih pelanggan terlebih dahulu untuk pengiriman.';
+    if (customerId) {
+      if (!isDeliverySelectionValid(deliverySelection)) {
+        return 'Lengkapi alamat pengiriman sebelum checkout.';
+      }
+      return null;
     }
-    if (!isDeliverySelectionValid(deliverySelection)) {
-      return 'Lengkapi alamat pengiriman sebelum checkout.';
+    if (isWalkInDeliveryEligible(customerName, customerPhone)) {
+      if (!isDeliverySelectionValid(deliverySelection)) {
+        return 'Lengkapi alamat pengiriman sebelum checkout.';
+      }
+      return null;
     }
-    return null;
+    return 'Isi nama (min. 2 karakter) dan no. HP pelanggan walk-in untuk pengiriman.';
   }
 
   async function createDeliveryAfterCheckout(transactionId: string): Promise<string | null> {
-    if (!deliveryEnabled || !customerId || !deliverySelection || !isDeliverySelectionValid(deliverySelection)) {
+    if (!deliveryEnabled || !deliverySelection || !isDeliverySelectionValid(deliverySelection)) {
       return null;
     }
     try {

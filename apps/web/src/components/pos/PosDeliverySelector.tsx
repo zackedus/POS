@@ -15,6 +15,8 @@ interface PosDeliverySelectorProps {
   onEnabledChange: (enabled: boolean) => void;
   customerId: string | null;
   customerName?: string;
+  customerPhone?: string;
+  isWalkIn?: boolean;
   selection: DeliverySelection | null;
   onSelectionChange: (selection: DeliverySelection | null) => void;
   notes: string;
@@ -65,6 +67,8 @@ export function PosDeliverySelector({
   onEnabledChange,
   customerId,
   customerName,
+  customerPhone,
+  isWalkIn = false,
   selection,
   onSelectionChange,
   notes,
@@ -73,14 +77,22 @@ export function PosDeliverySelector({
 }: PosDeliverySelectorProps) {
   const [addresses, setAddresses] = useState<CustomerAddressView[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
-  const [useManual, setUseManual] = useState(false);
+  const [useManual, setUseManual] = useState(isWalkIn);
   const [manual, setManual] = useState<CustomerAddressView>(emptyManual);
 
   useEffect(() => {
-    if (!enabled || !customerId) {
-      setAddresses([]);
+    if (isWalkIn && enabled && !selection) {
+      const nextManual = emptyManual();
+      setManual(nextManual);
+      onSelectionChange({ mode: 'manual', snapshot: nextManual });
+      return;
+    }
+    if (!enabled || !customerId || isWalkIn) {
       if (!enabled) {
         onSelectionChange(null);
+      }
+      if (!enabled || isWalkIn) {
+        setAddresses([]);
       }
       return;
     }
@@ -106,7 +118,8 @@ export function PosDeliverySelector({
     return () => {
       cancelled = true;
     };
-  }, [enabled, customerId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- init walk-in form once per enable; fetch addresses per customer
+  }, [enabled, customerId, isWalkIn]);
 
   function handleManualField<K extends keyof CustomerAddressView>(key: K, value: CustomerAddressView[K]) {
     const next = { ...manual, [key]: value };
@@ -143,7 +156,64 @@ export function PosDeliverySelector({
 
       {enabled ? (
         <div style={{ display: 'grid', gap: 8 }}>
-          {!customerId ? (
+          {isWalkIn ? (
+            <>
+              <p style={{ margin: 0, fontSize: 13, color: '#b45309' }}>
+                Pelanggan walk-in — isi alamat pengiriman di bawah.
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+                Ke: <strong>{customerName?.trim() || 'Pelanggan'}</strong>
+                {customerPhone?.trim() ? ` · ${customerPhone.trim()}` : null}
+              </p>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <Input
+                  placeholder="Alamat lengkap (Jl., proyek, lantai)"
+                  value={manual.addressLine1}
+                  onChange={(event) => handleManualField('addressLine1', event.target.value)}
+                  aria-label="Alamat lengkap pengiriman"
+                />
+                <Input
+                  placeholder="Kelurahan / kecamatan"
+                  value={manual.addressLine2 ?? ''}
+                  onChange={(event) => handleManualField('addressLine2', event.target.value || null)}
+                  aria-label="Kelurahan atau kecamatan"
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <Input
+                    placeholder="Kota"
+                    value={manual.city}
+                    onChange={(event) => handleManualField('city', event.target.value)}
+                    aria-label="Kota pengiriman"
+                  />
+                  <Input
+                    placeholder="Kode pos (opsional)"
+                    value={manual.postalCode ?? ''}
+                    onChange={(event) => handleManualField('postalCode', event.target.value || null)}
+                    aria-label="Kode pos"
+                  />
+                </div>
+              </div>
+              {selection && isDeliverySelectionValid(selection) ? (
+                <div
+                  style={{
+                    padding: '0.55rem 0.65rem',
+                    borderRadius: 8,
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    fontSize: '0.8125rem',
+                    color: '#0c4a6e',
+                  }}
+                >
+                  <strong>Preview alamat:</strong> {formatAddressPreview(selection.snapshot)}
+                </div>
+              ) : null}
+              <Input
+                placeholder="Catatan pengiriman (proyek, lantai 2, dll.)"
+                value={notes}
+                onChange={(event) => onNotesChange(event.target.value)}
+              />
+            </>
+          ) : !customerId ? (
             <p style={{ margin: 0, color: '#b45309', fontSize: 13 }}>
               Pilih pelanggan terlebih dahulu untuk pengiriman.
             </p>

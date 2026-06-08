@@ -20,7 +20,7 @@ Panduan singkat shift harian toko bahan bangunan.
 4. **Checkout panel** (3 kartu berurutan di sidebar):
    - **Pelanggan:** badge *Walk-in* atau *Terdaftar* — **Pilih Pelanggan**, scan `MBR-…`, atau ketik nama/HP; tombol **Walk-in** untuk reset
    - Info kredit tersedia, deposit, piutang tampil otomatis saat pelanggan terhubung
-   - **Pengiriman:** *Ambil di toko* (default) atau *Kirim ke alamat* (perlu pelanggan + online)
+   - **Pengiriman:** *Ambil di toko* (default) atau *Kirim ke alamat* — walk-in bisa kirim jika nama + HP diisi + alamat manual; pelanggan terdaftar bisa pilih alamat CRM
    - **Pembayaran:** Tunai / Transfer / QRIS / Tempo / Deposit / Split — field kontekstual hanya muncul sesuai metode
    - Validasi tampil **sebelum** checkout (pelanggan wajib untuk tempo/deposit, alamat wajib untuk kirim)
 5. **Promo:** pilih otomatis atau promo spesifik di dropdown
@@ -69,13 +69,20 @@ Panduan singkat shift harian toko bahan bangunan.
 
 ## Pengiriman ke Alamat (POS)
 
+### Pelanggan terdaftar
 1. Di kartu **Pelanggan**, pilih pelanggan terdaftar
 2. Di kartu **Pengiriman**, tap **Kirim ke alamat**
 3. Pilih alamat CRM atau **alamat sekali pakai** + catatan
 4. Checkout di kartu **Pembayaran** — sukses menampilkan *"Masuk antrian pengiriman DLV-…"*
 5. Kelola antrian di **Dashboard → Pengiriman** (`/dashboard/deliveries`)
 
-> Pengiriman **tidak tersedia** saat offline atau walk-in tanpa pelanggan.
+### Pelanggan walk-in
+1. Isi **nama** (min. 2 karakter) dan **no. HP** di kartu Pelanggan (badge *Walk-in*)
+2. Di kartu **Pengiriman**, tap **Kirim ke alamat** — form alamat manual muncul
+3. Isi alamat lengkap, kelurahan/kecamatan, kota (+ kode pos opsional) dan catatan
+4. Checkout tunai/transfer/QRIS — sistem buat antrian pengiriman otomatis
+
+> Pengiriman **tidak tersedia** saat offline.
 
 ## Tips
 
