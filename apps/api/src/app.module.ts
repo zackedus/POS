@@ -25,6 +25,7 @@ import { PromoModule } from './modules/promo/promo.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { FinanceModule } from './modules/finance/finance.module';
     CustomersModule,
     RolesModule,
     FinanceModule,
+    DeliveriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
