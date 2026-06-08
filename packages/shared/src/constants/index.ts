@@ -9,3 +9,4 @@ export * from './customer-credit';
 export * from './credit-terms';
 export * from './delivery';
 export * from './receivable-payment';
+export * from './finance-reports';

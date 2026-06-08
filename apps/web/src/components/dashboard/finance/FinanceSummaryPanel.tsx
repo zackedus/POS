@@ -17,12 +17,13 @@ import { useOutletSelection } from '@/lib/outlet-selection-state';
 
 const gridStyle = dashboardTokens.grid;
 
-const QUICK_LINKS: Array<{ tab: FinanceTabId; label: string; desc: string }> = [
+const QUICK_LINKS: Array<{ tab?: FinanceTabId; href?: string; label: string; desc: string }> = [
   { tab: 'piutang', label: 'Piutang', desc: 'Tagihan pelanggan tempo' },
   { tab: 'utang', label: 'Utang', desc: 'Hutang ke supplier' },
   { tab: 'aging', label: 'Aging Piutang', desc: 'Analisis jatuh tempo AR' },
   { tab: 'deposit', label: 'Deposit', desc: 'Saldo uang muka pelanggan' },
   { tab: 'pengeluaran', label: 'Pengeluaran', desc: 'Biaya operasional toko' },
+  { href: '/dashboard/reports/finance', label: 'Laporan Keuangan', desc: 'Laba rugi, AR/AP, arus kas' },
 ];
 
 function todayIsoDate(): string {
@@ -156,11 +157,30 @@ export function FinanceSummaryPanel({ onNavigate }: { onNavigate?: (tab: Finance
               }}
             >
               {QUICK_LINKS.map((link) =>
-                onNavigate ? (
+                link.href ? (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    style={{
+                      display: 'block',
+                      padding: '0.875rem 1rem',
+                      borderRadius: 10,
+                      border: '1px solid #e2e8f0',
+                      textDecoration: 'none',
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                    }}
+                  >
+                    <span style={{ display: 'block', fontWeight: 600, fontSize: '0.9375rem' }}>{link.label}</span>
+                    <span style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.8125rem', color: '#64748b' }}>
+                      {link.desc}
+                    </span>
+                  </Link>
+                ) : link.tab && onNavigate ? (
                   <button
                     key={link.tab}
                     type="button"
-                    onClick={() => onNavigate(link.tab)}
+                    onClick={() => onNavigate(link.tab!)}
                     style={{
                       display: 'block',
                       width: '100%',
@@ -178,7 +198,7 @@ export function FinanceSummaryPanel({ onNavigate }: { onNavigate?: (tab: Finance
                       {link.desc}
                     </span>
                   </button>
-                ) : (
+                ) : link.tab ? (
                   <Link
                     key={link.tab}
                     href={financeTabHref(link.tab)}
@@ -197,7 +217,7 @@ export function FinanceSummaryPanel({ onNavigate }: { onNavigate?: (tab: Finance
                       {link.desc}
                     </span>
                   </Link>
-                ),
+                ) : null,
               )}
             </div>
           </SectionCard>

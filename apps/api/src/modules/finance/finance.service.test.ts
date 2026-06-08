@@ -498,8 +498,8 @@ test('Finance checkout: applyCheckoutFinance stores dueDate on credit receivable
     payments: [{ method: PaymentMethod.CREDIT, amount: 100_000 }],
     dueDate: '2026-06-16',
   });
-  assert.ok(createdDueDate instanceof Date);
-  assert.equal(createdDueDate?.toISOString().slice(0, 10), '2026-06-16');
+  assert.ok(createdDueDate);
+  assert.equal((createdDueDate as Date).toISOString().slice(0, 10), '2026-06-16');
 });
 
 test('Finance checkout: reverseFinanceForRefund voids unpaid receivable on full refund', async () => {

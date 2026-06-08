@@ -6,11 +6,13 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { DailyExportQueryDto } from './dto/daily-export-query.dto';
+import { DailySummaryQueryDto, FinanceReportQueryDto } from './dto/finance-report-query.dto';
 import { ReportsQueryDto } from './dto/reports-query.dto';
 import { StockReportQueryDto } from './dto/stock-report-query.dto';
 import { CrossOutletStockQueryDto } from './dto/cross-outlet-stock-query.dto';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { ScheduledAnalyticsExportQueryDto } from './dto/scheduled-analytics-export-query.dto';
+import { FinanceReportsService } from './finance-reports.service';
 import { ReportsService } from './reports.service';
 import { AnalyticsEmailScheduler } from './analytics-email.scheduler';
 
@@ -20,12 +22,43 @@ import { AnalyticsEmailScheduler } from './analytics-email.scheduler';
 export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
+    private readonly financeReportsService: FinanceReportsService,
     private readonly analyticsEmailScheduler: AnalyticsEmailScheduler,
   ) {}
 
   @Get('daily')
   getDailySales(@CurrentUser() user: AuthJwtPayload, @Query() query: ReportsQueryDto) {
     return this.reportsService.getDailySales(user, query);
+  }
+
+  @Get('finance/profit-loss')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  getFinanceProfitLoss(@CurrentUser() user: AuthJwtPayload, @Query() query: FinanceReportQueryDto) {
+    return this.financeReportsService.getProfitLoss(user, query);
+  }
+
+  @Get('finance/receivables')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  getFinanceReceivables(@CurrentUser() user: AuthJwtPayload, @Query() query: FinanceReportQueryDto) {
+    return this.financeReportsService.getReceivables(user, query);
+  }
+
+  @Get('finance/payables')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  getFinancePayables(@CurrentUser() user: AuthJwtPayload, @Query() query: FinanceReportQueryDto) {
+    return this.financeReportsService.getPayables(user, query);
+  }
+
+  @Get('finance/cash-flow')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  getFinanceCashFlow(@CurrentUser() user: AuthJwtPayload, @Query() query: FinanceReportQueryDto) {
+    return this.financeReportsService.getCashFlow(user, query);
+  }
+
+  @Get('finance/daily-summary')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  getFinanceDailySummary(@CurrentUser() user: AuthJwtPayload, @Query() query: DailySummaryQueryDto) {
+    return this.financeReportsService.getDailySummary(user, query);
   }
 
   @Get('payment-mix')

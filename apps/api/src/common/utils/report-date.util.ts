@@ -82,14 +82,75 @@ export function resolveReportDayRange(
 /** Current calendar week (Mon–Sun) in Asia/Jakarta. */
 export function resolveCurrentWeekRangeJakarta(now = new Date()): ReportDayRange {
   const jakartaNow = new Date(now.getTime() + JAKARTA_OFFSET_MS);
-  const day = jakartaNow.getUTCDay();
+  return resolveWeekRangeForAnchorJakarta(jakartaNow.toISOString().slice(0, 10));
+}
+
+/** Calendar week (Mon–Sun) containing anchor date (YYYY-MM-DD, WIB). */
+export function resolveWeekRangeForAnchorJakarta(anchorDate: string): ReportDayRange {
+  assertValidDate(anchorDate, 'date');
+  const jakartaAnchor = new Date(dayStartUtc(anchorDate).getTime() + JAKARTA_OFFSET_MS);
+  const day = jakartaAnchor.getUTCDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = new Date(jakartaNow);
-  monday.setUTCDate(jakartaNow.getUTCDate() + mondayOffset);
+  const monday = new Date(jakartaAnchor);
+  monday.setUTCDate(jakartaAnchor.getUTCDate() + mondayOffset);
   const sunday = new Date(monday);
   sunday.setUTCDate(monday.getUTCDate() + 6);
 
   const dateFrom = monday.toISOString().slice(0, 10);
   const dateTo = sunday.toISOString().slice(0, 10);
   return resolveReportDayRange(undefined, dateFrom, dateTo);
+}
+
+/** First and last calendar day of month containing anchor (WIB). */
+export function resolveMonthRangeForAnchorJakarta(anchorDate: string): ReportDayRange {
+  assertValidDate(anchorDate, 'date');
+  const [yearStr, monthStr] = anchorDate.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const dateFrom = `${yearStr}-${monthStr}-01`;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const dateTo = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+  return resolveReportDayRange(undefined, dateFrom, dateTo);
+}
+
+/** Calendar year containing anchor (WIB). */
+export function resolveYearRangeForAnchorJakarta(anchorDate: string): ReportDayRange {
+  assertValidDate(anchorDate, 'date');
+  const year = anchorDate.slice(0, 4);
+  return resolveReportDayRange(undefined, `${year}-01-01`, `${year}-12-31`);
+}
+
+export type FinanceReportPeriod = 'day' | 'week' | 'month' | 'year';
+
+/** Resolve finance report bounds — custom from/to overrides period preset. */
+export function resolveFinanceReportRange(options: {
+  period?: FinanceReportPeriod;
+  date?: string;
+  from?: string;
+  to?: string;
+}): ReportDayRange {
+  const from = options.from?.trim();
+  const to = options.to?.trim();
+  if (from || to) {
+    return resolveReportDayRange(undefined, from, to);
+  }
+
+  const anchor = options.date?.trim() || todayJakartaIso();
+  const period = options.period ?? 'month';
+
+  switch (period) {
+    case 'day':
+      return resolveReportDayRange(anchor);
+    case 'week':
+      return resolveWeekRangeForAnchorJakarta(anchor);
+    case 'month':
+      return resolveMonthRangeForAnchorJakarta(anchor);
+    case 'year':
+      return resolveYearRangeForAnchorJakarta(anchor);
+    default:
+      throw new BadRequestException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: 'period harus day, week, month, atau year.',
+      });
+  }
 }
