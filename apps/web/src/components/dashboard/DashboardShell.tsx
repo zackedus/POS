@@ -57,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/dashboard/admin', label: 'Pusat Admin', exact: true },
       { href: '/dashboard/users', label: 'Pengguna & RBAC' },
+      { href: '/dashboard/roles', label: 'Peran & Izin' },
       { href: '/dashboard/customers', label: 'Member & Pelanggan' },
       { href: '/dashboard/integrations', label: 'Integrasi & API' },
     ],
@@ -90,6 +91,7 @@ const ICONS: Record<string, string> = {
   Satuan: '⎔',
   'Pusat Admin': '◈',
   'Pengguna & RBAC': '◉',
+  'Peran & Izin': '⛊',
   'Member & Pelanggan': '★',
   'Integrasi & API': '⇄',
   'Profil Toko': '⌂',
@@ -166,6 +168,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/outlets')) return 'Manajemen Cabang';
   if (pathname.startsWith('/dashboard/store')) return 'Profil Toko';
   if (pathname.startsWith('/dashboard/users')) return 'Manajemen Pengguna';
+  if (pathname.startsWith('/dashboard/roles')) return 'Peran & Izin';
   if (pathname.startsWith('/dashboard/expenses')) return 'Pengeluaran Operasional';
   if (pathname.startsWith('/dashboard/purchase-orders')) return 'Order Distributor';
   if (pathname.startsWith('/dashboard/transactions')) return 'Void & Struk';

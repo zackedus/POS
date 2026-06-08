@@ -1,3 +1,4 @@
+import { RBAC_ROLE_LABELS } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
 
@@ -25,13 +26,7 @@ export interface UserSummary {
   outlets: UserOutletSummary[];
 }
 
-export const USER_ROLE_LABELS: Record<string, string> = {
-  OWNER: 'Pemilik',
-  MANAGER: 'Manajer',
-  CASHIER: 'Kasir',
-  INVENTORY: 'Gudang',
-  ACCOUNTANT: 'Akuntan',
-};
+export const USER_ROLE_LABELS: Record<string, string> = RBAC_ROLE_LABELS;
 
 async function parseEnvelope<T>(res: Response): Promise<ApiEnvelope<T>> {
   return (await res.json()) as ApiEnvelope<T>;

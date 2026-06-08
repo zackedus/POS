@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Button } from '@barokah/ui';
 import {
@@ -16,6 +17,7 @@ import {
 import { fetchMe, type AuthUser } from '@/lib/auth';
 import { fetchOutlets } from '@/lib/reports';
 import { canAssignRole, canCreateUser, canDeactivateUser, canEditUser } from '@/lib/rbac';
+import { roleBadgeVariant } from '@/lib/roles-api';
 import {
   createUser,
   deactivateUser,
@@ -207,9 +209,16 @@ export default function UsersPage() {
         title="Manajemen Pengguna"
         description="Kelola akun staff tenant. Pemilik mengelola semua role; Manajer hanya dapat menambah/mengubah kasir."
         actions={
-          <Button type="button" variant="secondary" onClick={() => void loadData()} disabled={loading}>
-            Muat ulang
-          </Button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Link href="/dashboard/roles" style={{ textDecoration: 'none' }}>
+              <Button type="button" variant="secondary">
+                Lihat Peran &amp; Izin
+              </Button>
+            </Link>
+            <Button type="button" variant="secondary" onClick={() => void loadData()} disabled={loading}>
+              Muat ulang
+            </Button>
+          </div>
         }
       />
 
@@ -304,7 +313,12 @@ export default function UsersPage() {
                       <tr key={user.id} style={tableStyles.row}>
                         <td style={tableStyles.td}>{user.fullName}</td>
                         <td style={tableStyles.td}>{user.email}</td>
-                        <td style={tableStyles.td}>{USER_ROLE_LABELS[user.role] ?? user.role}</td>
+                        <td style={tableStyles.td}>
+                          <StatusBadge
+                            label={USER_ROLE_LABELS[user.role] ?? user.role}
+                            variant={roleBadgeVariant(user.role)}
+                          />
+                        </td>
                         <td style={tableStyles.td}>{user.outlets.map((o) => o.name).join(', ') || '—'}</td>
                         <td style={tableStyles.td}>
                           <StatusBadge label={user.isActive ? 'Aktif' : 'Nonaktif'} variant={user.isActive ? 'success' : 'neutral'} />

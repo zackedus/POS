@@ -16,8 +16,15 @@ const SECTIONS: AdminSection[] = [
   {
     href: '/dashboard/users',
     title: 'Pengguna & RBAC',
-    description: 'CRUD staff, role owner/manajer/kasir, assign cabang, reset password, aktif/nonaktif.',
+    description: 'CRUD staff, assign role & cabang, reset password, aktif/nonaktif.',
     icon: '◉',
+    roles: 'owner-manager',
+  },
+  {
+    href: '/dashboard/roles',
+    title: 'Peran & Izin',
+    description: 'Matriks izin role sistem (Pemilik, Manajer, Kasir, Gudang, Akuntan). Role kustom Fase 3.',
+    icon: '⛊',
     roles: 'owner-manager',
   },
   {

@@ -23,6 +23,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { PromoModule } from './modules/promo/promo.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { RolesModule } from './modules/roles/roles.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { CustomersModule } from './modules/customers/customers.module';
     SettingsModule,
     PromoModule,
     CustomersModule,
+    RolesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

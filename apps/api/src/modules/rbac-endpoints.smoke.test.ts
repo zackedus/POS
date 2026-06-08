@@ -10,6 +10,7 @@ import { TransactionsController } from './transactions/transactions.controller';
 import { SyncController } from './sync/sync.controller';
 import { InventoryController } from './inventory/inventory.controller';
 import { UsersController } from './users/users.controller';
+import { RolesController } from './roles/roles.controller';
 import { SuppliersController } from './suppliers/suppliers.controller';
 
 function getRoles(controller: object, methodName: string): UserRole[] {
@@ -114,6 +115,10 @@ test('Smoke RBAC: users write endpoints — create/update OWNER+MANAGER, deactiv
 
 test('Smoke RBAC: users list allows MANAGER/OWNER', () => {
   assert.deepEqual(getRoles(UsersController.prototype, 'listUsers'), [UserRole.OWNER, UserRole.MANAGER]);
+});
+
+test('Smoke RBAC: roles list allows MANAGER/OWNER', () => {
+  assert.deepEqual(getRoles(RolesController.prototype, 'listRoles'), [UserRole.OWNER, UserRole.MANAGER]);
 });
 
 test('Smoke RBAC: suppliers and purchase receive require MANAGER/OWNER', () => {
