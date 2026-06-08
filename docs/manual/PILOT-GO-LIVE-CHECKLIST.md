@@ -138,7 +138,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 
 ### Skenario J — UAT Multi Cabang (15–20 menit)
 
-> **Referensi audit:** [OUTLET-DATA-INTEGRITY-AUDIT-2026-06](../domain/OUTLET-DATA-INTEGRITY-AUDIT-2026-06.md) — isolasi `outletId` per modul (perbaikan commit `8a80454`: picker POS, guard PO, shift scoped, checkout upsert).
+> **Referensi audit:** [OUTLET-DATA-INTEGRITY-AUDIT-2026-06](../domain/OUTLET-DATA-INTEGRITY-AUDIT-2026-06.md) — isolasi `outletId` per modul (perbaikan commit `8a80454`: picker POS, guard PO, shift scoped, checkout upsert). **RBAC outlet:** commit `1319af0` — Owner & Manager akses semua cabang tenant (`canAccessAnyTenantOutlet`); Kasir tetap terbatas cabang assign.
 
 #### Prasyarat
 
@@ -146,7 +146,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 |---|-----------|-----------------|
 | P1 | Minimal **2 cabang aktif** (seed: **Cabang Utama** ★, **Cabang Utara**) | Owner → [`/dashboard/outlets`](http://localhost:3001/dashboard/outlets) — kedua cabang status aktif |
 | P2 | **Stok berbeda** per cabang pada ≥1 produk uji (mis. Semen) | Inventori → adjust qty Cabang Utama vs Cabang Utara (contoh: 100 vs 85) |
-| P3 | **User assign per cabang** — owner semua cabang; manager single-outlet; kasir single-outlet | [`/dashboard/users`](http://localhost:3001/dashboard/users) — seed: manager & kasir → Cabang Utama saja; owner → kedua cabang |
+| P3 | **User assign per cabang** — owner & manager akses **semua cabang tenant**; kasir **single-outlet** (cabang assign saja) | [`/dashboard/users`](http://localhost:3001/dashboard/users) — seed: manager & kasir → Cabang Utama (default picker); owner → kedua cabang. Manager/owner tetap bisa operasi PO/inventori cabang lain meski assign terbatas. |
 | P4 | API + web dev jalan | `http://localhost:3000` (API), `http://localhost:3001` (web) |
 
 #### Langkah UAT (step-by-step)
@@ -157,7 +157,8 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 | **J2** | Owner → `/pos` → picker **Cabang Utama** → catat stok grid produk uji (mis. Semen) → ganti picker ke **Cabang Utara** | Grid refresh; qty stok **berbeda** sesuai P2 (bukan salinan cabang sebelumnya) |
 | **J3** | Pilih **Cabang Utara** → `/shift/open` → buka shift saldo `500000` → checkout 1× produk uji (tunai) | Shift aktif di Cabang Utara; stok produk uji **Cabang Utara −1**; stok **Cabang Utama tidak berubah** |
 | **J4** | Tanpa tutup shift Cabang Utara → di POS ganti picker ke **Cabang Utama** | Banner peringatan: *"Shift aktif di cabang lain…"*; checkout **diblokir** sampai buka shift di cabang terpilih atau tutup shift lama |
-| **J5** | Login **manager** (`manager@barokah.local`) → buat/lihat PO **Cabang Utara** (owner buat draft dulu jika perlu) → buka detail PO tersebut | HTTP **403 Forbidden** / pesan akses ditolak — manager hanya scope **Cabang Utama** |
+| **J5** | Login **kasir** (`kasir@barokah.local`) → coba akses PO **Cabang Utara** (owner/manager buat draft dulu) via API atau URL detail PO | HTTP **403 Forbidden** / pesan akses ditolak — kasir hanya scope **Cabang Utama** (cabang assign) |
+| **J5b** | Login **manager** atau **owner** → buat/lihat PO **Cabang Utara** → buka detail PO tersebut | **PASS** — manager & owner boleh akses PO cabang mana pun dalam tenant |
 | **J6** | Manager → `/dashboard/purchase-orders` → buat PO **Cabang Utama** → Submit → **Terima** partial (mis. 10 unit) → cek `/dashboard/inventory` filter Cabang Utama | Stok Cabang Utama naik +10; stok Cabang Utara **tidak** ikut naik |
 | **J7** | Manager → `/dashboard/inventory` → tab **Transfer** → transfer 3 unit produk uji **Cabang Utama → Cabang Utara** | Cabang Utama −3, Cabang Utara +3; riwayat transfer tercatat |
 | **J8** | Owner → `/dashboard` → picker/filter cabang **Cabang Utara** → bandingkan ringkasan penjualan/stok dengan **Cabang Utama** | Angka dashboard & laporan harian mengikuti cabang terpilih (bukan agregat semua cabang tanpa filter) |
@@ -170,7 +171,8 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **J2** — POS: stok grid berbeda per cabang
 - [ ] **J3** — Shift + checkout kurangi stok cabang aktif saja
 - [ ] **J4** — Switch cabang → peringatan shift mismatch + checkout diblokir
-- [ ] **J5** — Manager single-outlet → PO cabang lain ditolak (403)
+- [ ] **J5** — Kasir single-outlet → PO cabang lain ditolak (403)
+- [ ] **J5b** — Manager/owner → PO cabang lain diizinkan (PASS)
 - [ ] **J6** — PO terima → stok naik di cabang PO saja
 - [ ] **J7** — Transfer antar cabang atomic & saldo benar
 - [ ] **J8** — Dashboard/laporan filter per cabang konsisten
@@ -183,7 +185,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 |-----------------------|-------------|
 | Isolasi stok checkout per `outletId` (J2–J3) | Ya |
 | Shift scoped + warning mismatch (J4) | Ya |
-| Guard PO cross-outlet (J5–J6) | Ya |
+| Guard PO cross-outlet kasir (J5) + manager/owner tenant-wide (J5b) | Ya |
 | Transfer antar cabang (J7) | Ya (jika ≥2 cabang operasional) |
 | Laporan filter cabang (J8) | Ya |
 | RBAC kasir single-outlet (J9) | Ya |
@@ -210,7 +212,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Stok awal per outlet diisi (via import atau adjust)
 - [ ] Supplier master untuk PO
 - [ ] **Cabang/outlet** — [`/dashboard/outlets`](http://localhost:3001/dashboard/outlets): CRUD cabang, cabang utama (★), telepon & jam operasional, nonaktifkan (bukan hapus) jika ada transaksi
-- [ ] Assign kasir/manager ke cabang via [`/dashboard/users`](http://localhost:3001/dashboard/users)
+- [ ] Assign kasir ke cabang via [`/dashboard/users`](http://localhost:3001/dashboard/users) (manager/owner akses tenant-wide; assign opsional untuk default picker)
 - [ ] Transfer stok antar cabang di Inventori → tab Transfer (jika multi-outlet)
 
 ## 3. Pengaturan Tenant (Owner)
@@ -230,7 +232,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Owner: Pak Zaki
 - [ ] Manager: 1 akun (void approval, tutup shift paksa)
 - [ ] Kasir: minimal 2 akun shift bergantian
-- [ ] Uji login/logout + outlet scope
+- [ ] Uji login/logout + outlet scope (kasir = cabang assign; manager/owner = semua cabang tenant)
 
 ## 5. Shift & Kasir Harian
 
@@ -242,7 +244,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 ## 6. Payment
 
 - [ ] Tunai, transfer manual, split cash+transfer: PASS
-- [ ] QRIS mock/sandbox: PASS di staging
+- [ ] QRIS mock/sandbox: PASS di staging (perbaikan commit `750d4f5`: mock checkout tidak stuck polling — regresi TC005/QRIS UAT)
 - [ ] QRIS live + EDC + E-wallet: **defer** (butuh key Pak Zaki + hardware Arif)
 
 ## 7. Inventory & PO

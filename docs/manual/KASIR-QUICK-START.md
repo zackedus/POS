@@ -26,7 +26,7 @@ Panduan singkat shift harian toko bahan bangunan.
 
 ## Hold & Recall
 
-- **Hold:** simpan keranjang sementara (TTL ~2 jam) — pelanggan ambil barang dulu
+- **Hold:** simpan keranjang sementara (TTL **120 menit** / ~2 jam, `POS_HOLD_TTL_MINUTES`) — pelanggan ambil barang dulu
 - **Recall:** buka accordion **Daftar Hold** → Recall → lanjut checkout
 
 ## Void (Manager)
