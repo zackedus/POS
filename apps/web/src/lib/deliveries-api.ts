@@ -5,6 +5,9 @@ import type {
 } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authApiJson } from './api-client';
+import type { UpdateDeliveryStatusPayload } from './delivery-status-ui';
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 const BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/deliveries`;
 
@@ -104,26 +107,20 @@ export interface CreateDeliveryPayload {
 export async function createDeliveryOrder(payload: CreateDeliveryPayload): Promise<DeliveryOrderListItem> {
   return authApiJson<DeliveryOrderListItem>(
     BASE,
-    { method: 'POST', body: JSON.stringify(payload) },
+    { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
     'Gagal membuat antrian pengiriman.',
   );
 }
 
 export async function updateDeliveryStatus(
   id: string,
-  payload: {
-    status: string;
-    driverName?: string;
-    scheduledAt?: string;
-    notes?: string;
-    cancelReason?: string;
-  },
+  payload: UpdateDeliveryStatusPayload,
   outletId?: string,
 ): Promise<DeliveryOrderListItem> {
-  const params = outletId ? `?outletId=${outletId}` : '';
+  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
   return authApiJson<DeliveryOrderListItem>(
     `${BASE}/${id}/status${params}`,
-    { method: 'PATCH', body: JSON.stringify(payload) },
+    { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(payload) },
     'Gagal memperbarui status pengiriman.',
   );
 }

@@ -1,11 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { getTodayDate } from '@barokah/shared';
 import DashboardDeliveriesPage from './page';
 
 
 const fetchDeliveriesMock = vi.fn();
 const fetchDeliveryQueueSummaryMock = vi.fn();
+const updateDeliveryStatusMock = vi.fn();
 
 vi.mock('@/hooks/useDeliverySyncRefresh', () => ({
   useDeliverySyncRefresh: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock('@/lib/deliveries-api', () => ({
   fetchDeliveryQueueSummary: (...args: unknown[]) => fetchDeliveryQueueSummaryMock(...args),
   fetchDeliveryDetail: vi.fn(),
   fetchDeliveryShippingLabel: vi.fn(),
-  updateDeliveryStatus: vi.fn(),
+  updateDeliveryStatus: (...args: unknown[]) => updateDeliveryStatusMock(...args),
 }));
 
 vi.mock('@/lib/online-orders-api', () => ({
@@ -44,6 +45,13 @@ describe('DashboardDeliveriesPage', () => {
   beforeEach(() => {
     fetchDeliveriesMock.mockReset();
     fetchDeliveryQueueSummaryMock.mockReset();
+    updateDeliveryStatusMock.mockReset();
+    updateDeliveryStatusMock.mockResolvedValue({
+      id: 'delivery-1',
+      deliveryNo: 'DLV-20260609-0001',
+      status: 'DISIAPKAN',
+      outlet: { id: 'outlet-2', name: 'Cabang Selatan' },
+    });
     fetchDeliveryQueueSummaryMock.mockResolvedValue({
       MENUNGGU: 2,
       DISIAPKAN: 1,
@@ -105,6 +113,22 @@ describe('DashboardDeliveriesPage', () => {
           dateFrom: today,
           dateTo: today,
         }),
+      );
+    });
+  });
+
+  it('calls updateDeliveryStatus with enum payload and delivery outlet id', async () => {
+    render(<DashboardDeliveriesPage />);
+
+    const advanceButton = await screen.findByRole('button', { name: /→ Disiapkan/i });
+    fireEvent.click(advanceButton);
+    fireEvent.click(await screen.findByRole('button', { name: /Ya, lanjutkan/i }));
+
+    await waitFor(() => {
+      expect(updateDeliveryStatusMock).toHaveBeenCalledWith(
+        'delivery-1',
+        { status: 'DISIAPKAN' },
+        'outlet-2',
       );
     });
   });

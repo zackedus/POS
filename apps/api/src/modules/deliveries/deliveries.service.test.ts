@@ -80,6 +80,58 @@ test('Deliveries: updateStatus requires manager role', async () => {
   );
 });
 
+test('Deliveries: updateStatus advances MENUNGGU to DISIAPKAN', async () => {
+  const prisma = {
+    deliveryOrder: {
+      findFirst: async () => ({
+        id: 'delivery-1',
+        status: 'MENUNGGU',
+        tenantId: 'tenant-1',
+        outletId: 'outlet-1',
+        driverName: null,
+        scheduledAt: null,
+        notes: null,
+        cancelReason: null,
+      }),
+      update: async ({
+        data,
+      }: {
+        data: { status: string; driverName?: string | null };
+      }) => ({
+        id: 'delivery-1',
+        deliveryNo: 'DLV-20260609-0001',
+        deliveryType: 'STORE_DIRECT',
+        status: data.status,
+        createdAt: new Date('2026-06-09T10:00:00.000Z'),
+        scheduledAt: null,
+        driverName: data.driverName ?? null,
+        notes: null,
+        addressLine1: 'Jl. A',
+        addressLine2: null,
+        addressCity: 'Jakarta',
+        addressProvince: null,
+        customer: { id: 'cust-1', name: 'Budi', phone: '081234567890' },
+        outlet: { id: 'outlet-1', name: 'Toko Utama' },
+        onlineOrder: null,
+        transaction: {
+          id: 'trx-1',
+          receiptNo: 'TRX-01',
+          total: { toString: () => '70000' },
+          items: [{ id: 'item-1' }],
+        },
+      }),
+    },
+  };
+
+  const service = makeService(prisma);
+  const result = await service.updateStatus(managerUser(), 'delivery-1', {
+    status: 'DISIAPKAN',
+    driverName: 'Andi',
+  });
+  assert.equal(result.status, 'DISIAPKAN');
+  assert.equal(result.driverName, 'Andi');
+});
+
 test('Deliveries: create rejects duplicate delivery for transaction', async () => {
   const prisma = {
     transaction: {

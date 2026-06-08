@@ -28,7 +28,11 @@ import {
   TablePagination,
 } from '@/components/dashboard/dashboard-ui';
 import { mapApiError } from '@/lib/api-client';
-import { deliveryStatusExtraStyle, deliveryStatusVariant } from '@/lib/delivery-status-ui';
+import {
+  buildUpdateDeliveryStatusPayload,
+  deliveryStatusExtraStyle,
+  deliveryStatusVariant,
+} from '@/lib/delivery-status-ui';
 import { publishDeliveryUpdated } from '@/lib/delivery-sync';
 import {
   fetchDeliveries,
@@ -256,12 +260,12 @@ export default function DashboardDeliveriesPage() {
     try {
       const updated = await updateDeliveryStatus(
         order.id,
-        {
+        buildUpdateDeliveryStatusPayload({
           status: nextStatus,
-          driverName: driverName.trim() || undefined,
-          cancelReason: nextStatus === 'BATAL' ? cancelReason.trim() : undefined,
-        },
-        detailOutletId,
+          driverName,
+          cancelReason,
+        }),
+        order.outlet.id,
       );
       publishDeliveryUpdated({
         deliveryNo: updated.deliveryNo,
