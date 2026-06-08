@@ -55,6 +55,24 @@ test('FinanceReportsService: profit-loss calculates net profit', async () => {
     outlet: { findFirst: async () => ({ id: 'outlet-1' }) },
     transaction: {
       aggregate: async () => ({ _sum: { total: '1000000' }, _count: { _all: 5 } }),
+      findMany: async () => [
+        {
+          receiptNo: 'TRX-001',
+          completedAt: new Date('2026-06-09T03:30:00.000Z'),
+          total: '500000',
+          status: 'COMPLETED',
+          customer: { name: 'PT Maju' },
+          payments: [{ method: PaymentMethod.CASH }],
+        },
+        {
+          receiptNo: 'TRX-002',
+          completedAt: new Date('2026-06-09T04:00:00.000Z'),
+          total: '500000',
+          status: 'COMPLETED',
+          customer: null,
+          payments: [{ method: PaymentMethod.CREDIT }],
+        },
+      ],
     },
     transactionAdjustment: {
       aggregate: async () => ({ _sum: { amount: '100000' } }),
@@ -78,6 +96,14 @@ test('FinanceReportsService: profit-loss calculates net profit', async () => {
     expense: {
       aggregate: async () => ({ _sum: { amount: '150000' } }),
       groupBy: async () => [{ category: 'OPERATIONAL', _sum: { amount: '150000' } }],
+      findMany: async () => [
+        {
+          category: 'OPERATIONAL',
+          amount: '150000',
+          description: 'Listrik',
+          expenseDate: new Date('2026-06-05T00:00:00.000Z'),
+        },
+      ],
     },
     payment: {
       groupBy: async () => [
@@ -104,15 +130,20 @@ test('FinanceReportsService: profit-loss calculates net profit', async () => {
   assert.equal(result.meta.period, 'month');
   assert.equal(result.meta.outletId, 'outlet-1');
   assert.ok(result.breakdown.sections.length >= 4);
-  assert.equal(result.breakdown.sections[0]?.title, 'Rincian Penjualan per Metode Bayar');
+  assert.equal(result.breakdown.sections[0]?.title, 'Daftar Transaksi Penjualan');
   assert.equal(result.breakdown.sections[0]?.rows.length, 2);
-  assert.equal(result.breakdown.sections[1]?.rows[0]?.label, 'Cat & Finishing');
+  assert.equal(result.breakdown.sections[0]?.rows[0]?.referenceNo, 'TRX-001');
+  assert.equal(result.breakdown.sections[0]?.rows[0]?.customerName, 'PT Maju');
+  assert.equal(result.breakdown.sections[1]?.title, 'Rincian Penjualan per Metode Bayar');
+  assert.equal(result.breakdown.sections[1]?.rows.length, 2);
+  assert.equal(result.breakdown.sections[2]?.rows[0]?.label, 'Cat & Finishing');
 });
 
 test('FinanceReportsService: profit-loss tenant-wide without outletId', async () => {
   const prisma = {
     transaction: {
       aggregate: async () => ({ _sum: { total: '500000' }, _count: { _all: 2 } }),
+      findMany: async () => [],
     },
     transactionAdjustment: {
       aggregate: async () => ({ _sum: { amount: '0' } }),
@@ -121,6 +152,7 @@ test('FinanceReportsService: profit-loss tenant-wide without outletId', async ()
     expense: {
       aggregate: async () => ({ _sum: { amount: '50000' } }),
       groupBy: async () => [{ category: 'OTHER', _sum: { amount: '50000' } }],
+      findMany: async () => [],
     },
     payment: { groupBy: async () => [] },
   };
@@ -138,23 +170,53 @@ test('FinanceReportsService: cash-flow aggregates in and out', async () => {
     outlet: { findFirst: async () => ({ id: 'outlet-1' }) },
     payment: {
       aggregate: async () => ({ _sum: { amount: '400000' } }),
+      findMany: async () => [
+        {
+          amount: '400000',
+          createdAt: new Date('2026-06-09T03:00:00.000Z'),
+          transaction: { receiptNo: 'TRX-CASH-01', customer: { name: 'Walk-in' } },
+        },
+      ],
     },
     receivablePayment: {
       aggregate: async () => ({ _sum: { amount: '200000' } }),
       groupBy: async () => [{ method: PaymentMethod.CASH, _sum: { amount: '200000' }, _count: { id: 1 } }],
+      findMany: async () => [
+        {
+          amount: '200000',
+          method: PaymentMethod.CASH,
+          createdAt: new Date('2026-06-09T04:00:00.000Z'),
+          receiptNumber: 'RCV-001',
+          receivable: {
+            customer: { name: 'PT Maju' },
+            transaction: { receiptNo: 'TRX-CREDIT-01' },
+          },
+        },
+      ],
     },
     payablePayment: {
       aggregate: async () => ({ _sum: { amount: '100000' } }),
+      findMany: async () => [],
     },
     expense: {
       aggregate: async () => ({ _sum: { amount: '50000' } }),
       groupBy: async () => [{ category: 'OPERATIONAL', _sum: { amount: '50000' } }],
+      findMany: async () => [
+        {
+          category: 'OPERATIONAL',
+          amount: '50000',
+          description: 'Listrik',
+          expenseDate: new Date('2026-06-05T00:00:00.000Z'),
+        },
+      ],
     },
     depositTransaction: {
       aggregate: async () => ({ _sum: { amount: '50000' }, _count: { id: 1 } }),
+      findMany: async () => [],
     },
     transactionAdjustment: {
       aggregate: async () => ({ _sum: { amount: '25000' } }),
+      findMany: async () => [],
     },
   };
 
@@ -174,6 +236,11 @@ test('FinanceReportsService: cash-flow aggregates in and out', async () => {
   assert.equal(result.netCashFlow, 475_000);
   assert.equal(result.meta.period, 'custom');
   assert.ok(result.breakdown.sections.some((section) => section.title === 'Rincian Kas Masuk'));
+  assert.ok(result.breakdown.sections.some((section) => section.title === 'Rincian Kas Masuk — Transaksi'));
+  const inflowDetail = result.breakdown.sections.find((s) => s.title === 'Rincian Kas Masuk — Transaksi');
+  assert.ok(inflowDetail && inflowDetail.rows.length >= 2);
+  assert.ok(inflowDetail?.rows.some((row) => row.referenceNo === 'TRX-CASH-01'));
+  assert.ok(inflowDetail?.rows.some((row) => row.referenceNo === 'RCV-001'));
 });
 
 test('FinanceReportsService: daily-summary includes payment mix', async () => {
@@ -181,6 +248,16 @@ test('FinanceReportsService: daily-summary includes payment mix', async () => {
     outlet: { findFirst: async () => ({ id: 'outlet-1' }) },
     transaction: {
       aggregate: async () => ({ _sum: { total: '300000' }, _count: { _all: 3 } }),
+      findMany: async () => [
+        {
+          receiptNo: 'TRX-DAY-01',
+          completedAt: new Date('2026-06-09T05:00:00.000Z'),
+          total: '300000',
+          status: 'COMPLETED',
+          customer: { name: 'Toko Sejahtera' },
+          payments: [{ method: PaymentMethod.CASH }],
+        },
+      ],
     },
     transactionAdjustment: {
       aggregate: async () => ({ _sum: { amount: '0' } }),
@@ -216,6 +293,11 @@ test('FinanceReportsService: daily-summary includes payment mix', async () => {
   assert.equal(result.newReceivables.count, 1);
   assert.equal(result.newReceivables.amount, 100_000);
   assert.equal(result.paymentMix.length, 2);
+  assert.ok(result.breakdown.sections.some((section) => section.title === 'Daftar Transaksi Hari Ini'));
+  assert.equal(
+    result.breakdown.sections.find((section) => section.title === 'Daftar Transaksi Hari Ini')?.rows[0]?.referenceNo,
+    'TRX-DAY-01',
+  );
   assert.ok(result.breakdown.sections.some((section) => section.title === 'Top 10 Produk Terjual'));
   assert.equal(
     result.breakdown.sections.find((section) => section.title === 'Top 10 Produk Terjual')?.rows[0]?.label,

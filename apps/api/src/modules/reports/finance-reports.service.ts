@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
   ErrorCodes,
+  FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT,
   PaymentMethod,
   RECEIVABLE_AGING_BUCKET_LABELS,
   type CashFlowFinanceReport,
@@ -49,7 +50,8 @@ export class FinanceReportsService {
 
     const completedWhere = this.completedTransactionWhere(outletId, user.tenantId, range.startUtc, range.endUtc);
 
-    const [salesAgg, voidRefundAgg, items, expenseAgg, expenseGroups, paymentGroups] = await Promise.all([
+    const [salesAgg, voidRefundAgg, items, expenseAgg, expenseGroups, paymentGroups, periodTransactions, periodExpenses] =
+      await Promise.all([
       this.prisma.transaction.aggregate({
         where: completedWhere,
         _sum: { total: true },
@@ -87,6 +89,30 @@ export class FinanceReportsService {
         where: { transaction: completedWhere },
         _sum: { amount: true },
         _count: { id: true },
+      }),
+      this.prisma.transaction.findMany({
+        where: completedWhere,
+        select: {
+          receiptNo: true,
+          completedAt: true,
+          total: true,
+          status: true,
+          customer: { select: { name: true } },
+          payments: { select: { method: true } },
+        },
+        orderBy: { completedAt: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+      }),
+      this.prisma.expense.findMany({
+        where: this.expenseWhere(outletId, user.tenantId, range),
+        select: {
+          category: true,
+          amount: true,
+          description: true,
+          expenseDate: true,
+        },
+        orderBy: { expenseDate: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
       }),
     ]);
 
@@ -137,6 +163,8 @@ export class FinanceReportsService {
       cogsByCategory,
       cogsByProduct,
       expensesByCategory,
+      periodTransactions,
+      periodExpenses,
     });
 
     return {
@@ -171,6 +199,7 @@ export class FinanceReportsService {
           id: true,
           amount: true,
           paidAmount: true,
+          status: true,
           dueDate: true,
           customer: { select: { name: true } },
           transaction: { select: { receiptNo: true } },
@@ -209,18 +238,27 @@ export class FinanceReportsService {
 
     let outstanding = 0;
     for (const row of openRows) {
-      const amount = computeOutstanding(toIdrInteger(row.amount), toIdrInteger(row.paidAmount));
+      const originalAmount = toIdrInteger(row.amount);
+      const amount = computeOutstanding(originalAmount, toIdrInteger(row.paidAmount));
       outstanding += amount;
       const daysOverdue = computeDaysOverdue(row.dueDate, today);
       const bucket = computeAgingBucket(daysOverdue);
       aging[bucket].count += 1;
       aging[bucket].amount += amount;
 
+      const isOverdue = row.dueDate != null && row.dueDate < today;
+      const displayStatus =
+        row.status === 'PARTIAL' ? 'Sebagian' : isOverdue ? 'Jatuh Tempo' : 'Terbuka';
+
       agingRows.get(bucket)?.push({
         label: row.customer.name,
         referenceNo: row.transaction?.receiptNo ?? row.id.slice(0, 8),
+        customerName: row.customer.name,
+        originalAmount,
+        remainingAmount: amount,
         amount,
         dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
+        status: displayStatus,
       });
     }
 
@@ -230,7 +268,7 @@ export class FinanceReportsService {
     }
 
     const newInPeriod = newRows.reduce((sum, row) => sum + toIdrInteger(row.amount), 0);
-    const breakdown = this.buildReceivablesBreakdown(aging, agingRows);
+    const breakdown = this.buildReceivablesBreakdown(aging, agingRows, openRows.length);
 
     return {
       meta,
@@ -314,6 +352,8 @@ export class FinanceReportsService {
       payableRows.push({
         label: row.supplier.name,
         referenceNo: row.purchaseOrder?.orderNo ?? row.id.slice(0, 8),
+        originalAmount: toIdrInteger(row.amount),
+        remainingAmount: amount,
         amount,
         dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
         status: displayStatus,
@@ -357,6 +397,12 @@ export class FinanceReportsService {
       expenseGroups,
       depositTopUpAgg,
       refundAgg,
+      cashPaymentLines,
+      receivablePaymentLines,
+      depositTopUpLines,
+      payablePaymentLines,
+      expenseLines,
+      refundLines,
     ] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
@@ -410,6 +456,105 @@ export class FinanceReportsService {
         where: this.adjustmentWhere(outletId, user.tenantId, range.startUtc, range.endUtc),
         _sum: { amount: true },
       }),
+      this.prisma.payment.findMany({
+        where: {
+          method: PaymentMethod.CASH,
+          transaction: completedWhere,
+        },
+        select: {
+          amount: true,
+          createdAt: true,
+          transaction: {
+            select: {
+              receiptNo: true,
+              customer: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+      }),
+      this.prisma.receivablePayment.findMany({
+        where: {
+          createdAt: { gte: range.startUtc, lt: range.endUtc },
+          receivable: receivableWhere,
+        },
+        select: {
+          amount: true,
+          method: true,
+          createdAt: true,
+          receiptNumber: true,
+          receivable: {
+            select: {
+              customer: { select: { name: true } },
+              transaction: { select: { receiptNo: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+      }),
+      this.prisma.depositTransaction.findMany({
+        where: {
+          type: 'TOP_UP',
+          createdAt: { gte: range.startUtc, lt: range.endUtc },
+          deposit: { tenantId: user.tenantId },
+        },
+        select: {
+          amount: true,
+          receiptNumber: true,
+          createdAt: true,
+          deposit: {
+            select: {
+              customer: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+      }),
+      this.prisma.payablePayment.findMany({
+        where: {
+          createdAt: { gte: range.startUtc, lt: range.endUtc },
+          payable: payableWhere,
+        },
+        select: {
+          amount: true,
+          method: true,
+          createdAt: true,
+          receiptNumber: true,
+          payable: {
+            select: {
+              supplier: { select: { name: true } },
+              purchaseOrder: { select: { orderNo: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+      }),
+      this.prisma.expense.findMany({
+        where: this.expenseWhere(outletId, user.tenantId, range),
+        select: {
+          category: true,
+          amount: true,
+          description: true,
+          expenseDate: true,
+        },
+        orderBy: { expenseDate: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+      }),
+      this.prisma.transactionAdjustment.findMany({
+        where: this.adjustmentWhere(outletId, user.tenantId, range.startUtc, range.endUtc),
+        select: {
+          amount: true,
+          type: true,
+          createdAt: true,
+          transaction: { select: { receiptNo: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+      }),
     ]);
 
     const cashSales = toIdrInteger(cashSalesAgg._sum?.amount);
@@ -442,6 +587,12 @@ export class FinanceReportsService {
       refunds,
       cashInTotal,
       cashOutTotal,
+      cashPaymentLines,
+      receivablePaymentLines,
+      depositTopUpLines,
+      payablePaymentLines,
+      expenseLines,
+      refundLines,
     });
 
     return {
@@ -476,7 +627,7 @@ export class FinanceReportsService {
 
     const expenseWhere = this.expenseWhere(outletId, user.tenantId, range);
 
-    const [salesAgg, voidRefundAgg, paymentGroups, newReceivables, newPayables, topProductGroups, dayExpenses, shifts] =
+    const [salesAgg, voidRefundAgg, paymentGroups, newReceivables, newPayables, topProductGroups, dayExpenses, shifts, dayTransactions] =
       await Promise.all([
         this.prisma.transaction.aggregate({
           where: completedWhere,
@@ -542,6 +693,19 @@ export class FinanceReportsService {
             },
           },
         }),
+        this.prisma.transaction.findMany({
+          where: completedWhere,
+          select: {
+            receiptNo: true,
+            completedAt: true,
+            total: true,
+            status: true,
+            customer: { select: { name: true } },
+            payments: { select: { method: true } },
+          },
+          orderBy: { completedAt: 'desc' },
+          take: FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT + 1,
+        }),
       ]);
 
     const gross = toIdrInteger(salesAgg._sum?.total);
@@ -553,6 +717,7 @@ export class FinanceReportsService {
       topProductGroups,
       shifts,
       dayExpenses,
+      dayTransactions,
     });
 
     return {
@@ -705,6 +870,122 @@ export class FinanceReportsService {
     }).filter((row) => row.amount > 0 || row.count > 0);
   }
 
+  private formatWibDateTime(date: Date | null | undefined): string | null {
+    if (!date) return null;
+    return date.toLocaleString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+
+  private formatWibDate(date: Date | null | undefined): string | null {
+    if (!date) return null;
+    return date.toLocaleDateString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
+  private limitDetailRows<T>(rows: T[], totalCount?: number): { rows: T[]; truncatedNote?: string } {
+    const limit = FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT;
+    if (rows.length <= limit) {
+      return { rows };
+    }
+    const displayed = rows.slice(0, limit);
+    const total = totalCount ?? rows.length;
+    return {
+      rows: displayed,
+      truncatedNote: `Menampilkan ${limit} transaksi terbaru dari ${total.toLocaleString('id-ID')}`,
+    };
+  }
+
+  private summarizePaymentMethods(
+    payments: Array<{ method: string }>,
+  ): string {
+    if (payments.length === 0) return '—';
+    const unique = [...new Set(payments.map((p) => p.method))];
+    return unique.join(', ');
+  }
+
+  private mapTransactionStatus(status: string): string {
+    switch (status) {
+      case 'COMPLETED':
+        return 'Selesai';
+      case 'VOID':
+        return 'Void';
+      case 'REFUNDED':
+        return 'Refund';
+      case 'PENDING':
+        return 'Pending';
+      default:
+        return status;
+    }
+  }
+
+  private buildSalesTransactionRows(
+    transactions: Array<{
+      receiptNo: string;
+      completedAt: Date | null;
+      total: Parameters<typeof toIdrInteger>[0];
+      status: string;
+      customer: { name: string } | null;
+      payments: Array<{ method: string }>;
+    }>,
+  ): FinanceReportBreakdownSection {
+    const allRows: FinanceReportBreakdownRow[] = transactions.map((tx) => ({
+      label: this.summarizePaymentMethods(tx.payments),
+      referenceNo: tx.receiptNo,
+      dateTime: this.formatWibDateTime(tx.completedAt),
+      customerName: tx.customer?.name ?? 'Walk-in',
+      status: this.mapTransactionStatus(tx.status),
+      amount: toIdrInteger(tx.total),
+    }));
+
+    const { rows, truncatedNote } = this.limitDetailRows(allRows, transactions.length);
+
+    return {
+      title: 'Daftar Transaksi Penjualan',
+      rows,
+      subtotal: rows.reduce((sum, row) => sum + row.amount, 0),
+      emptyMessage: 'Tidak ada transaksi pada periode ini',
+      truncatedNote,
+    };
+  }
+
+  private buildExpenseDetailRows(
+    expenses: Array<{
+      category: string;
+      amount: Parameters<typeof toIdrInteger>[0];
+      description: string | null;
+      expenseDate: Date;
+    }>,
+  ): FinanceReportBreakdownSection {
+    const allRows: FinanceReportBreakdownRow[] = expenses.map((row) => ({
+      label: row.category,
+      subLabel: row.description ?? undefined,
+      dateTime: this.formatWibDate(row.expenseDate),
+      amount: toIdrInteger(row.amount),
+      credit: toIdrInteger(row.amount),
+    }));
+
+    const { rows, truncatedNote } = this.limitDetailRows(allRows, expenses.length);
+
+    return {
+      title: 'Rincian Pengeluaran Operasional',
+      rows,
+      subtotal: rows.reduce((sum, row) => sum + row.amount, 0),
+      emptyMessage: 'Tidak ada pengeluaran pada periode ini',
+      truncatedNote,
+    };
+  }
+
   private pct(amount: number, total: number): number {
     return total > 0 ? Math.round((amount / total) * 1000) / 10 : 0;
   }
@@ -718,6 +999,20 @@ export class FinanceReportsService {
     cogsByCategory: Map<string, { quantity: number; amount: number }>;
     cogsByProduct: Map<string, { quantity: number; amount: number }>;
     expensesByCategory: Array<{ category: string; amount: number }>;
+    periodTransactions: Array<{
+      receiptNo: string;
+      completedAt: Date | null;
+      total: Parameters<typeof toIdrInteger>[0];
+      status: string;
+      customer: { name: string } | null;
+      payments: Array<{ method: string }>;
+    }>;
+    periodExpenses: Array<{
+      category: string;
+      amount: Parameters<typeof toIdrInteger>[0];
+      description: string | null;
+      expenseDate: Date;
+    }>;
   }): FinanceReportBreakdown {
     const salesRows: FinanceReportBreakdownRow[] = input.salesByMethod.map((row) => ({
       label: row.method,
@@ -752,6 +1047,7 @@ export class FinanceReportsService {
     }));
 
     const sections: FinanceReportBreakdownSection[] = [
+      this.buildSalesTransactionRows(input.periodTransactions),
       {
         title: 'Rincian Penjualan per Metode Bayar',
         rows: salesRows,
@@ -771,11 +1067,12 @@ export class FinanceReportsService {
         emptyMessage: 'Tidak ada data pada periode ini',
       },
       {
-        title: 'Rincian Beban Operasional',
+        title: 'Rincian Beban Operasional per Kategori',
         rows: expenseRows,
         subtotal: input.operatingExpenses,
         emptyMessage: 'Tidak ada data pada periode ini',
       },
+      this.buildExpenseDetailRows(input.periodExpenses),
     ];
 
     return { sections };
@@ -784,13 +1081,33 @@ export class FinanceReportsService {
   private buildReceivablesBreakdown(
     aging: Record<ReceivableAgingBucket, { count: number; amount: number }>,
     agingRows: Map<ReceivableAgingBucket, FinanceReportBreakdownRow[]>,
+    totalOpenCount: number,
   ): FinanceReportBreakdown {
-    const sections: FinanceReportBreakdownSection[] = AGING_BUCKET_ORDER.map((bucket) => ({
+    const flatRows: FinanceReportBreakdownRow[] = [];
+    for (const bucket of AGING_BUCKET_ORDER) {
+      flatRows.push(...(agingRows.get(bucket) ?? []));
+    }
+    flatRows.sort((a, b) => b.amount - a.amount);
+
+    const { rows: limitedFlat, truncatedNote } = this.limitDetailRows(flatRows, totalOpenCount);
+
+    const agingSections: FinanceReportBreakdownSection[] = AGING_BUCKET_ORDER.map((bucket) => ({
       title: `${RECEIVABLE_AGING_BUCKET_LABELS[bucket]} (${aging[bucket].count} faktur)`,
       rows: agingRows.get(bucket) ?? [],
       subtotal: aging[bucket].amount,
       emptyMessage: 'Tidak ada piutang pada bucket ini',
     }));
+
+    const sections: FinanceReportBreakdownSection[] = [
+      {
+        title: 'Daftar Piutang Outstanding',
+        rows: limitedFlat,
+        subtotal: limitedFlat.reduce((sum, row) => sum + row.amount, 0),
+        emptyMessage: 'Tidak ada piutang outstanding pada periode ini',
+        truncatedNote,
+      },
+      ...agingSections,
+    ];
 
     return { sections };
   }
@@ -839,6 +1156,52 @@ export class FinanceReportsService {
     refunds: number;
     cashInTotal: number;
     cashOutTotal: number;
+    cashPaymentLines: Array<{
+      amount: Parameters<typeof toIdrInteger>[0];
+      createdAt: Date;
+      transaction: {
+        receiptNo: string;
+        customer: { name: string } | null;
+      };
+    }>;
+    receivablePaymentLines: Array<{
+      amount: Parameters<typeof toIdrInteger>[0];
+      method: string;
+      createdAt: Date;
+      receiptNumber: string | null;
+      receivable: {
+        customer: { name: string };
+        transaction: { receiptNo: string } | null;
+      };
+    }>;
+    depositTopUpLines: Array<{
+      amount: Parameters<typeof toIdrInteger>[0];
+      receiptNumber: string | null;
+      createdAt: Date;
+      deposit: { customer: { name: string } };
+    }>;
+    payablePaymentLines: Array<{
+      amount: Parameters<typeof toIdrInteger>[0];
+      method: string;
+      createdAt: Date;
+      receiptNumber: string | null;
+      payable: {
+        supplier: { name: string };
+        purchaseOrder: { orderNo: string } | null;
+      };
+    }>;
+    expenseLines: Array<{
+      category: string;
+      amount: Parameters<typeof toIdrInteger>[0];
+      description: string | null;
+      expenseDate: Date;
+    }>;
+    refundLines: Array<{
+      amount: Parameters<typeof toIdrInteger>[0];
+      type: string;
+      createdAt: Date;
+      transaction: { receiptNo: string };
+    }>;
   }): FinanceReportBreakdown {
     const collectionRows = input.receivablePaymentGroups
       .map((row) => ({
@@ -888,6 +1251,67 @@ export class FinanceReportsService {
       },
     ].filter((row) => row.amount > 0);
 
+    const cashInDetailRows: FinanceReportBreakdownRow[] = [
+      ...input.cashPaymentLines.map((line) => ({
+        label: 'Penjualan tunai',
+        referenceNo: line.transaction.receiptNo,
+        dateTime: this.formatWibDateTime(line.createdAt),
+        customerName: line.transaction.customer?.name ?? 'Walk-in',
+        amount: toIdrInteger(line.amount),
+        debit: toIdrInteger(line.amount),
+      })),
+      ...input.receivablePaymentLines.map((line) => ({
+        label: `Pelunasan piutang (${line.method})`,
+        referenceNo: line.receiptNumber ?? line.receivable.transaction?.receiptNo ?? undefined,
+        dateTime: this.formatWibDateTime(line.createdAt),
+        customerName: line.receivable.customer.name,
+        amount: toIdrInteger(line.amount),
+        debit: toIdrInteger(line.amount),
+      })),
+      ...input.depositTopUpLines.map((line) => ({
+        label: 'Top-up deposit pelanggan',
+        referenceNo: line.receiptNumber ?? undefined,
+        dateTime: this.formatWibDateTime(line.createdAt),
+        customerName: line.deposit.customer.name,
+        amount: toIdrInteger(line.amount),
+        debit: toIdrInteger(line.amount),
+      })),
+    ].sort((a, b) => (b.dateTime ?? '').localeCompare(a.dateTime ?? ''));
+
+    const cashOutDetailRows: FinanceReportBreakdownRow[] = [
+      ...input.payablePaymentLines.map((line) => ({
+        label: `Bayar utang (${line.method})`,
+        referenceNo: line.receiptNumber ?? line.payable.purchaseOrder?.orderNo ?? undefined,
+        dateTime: this.formatWibDateTime(line.createdAt),
+        customerName: line.payable.supplier.name,
+        amount: toIdrInteger(line.amount),
+        credit: toIdrInteger(line.amount),
+      })),
+      ...input.expenseLines.map((line) => ({
+        label: line.category,
+        subLabel: line.description ?? undefined,
+        dateTime: this.formatWibDate(line.expenseDate),
+        amount: toIdrInteger(line.amount),
+        credit: toIdrInteger(line.amount),
+      })),
+      ...input.refundLines.map((line) => ({
+        label: `${line.type === 'VOID' ? 'Void' : 'Refund'}`,
+        referenceNo: line.transaction.receiptNo,
+        dateTime: this.formatWibDateTime(line.createdAt),
+        amount: toIdrInteger(line.amount),
+        credit: toIdrInteger(line.amount),
+      })),
+    ].sort((a, b) => (b.dateTime ?? '').localeCompare(a.dateTime ?? ''));
+
+    const { rows: limitedInflow, truncatedNote: inflowNote } = this.limitDetailRows(
+      cashInDetailRows,
+      cashInDetailRows.length,
+    );
+    const { rows: limitedOutflow, truncatedNote: outflowNote } = this.limitDetailRows(
+      cashOutDetailRows,
+      cashOutDetailRows.length,
+    );
+
     return {
       sections: [
         {
@@ -897,22 +1321,36 @@ export class FinanceReportsService {
           emptyMessage: 'Tidak ada data pada periode ini',
         },
         {
+          title: 'Rincian Kas Masuk — Transaksi',
+          rows: limitedInflow,
+          subtotal: limitedInflow.reduce((sum, row) => sum + row.amount, 0),
+          emptyMessage: 'Tidak ada kas masuk pada periode ini',
+          truncatedNote: inflowNote,
+        },
+        {
           title: 'Rincian Pelunasan Piutang per Metode',
           rows: collectionRows,
           subtotal: input.receivableCollections,
           emptyMessage: 'Tidak ada pelunasan piutang pada periode ini',
         },
         {
-          title: 'Rincian Kas Keluar — Pengeluaran per Kategori',
-          rows: expenseRows,
-          subtotal: input.operatingExpenses,
-          emptyMessage: 'Tidak ada pengeluaran pada periode ini',
-        },
-        {
           title: 'Rincian Kas Keluar',
           rows: outflowRows,
           subtotal: input.cashOutTotal,
           emptyMessage: 'Tidak ada data pada periode ini',
+        },
+        {
+          title: 'Rincian Kas Keluar — Transaksi',
+          rows: limitedOutflow,
+          subtotal: limitedOutflow.reduce((sum, row) => sum + row.amount, 0),
+          emptyMessage: 'Tidak ada kas keluar pada periode ini',
+          truncatedNote: outflowNote,
+        },
+        {
+          title: 'Rincian Kas Keluar — Pengeluaran per Kategori',
+          rows: expenseRows,
+          subtotal: input.operatingExpenses,
+          emptyMessage: 'Tidak ada pengeluaran pada periode ini',
         },
       ],
     };
@@ -936,6 +1374,14 @@ export class FinanceReportsService {
       amount: Parameters<typeof toIdrInteger>[0];
       description: string | null;
       expenseDate: Date;
+    }>;
+    dayTransactions: Array<{
+      receiptNo: string;
+      completedAt: Date | null;
+      total: Parameters<typeof toIdrInteger>[0];
+      status: string;
+      customer: { name: string } | null;
+      payments: Array<{ method: string }>;
     }>;
   }): FinanceReportBreakdown {
     const paymentRows: FinanceReportBreakdownRow[] = input.paymentMix.map((row) => ({
@@ -968,11 +1414,16 @@ export class FinanceReportsService {
     const expenseRows: FinanceReportBreakdownRow[] = input.dayExpenses.map((row) => ({
       label: row.category,
       subLabel: row.description ?? undefined,
+      dateTime: this.formatWibDate(row.expenseDate),
       amount: toIdrInteger(row.amount),
     }));
 
+    const transactionSection = this.buildSalesTransactionRows(input.dayTransactions);
+    transactionSection.title = 'Daftar Transaksi Hari Ini';
+
     return {
       sections: [
+        transactionSection,
         {
           title: 'Transaksi per Metode Bayar',
           rows: paymentRows,

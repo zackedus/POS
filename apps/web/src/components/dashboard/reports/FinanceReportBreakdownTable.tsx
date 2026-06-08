@@ -25,6 +25,11 @@ export interface FinanceReportBreakdownTableProps {
   showDueDate?: boolean;
   showStatus?: boolean;
   showReference?: boolean;
+  showDateTime?: boolean;
+  showCustomer?: boolean;
+  showOriginalAmount?: boolean;
+  showRemainingAmount?: boolean;
+  showDebitCredit?: boolean;
   showQuantity?: boolean;
   showCount?: boolean;
   showPercentage?: boolean;
@@ -36,6 +41,11 @@ export function FinanceReportBreakdownTable({
   showDueDate = false,
   showStatus = false,
   showReference = false,
+  showDateTime = false,
+  showCustomer = false,
+  showOriginalAmount = false,
+  showRemainingAmount = false,
+  showDebitCredit = false,
   showQuantity = false,
   showCount = false,
   showPercentage = false,
@@ -43,15 +53,25 @@ export function FinanceReportBreakdownTable({
 }: FinanceReportBreakdownTableProps) {
   const hasRows = section.rows.length > 0;
   const fontSize = compact ? '0.8125rem' : '0.875rem';
+  const showDateCol = showDateTime || section.rows.some((row) => row.dateTime);
   const showQtyCol = showQuantity || section.rows.some((row) => row.quantity != null);
   const showCntCol = showCount || section.rows.some((row) => row.count != null);
   const showPctCol = showPercentage || section.rows.some((row) => row.percentage != null);
   const showRefCol = showReference || section.rows.some((row) => row.referenceNo);
   const showDueCol = showDueDate || section.rows.some((row) => row.dueDate);
   const showStatusCol = showStatus || section.rows.some((row) => row.status);
+  const showCustomerCol = showCustomer || section.rows.some((row) => row.customerName);
+  const showOriginalCol = showOriginalAmount || section.rows.some((row) => row.originalAmount != null);
+  const showRemainingCol = showRemainingAmount || section.rows.some((row) => row.remainingAmount != null);
+  const showDebitCreditCol = showDebitCredit || section.rows.some((row) => row.debit != null || row.credit != null);
 
   return (
     <SectionCard title={section.title}>
+      {section.truncatedNote ? (
+        <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
+          {section.truncatedNote}
+        </p>
+      ) : null}
       {!hasRows ? (
         <p style={{ margin: 0, fontSize, color: '#64748b' }}>
           {section.emptyMessage ?? 'Tidak ada data pada periode ini'}
@@ -65,15 +85,26 @@ export function FinanceReportBreakdownTable({
             <thead>
               <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
                 <th style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>Keterangan</th>
+                {showDateCol ? <th style={{ padding: '0.5rem', textAlign: 'left' }}>Tanggal</th> : null}
                 {showRefCol ? (
                   <th style={{ padding: '0.5rem', textAlign: 'left' }}>No. Ref</th>
                 ) : null}
+                {showCustomerCol ? <th style={{ padding: '0.5rem', textAlign: 'left' }}>Pelanggan</th> : null}
                 {showQtyCol ? <th style={{ padding: '0.5rem', textAlign: 'right' }}>Qty</th> : null}
                 {showCntCol ? <th style={{ padding: '0.5rem', textAlign: 'right' }}>Jumlah</th> : null}
                 {showDueCol ? <th style={{ padding: '0.5rem', textAlign: 'left' }}>Jatuh Tempo</th> : null}
                 {showStatusCol ? <th style={{ padding: '0.5rem', textAlign: 'left' }}>Status</th> : null}
+                {showOriginalCol ? <th style={{ padding: '0.5rem', textAlign: 'right' }}>Jumlah</th> : null}
+                {showRemainingCol ? <th style={{ padding: '0.5rem', textAlign: 'right' }}>Sisa</th> : null}
                 {showPctCol ? <th style={{ padding: '0.5rem', textAlign: 'right' }}>%</th> : null}
-                <th style={{ padding: '0.5rem 0 0.5rem 0.5rem', textAlign: 'right' }}>Nominal</th>
+                {showDebitCreditCol ? (
+                  <>
+                    <th style={{ padding: '0.5rem', textAlign: 'right' }}>Debit</th>
+                    <th style={{ padding: '0.5rem', textAlign: 'right' }}>Kredit</th>
+                  </>
+                ) : (
+                  <th style={{ padding: '0.5rem 0 0.5rem 0.5rem', textAlign: 'right' }}>Nominal</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -91,8 +122,14 @@ export function FinanceReportBreakdownTable({
                       <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{row.subLabel}</div>
                     ) : null}
                   </td>
+                  {showDateCol ? (
+                    <td style={{ padding: '0.5rem', color: '#475569', whiteSpace: 'nowrap' }}>{row.dateTime ?? '—'}</td>
+                  ) : null}
                   {showRefCol ? (
                     <td style={{ padding: '0.5rem', color: '#475569' }}>{row.referenceNo ?? '—'}</td>
+                  ) : null}
+                  {showCustomerCol ? (
+                    <td style={{ padding: '0.5rem', color: '#475569' }}>{row.customerName ?? '—'}</td>
                   ) : null}
                   {showQtyCol ? (
                     <td style={{ padding: '0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
@@ -110,21 +147,42 @@ export function FinanceReportBreakdownTable({
                   {showStatusCol ? (
                     <td style={{ padding: '0.5rem', color: '#475569' }}>{row.status ?? '—'}</td>
                   ) : null}
+                  {showOriginalCol ? (
+                    <td style={{ padding: '0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {row.originalAmount != null ? formatCurrencyIDR(row.originalAmount) : '—'}
+                    </td>
+                  ) : null}
+                  {showRemainingCol ? (
+                    <td style={{ padding: '0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {row.remainingAmount != null ? formatCurrencyIDR(row.remainingAmount) : formatCurrencyIDR(row.amount)}
+                    </td>
+                  ) : null}
                   {showPctCol ? (
                     <td style={{ padding: '0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {row.percentage != null ? `${row.percentage}%` : '—'}
                     </td>
                   ) : null}
-                  <td
-                    style={{
-                      padding: '0.5rem 0 0.5rem 0.5rem',
-                      textAlign: 'right',
-                      fontWeight: 500,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {formatCurrencyIDR(row.amount)}
-                  </td>
+                  {showDebitCreditCol ? (
+                    <>
+                      <td style={{ padding: '0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {row.debit != null ? formatCurrencyIDR(row.debit) : '—'}
+                      </td>
+                      <td style={{ padding: '0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {row.credit != null ? formatCurrencyIDR(row.credit) : '—'}
+                      </td>
+                    </>
+                  ) : (
+                    <td
+                      style={{
+                        padding: '0.5rem 0 0.5rem 0.5rem',
+                        textAlign: 'right',
+                        fontWeight: 500,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {formatCurrencyIDR(row.amount)}
+                    </td>
+                  )}
                 </tr>
               ))}
               {section.subtotal != null ? (
@@ -132,27 +190,45 @@ export function FinanceReportBreakdownTable({
                   <td
                     colSpan={
                       1 +
+                      (showDateCol ? 1 : 0) +
                       (showRefCol ? 1 : 0) +
+                      (showCustomerCol ? 1 : 0) +
                       (showQtyCol ? 1 : 0) +
                       (showCntCol ? 1 : 0) +
                       (showDueCol ? 1 : 0) +
                       (showStatusCol ? 1 : 0) +
+                      (showOriginalCol ? 1 : 0) +
+                      (showRemainingCol ? 1 : 0) +
                       (showPctCol ? 1 : 0)
                     }
                     style={{ padding: '0.625rem 0.5rem 0.625rem 0', fontWeight: 700 }}
                   >
                     Subtotal
                   </td>
-                  <td
-                    style={{
-                      padding: '0.625rem 0 0.625rem 0.5rem',
-                      textAlign: 'right',
-                      fontWeight: 700,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {formatCurrencyIDR(section.subtotal)}
-                  </td>
+                  {showDebitCreditCol ? (
+                    <td
+                      colSpan={2}
+                      style={{
+                        padding: '0.625rem 0 0.625rem 0.5rem',
+                        textAlign: 'right',
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {formatCurrencyIDR(section.subtotal)}
+                    </td>
+                  ) : (
+                    <td
+                      style={{
+                        padding: '0.625rem 0 0.625rem 0.5rem',
+                        textAlign: 'right',
+                        fontWeight: 700,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {formatCurrencyIDR(section.subtotal)}
+                    </td>
+                  )}
                 </tr>
               ) : null}
             </tbody>

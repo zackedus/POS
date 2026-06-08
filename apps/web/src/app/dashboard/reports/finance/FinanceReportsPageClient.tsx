@@ -141,6 +141,7 @@ export function FinanceReportsPageClient() {
       <style>{`
         .print-only { display: none; }
         @media print {
+          @page { size: A4 portrait; margin: 15mm; }
           body * { visibility: hidden; }
           .print-only, .print-only * { visibility: visible; display: block !important; }
           .print-only { position: absolute; left: 0; top: 0; width: 100%; }

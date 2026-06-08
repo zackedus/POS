@@ -30,6 +30,28 @@ const profitLossReport: ProfitLossReport = {
   breakdown: {
     sections: [
       {
+        title: 'Daftar Transaksi Penjualan',
+        rows: [
+          {
+            label: 'CASH',
+            referenceNo: 'TRX-001',
+            dateTime: '09/06/2026, 10.30',
+            customerName: 'PT Maju',
+            status: 'Selesai',
+            amount: 500_000,
+          },
+          {
+            label: 'CREDIT',
+            referenceNo: 'TRX-002',
+            dateTime: '09/06/2026, 11.00',
+            customerName: 'Walk-in',
+            status: 'Selesai',
+            amount: 500_000,
+          },
+        ],
+        subtotal: 1_000_000,
+      },
+      {
         title: 'Rincian Penjualan per Metode Bayar',
         rows: [
           { label: 'CASH', count: 3, amount: 700_000, percentage: 70 },
@@ -47,7 +69,7 @@ const profitLossReport: ProfitLossReport = {
 };
 
 describe('FinancialReportPrint', () => {
-  it('renders P&L summary and breakdown detail tables', () => {
+  it('renders P&L summary and transaction detail rows', () => {
     const html = renderToStaticMarkup(
       <FinancialReportPrint
         reportType="profit-loss"
@@ -59,6 +81,10 @@ describe('FinancialReportPrint', () => {
 
     expect(html).toMatch(/Laba Rugi/);
     expect(html).toMatch(/Penjualan bersih/);
+    expect(html).toMatch(/Daftar Transaksi Penjualan/);
+    expect(html).toMatch(/TRX-001/);
+    expect(html).toMatch(/PT Maju/);
+    expect(html).toMatch(/Selesai/);
     expect(html).toMatch(/Rincian Penjualan per Metode Bayar/);
     expect(html).toMatch(/Tunai/);
     expect(html).toMatch(/Tempo \/ Piutang/);

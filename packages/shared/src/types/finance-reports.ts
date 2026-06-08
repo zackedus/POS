@@ -6,9 +6,15 @@ export interface FinanceReportBreakdownRow {
   label: string;
   subLabel?: string;
   referenceNo?: string;
+  dateTime?: string | null;
+  customerName?: string | null;
   quantity?: number;
   count?: number;
   amount: number;
+  originalAmount?: number;
+  remainingAmount?: number;
+  debit?: number;
+  credit?: number;
   percentage?: number;
   dueDate?: string | null;
   status?: string;
@@ -20,7 +26,12 @@ export interface FinanceReportBreakdownSection {
   rows: FinanceReportBreakdownRow[];
   subtotal?: number;
   emptyMessage?: string;
+  /** Shown when rows are capped (e.g. "Menampilkan 500 transaksi terbaru dari 1.234"). */
+  truncatedNote?: string;
 }
+
+/** Max transaction detail rows returned per breakdown section. */
+export const FINANCE_REPORT_TRANSACTION_DETAIL_LIMIT = 500;
 
 /** Structured detail tables returned alongside summary totals. */
 export interface FinanceReportBreakdown {
