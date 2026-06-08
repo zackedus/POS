@@ -10,6 +10,11 @@ export class FulfillmentQueryDto {
   @IsString()
   status?: string;
 
+  /** Comma-separated OnlineOrderChannel values, e.g. WEB or TOKOPEDIA,SHOPEE,OTHER */
+  @IsOptional()
+  @IsString()
+  channel?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

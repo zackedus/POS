@@ -1,4 +1,5 @@
-import type { OnlineOrderStatus } from '@barokah/database';
+import type { OnlineOrderStatus, OnlineOrderChannel } from '@barokah/database';
+import { ONLINE_ORDER_CHANNEL_LABELS } from '@barokah/shared';
 
 const JAKARTA_TZ = 'Asia/Jakarta';
 const PAYMENT_TTL_MINUTES = 60;
@@ -28,6 +29,20 @@ export function getJakartaDateKey(date = new Date()): string {
 export function buildOrderNo(dateKey: string, sequence: number): string {
   const compact = dateKey.replace(/-/g, '');
   return `WEB-${compact}-${String(sequence).padStart(4, '0')}`;
+}
+
+export function buildMarketplaceOrderNo(
+  channel: Extract<OnlineOrderChannel, 'TOKOPEDIA' | 'SHOPEE' | 'OTHER'>,
+  dateKey: string,
+  sequence: number,
+): string {
+  const prefix = channel === 'TOKOPEDIA' ? 'TKP' : channel === 'SHOPEE' ? 'SHP' : 'OTH';
+  const compact = dateKey.replace(/-/g, '');
+  return `MP-${prefix}-${compact}-${String(sequence).padStart(4, '0')}`;
+}
+
+export function onlineOrderChannelLabel(channel: OnlineOrderChannel): string {
+  return ONLINE_ORDER_CHANNEL_LABELS[channel] ?? channel;
 }
 
 export function paymentExpiresAt(from = new Date()): Date {

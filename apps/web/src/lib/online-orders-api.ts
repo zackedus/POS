@@ -1,5 +1,6 @@
 import { apiConfig } from '@/lib/api';
 import { authApiJson } from '@/lib/api-client';
+import { MARKETPLACE_ORDER_CHANNELS } from '@barokah/shared';
 
 const BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/online-orders`;
 
@@ -19,6 +20,9 @@ export interface FulfillmentOrderItem {
 export interface FulfillmentOrder {
   id: string;
   orderNo: string;
+  channel: string;
+  channelLabel: string;
+  externalOrderRef: string | null;
   status: string;
   statusLabel: string;
   createdAt: string;
@@ -96,14 +100,54 @@ export interface ShippingLabelData {
   notes: string | null;
 }
 
-export async function fetchFulfillmentQueue(outletId?: string): Promise<FulfillmentOrder[]> {
-  const params = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+export type FulfillmentChannelFilter = 'WEB' | typeof MARKETPLACE_ORDER_CHANNELS;
+
+export async function fetchFulfillmentQueue(
+  outletId?: string,
+  channel?: FulfillmentChannelFilter,
+): Promise<FulfillmentOrder[]> {
+  const params = new URLSearchParams();
+  if (outletId) params.set('outletId', outletId);
+  if (channel) params.set('channel', channel);
+  const qs = params.toString();
   const data = await authApiJson<PaginatedOrders>(
-    `${BASE}/fulfillment${params}`,
+    `${BASE}/fulfillment${qs ? `?${qs}` : ''}`,
     undefined,
     'Gagal memuat antrian order online.',
   );
   return data.items;
+}
+
+export interface CreateMarketplaceOrderPayload {
+  outletId: string;
+  clientRequestId: string;
+  channel: 'TOKOPEDIA' | 'SHOPEE' | 'OTHER';
+  externalOrderRef: string;
+  customerName: string;
+  customerPhone: string;
+  customerNotes?: string;
+  fulfillmentType: 'PICKUP' | 'DELIVERY';
+  deliveryAddress?: {
+    street: string;
+    district: string;
+    city: string;
+    postalCode?: string;
+  };
+  items: Array<{ productId: string; quantity: number }>;
+}
+
+export async function createMarketplaceOrder(
+  payload: CreateMarketplaceOrderPayload,
+): Promise<FulfillmentOrder> {
+  return authApiJson<FulfillmentOrder>(
+    `${BASE}/marketplace`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    'Gagal mencatat order marketplace.',
+  );
 }
 
 export async function fetchManagerOrders(params: {

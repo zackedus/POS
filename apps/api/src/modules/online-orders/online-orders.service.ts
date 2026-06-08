@@ -11,9 +11,10 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { ErrorCodes } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { resolveOutletId } from '../../common/utils/outlet.util';
-import { toIdrInteger } from '../../common/utils/money.util';
+import { toIdrInteger, idrToDecimal } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { FulfillmentQueryDto } from './dto/fulfillment-query.dto';
+import type { CreateMarketplaceOrderDto } from './dto/create-marketplace-order.dto';
 import type { ManagerOrdersQueryDto } from './dto/manager-orders-query.dto';
 import type { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import type { MidtransNotification } from './midtrans.service';
@@ -28,8 +29,11 @@ import {
 } from './online-order-delivery.util';
 import {
   ALLOWED_STATUS_TRANSITIONS,
+  buildMarketplaceOrderNo,
   formatDeliveryAddressSnippet,
   fulfillmentTypeLabel,
+  normalizePhone,
+  onlineOrderChannelLabel,
   orderStatusLabel,
 } from './online-order.util';
 
@@ -51,11 +55,16 @@ export class OnlineOrdersService {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+    const channelFilter = query.channel
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     const where = {
       tenantId: user.tenantId,
       outletId,
       status: { in: statusFilter as never[] },
+      ...(channelFilter && channelFilter.length > 0 ? { channel: { in: channelFilter as never[] } } : {}),
     };
 
     const [orders, total] = await Promise.all([
@@ -70,38 +79,271 @@ export class OnlineOrdersService {
     ]);
 
     return {
-      items: orders.map((order) => ({
-        id: order.id,
-        orderNo: order.orderNo,
-        status: order.status,
-        statusLabel: orderStatusLabel(order.status),
-        createdAt: order.createdAt.toISOString(),
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        fulfillmentType: order.fulfillmentType,
-        fulfillmentTypeLabel: fulfillmentTypeLabel(order.fulfillmentType),
-        deliveryAddressSnippet: formatDeliveryAddressSnippet(order.deliveryAddress),
-        deliveryAddressFull: formatOnlineDeliveryAddressFull(order.deliveryAddress),
-        shippingFee: toIdrInteger(order.shippingFee),
-        total: toIdrInteger(order.total),
-        itemCount: order.items.length,
-        notes: order.customerNotes,
-        items: order.items.map((item) => ({
-          productName: item.productName,
-          quantity: Number(item.quantity),
-          sku: item.sku,
-        })),
-        delivery: order.deliveryOrder
-          ? {
-              id: order.deliveryOrder.id,
-              deliveryNo: order.deliveryOrder.deliveryNo,
-              status: order.deliveryOrder.status,
-              statusLabel: deliveryStatusLabel(order.deliveryOrder.status),
-            }
-          : null,
-      })),
+      items: orders.map((order) => this.mapFulfillmentOrder(order)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  private mapFulfillmentOrder(order: {
+    id: string;
+    orderNo: string;
+    channel: string;
+    externalOrderRef: string | null;
+    status: string;
+    createdAt: Date;
+    customerName: string;
+    customerPhone: string;
+    fulfillmentType: string;
+    deliveryAddress: unknown;
+    shippingFee: { toString(): string };
+    total: { toString(): string };
+    customerNotes: string | null;
+    items: Array<{ productName: string; quantity: { toString(): string }; sku: string }>;
+    deliveryOrder: { id: string; deliveryNo: string; status: DeliveryStatus } | null;
+  }) {
+    return {
+      id: order.id,
+      orderNo: order.orderNo,
+      channel: order.channel,
+      channelLabel: onlineOrderChannelLabel(order.channel as never),
+      externalOrderRef: order.externalOrderRef,
+      status: order.status,
+      statusLabel: orderStatusLabel(order.status as never),
+      createdAt: order.createdAt.toISOString(),
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      fulfillmentType: order.fulfillmentType,
+      fulfillmentTypeLabel: fulfillmentTypeLabel(order.fulfillmentType as 'PICKUP' | 'DELIVERY'),
+      deliveryAddressSnippet: formatDeliveryAddressSnippet(order.deliveryAddress),
+      deliveryAddressFull: formatOnlineDeliveryAddressFull(order.deliveryAddress),
+      shippingFee: toIdrInteger(order.shippingFee),
+      total: toIdrInteger(order.total),
+      itemCount: order.items.length,
+      notes: order.customerNotes,
+      items: order.items.map((item) => ({
+        productName: item.productName,
+        quantity: Number(item.quantity),
+        sku: item.sku,
+      })),
+      delivery: order.deliveryOrder
+        ? {
+            id: order.deliveryOrder.id,
+            deliveryNo: order.deliveryOrder.deliveryNo,
+            status: order.deliveryOrder.status,
+            statusLabel: deliveryStatusLabel(order.deliveryOrder.status),
+          }
+        : null,
+    };
+  }
+
+  async createMarketplaceOrder(user: AuthJwtPayload, dto: CreateMarketplaceOrderDto) {
+    const outletId = resolveOutletId(user, dto.outletId);
+
+    const existing = await this.prisma.onlineOrder.findUnique({
+      where: {
+        tenantId_clientRequestId: {
+          tenantId: user.tenantId,
+          clientRequestId: dto.clientRequestId,
+        },
+      },
+      include: { items: true, deliveryOrder: { select: { id: true, deliveryNo: true, status: true } } },
+    });
+    if (existing) {
+      return this.mapFulfillmentOrder(existing);
+    }
+
+    const duplicateRef = await this.prisma.onlineOrder.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        channel: dto.channel,
+        externalOrderRef: dto.externalOrderRef.trim(),
+        status: { notIn: ['CANCELLED', 'EXPIRED'] },
+      },
+      select: { id: true, orderNo: true },
+    });
+    if (duplicateRef) {
+      throw new ConflictException({
+        code: ErrorCodes.DUPLICATE_ENTRY,
+        message: `Order marketplace ${dto.externalOrderRef.trim()} sudah tercatat (${duplicateRef.orderNo}).`,
+      });
+    }
+
+    if (dto.fulfillmentType === 'DELIVERY' && !dto.deliveryAddress) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.DELIVERY_ADDRESS_REQUIRED,
+        message: 'Alamat pengiriman wajib untuk order antar.',
+      });
+    }
+
+    const mergedItems = dto.items.reduce<Map<string, number>>((acc, item) => {
+      acc.set(item.productId, (acc.get(item.productId) ?? 0) + item.quantity);
+      return acc;
+    }, new Map());
+    const productIds = [...mergedItems.keys()];
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        tenantId: user.tenantId,
+        id: { in: productIds },
+        isActive: true,
+        hasVariants: false,
+      },
+      select: { id: true, name: true, sku: true, price: true },
+    });
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    for (const productId of productIds) {
+      if (!productMap.has(productId)) {
+        throw new NotFoundException({
+          code: ErrorCodes.ONLINE_PRODUCT_NOT_AVAILABLE,
+          message: 'Produk tidak ditemukan atau tidak aktif.',
+        });
+      }
+    }
+
+    const inventory = await this.prisma.inventoryItem.findMany({
+      where: { outletId, productId: { in: productIds } },
+      select: { productId: true, quantity: true },
+    });
+    const stockMap = new Map(inventory.map((row) => [row.productId, Number(row.quantity)]));
+
+    const stockIssues: Array<{ productId: string; name: string; requested: number; available: number }> = [];
+    for (const [productId, quantity] of mergedItems) {
+      const available = stockMap.get(productId) ?? 0;
+      if (quantity > available) {
+        stockIssues.push({
+          productId,
+          name: productMap.get(productId)!.name,
+          requested: quantity,
+          available,
+        });
+      }
+    }
+    if (stockIssues.length > 0) {
+      throw new ConflictException({
+        code: ErrorCodes.INSUFFICIENT_STOCK,
+        message: 'Stok produk tidak mencukupi.',
+        details: stockIssues.map((issue) => ({
+          field: `items.${issue.productId}`,
+          message: `${issue.name}: butuh ${issue.requested}, ada ${issue.available}.`,
+        })),
+      });
+    }
+
+    let subtotal = 0;
+    const lineItems = productIds.map((productId) => {
+      const product = productMap.get(productId)!;
+      const quantity = mergedItems.get(productId) as number;
+      const unitPrice = toIdrInteger(product.price);
+      const lineSubtotal = unitPrice * quantity;
+      subtotal += lineSubtotal;
+      return {
+        productId,
+        productName: product.name,
+        sku: product.sku,
+        quantity,
+        unitPrice,
+        lineSubtotal,
+      };
+    });
+
+    const shippingFee = dto.fulfillmentType === 'DELIVERY' ? 0 : 0;
+    const total = subtotal + shippingFee;
+    const deliveryAddress =
+      dto.fulfillmentType === 'DELIVERY' && dto.deliveryAddress
+        ? {
+            street: dto.deliveryAddress.street.trim(),
+            district: dto.deliveryAddress.district.trim(),
+            city: dto.deliveryAddress.city.trim(),
+            ...(dto.deliveryAddress.postalCode?.trim()
+              ? { postalCode: dto.deliveryAddress.postalCode.trim() }
+              : {}),
+          }
+        : null;
+
+    const normalizedPhone = normalizePhone(dto.customerPhone);
+    const customer = await this.customersService.findOrCreateByPhone(
+      user.tenantId,
+      dto.customerName,
+      dto.customerPhone,
+    );
+    const dateKey = getJakartaDateKey();
+    const actorId = user.sub;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const sequenceDate = new Date(`${dateKey}T00:00:00.000Z`);
+      const sequence = await tx.onlineOrderSequence.upsert({
+        where: {
+          tenantId_sequenceDate: { tenantId: user.tenantId, sequenceDate },
+        },
+        create: { tenantId: user.tenantId, sequenceDate, lastValue: 1 },
+        update: { lastValue: { increment: 1 } },
+      });
+      const orderNo = buildMarketplaceOrderNo(dto.channel, dateKey, sequence.lastValue);
+      const paidAt = new Date();
+
+      const order = await tx.onlineOrder.create({
+        data: {
+          tenantId: user.tenantId,
+          outletId,
+          orderNo,
+          clientRequestId: dto.clientRequestId,
+          channel: dto.channel,
+          externalOrderRef: dto.externalOrderRef.trim(),
+          status: 'PAID',
+          paidAt,
+          fulfillmentType: dto.fulfillmentType,
+          customerId: customer.id,
+          customerName: dto.customerName.trim(),
+          customerPhone: normalizedPhone,
+          customerNotes: dto.customerNotes?.trim() || null,
+          subtotal: idrToDecimal(subtotal),
+          tax: idrToDecimal(0),
+          shippingFee: idrToDecimal(shippingFee),
+          total: idrToDecimal(total),
+          ...(deliveryAddress ? { deliveryAddress } : {}),
+          items: {
+            create: lineItems.map((item) => ({
+              productId: item.productId,
+              productName: item.productName,
+              sku: item.sku,
+              quantity: new Decimal(item.quantity),
+              unitPrice: idrToDecimal(item.unitPrice),
+              subtotal: idrToDecimal(item.lineSubtotal),
+            })),
+          },
+          payments: {
+            create: {
+              status: 'PAID',
+              amount: idrToDecimal(total),
+              paymentType: `MARKETPLACE_${dto.channel}`,
+            },
+          },
+        },
+        include: { items: true, deliveryOrder: { select: { id: true, deliveryNo: true, status: true } } },
+      });
+
+      await this.deductStockForOnlineOrder(tx, order, actorId, stockMap);
+      return order;
+    });
+
+    this.emitPaidStockMovements(
+      created,
+      created.items.map((item) => ({
+        productId: item.productId,
+        quantityAfter: stockMap.get(item.productId) ?? 0,
+      })),
+    );
+
+    this.realtime.emitOnlineOrderPaid({
+      orderId: created.id,
+      orderNo: created.orderNo,
+      outletId: created.outletId,
+      tenantId: created.tenantId,
+      status: 'PAID',
+    });
+
+    return this.mapFulfillmentOrder(created);
   }
 
   async listManagerOrders(user: AuthJwtPayload, query: ManagerOrdersQueryDto) {
@@ -161,36 +403,7 @@ export class OnlineOrdersService {
     ]);
 
     return {
-      items: orders.map((order) => ({
-        id: order.id,
-        orderNo: order.orderNo,
-        status: order.status,
-        statusLabel: orderStatusLabel(order.status),
-        createdAt: order.createdAt.toISOString(),
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        fulfillmentType: order.fulfillmentType,
-        fulfillmentTypeLabel: fulfillmentTypeLabel(order.fulfillmentType),
-        deliveryAddressSnippet: formatDeliveryAddressSnippet(order.deliveryAddress),
-        deliveryAddressFull: formatOnlineDeliveryAddressFull(order.deliveryAddress),
-        shippingFee: toIdrInteger(order.shippingFee),
-        total: toIdrInteger(order.total),
-        itemCount: order.items.length,
-        notes: order.customerNotes,
-        items: order.items.map((item) => ({
-          productName: item.productName,
-          quantity: Number(item.quantity),
-          sku: item.sku,
-        })),
-        delivery: order.deliveryOrder
-          ? {
-              id: order.deliveryOrder.id,
-              deliveryNo: order.deliveryOrder.deliveryNo,
-              status: order.deliveryOrder.status,
-              statusLabel: deliveryStatusLabel(order.deliveryOrder.status),
-            }
-          : null,
-      })),
+      items: orders.map((order) => this.mapFulfillmentOrder(order)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -441,7 +654,7 @@ export class OnlineOrdersService {
       orderNo: order.orderNo,
       orderDate: order.createdAt.toISOString(),
       serviceName: 'Pengiriman Toko (Store Direct)',
-      deliveryTypeLabel: 'Order Online',
+      deliveryTypeLabel: onlineOrderChannelLabel(order.channel),
       from: {
         storeName: order.tenant.name,
         outletName: order.outlet.name,
@@ -778,38 +991,7 @@ export class OnlineOrdersService {
         });
       }
 
-      for (const item of order.items) {
-        const quantity = Number(item.quantity);
-        const availableBefore = stockMap.get(item.productId) ?? 0;
-        const quantityAfter = availableBefore - quantity;
-
-        await tx.inventoryItem.update({
-          where: {
-            outletId_productId: {
-              outletId: order.outletId,
-              productId: item.productId,
-            },
-          },
-          data: { quantity: new Decimal(quantityAfter) },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            outletId: order.outletId,
-            productId: item.productId,
-            type: 'SALE_ONLINE',
-            quantity: new Decimal(quantity * -1),
-            quantityBefore: new Decimal(availableBefore),
-            quantityAfter: new Decimal(quantityAfter),
-            referenceType: 'online_order',
-            referenceId: order.id,
-            notes: `Online order ${order.orderNo}`,
-            createdById: actorId,
-          },
-        });
-
-        stockMap.set(item.productId, quantityAfter);
-      }
+      await this.deductStockForOnlineOrder(tx, order, actorId, stockMap);
     });
 
     this.emitPaidStockMovements(
@@ -853,6 +1035,51 @@ export class OnlineOrdersService {
       });
     }
     return anyUser.id;
+  }
+
+  private async deductStockForOnlineOrder(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      outletId: string;
+      orderNo: string;
+      items: Array<{ productId: string; quantity: { toString(): string } }>;
+    },
+    actorId: string,
+    stockMap: Map<string, number>,
+  ) {
+    for (const item of order.items) {
+      const quantity = Number(item.quantity);
+      const availableBefore = stockMap.get(item.productId) ?? 0;
+      const quantityAfter = availableBefore - quantity;
+
+      await tx.inventoryItem.update({
+        where: {
+          outletId_productId: {
+            outletId: order.outletId,
+            productId: item.productId,
+          },
+        },
+        data: { quantity: new Decimal(quantityAfter) },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          outletId: order.outletId,
+          productId: item.productId,
+          type: 'SALE_ONLINE',
+          quantity: new Decimal(quantity * -1),
+          quantityBefore: new Decimal(availableBefore),
+          quantityAfter: new Decimal(quantityAfter),
+          referenceType: 'online_order',
+          referenceId: order.id,
+          notes: `Online order ${order.orderNo}`,
+          createdById: actorId,
+        },
+      });
+
+      stockMap.set(item.productId, quantityAfter);
+    }
   }
 
   async expirePendingOrders(tenantId?: string) {

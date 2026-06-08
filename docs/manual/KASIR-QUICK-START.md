@@ -61,10 +61,42 @@ Panduan singkat shift harian toko bahan bangunan.
 5. Isi saldo akhir kas fisik — sistem hitung selisih otomatis
 6. Konfirmasi penutupan shift
 
-## Online Orders (jika aktif)
+## Tiga Kanal Penjualan di POS
 
-- Badge pesanan online di header POS (`Order Online`)
-- Buka **`/pos/online-orders`** — antrian fulfillment kasir (filter per cabang aktif)
+Kasir punya **3 mode** lewat tab header (`PosShiftBar`):
+
+| Tab | Route | Badge | Workflow |
+|-----|-------|-------|----------|
+| **🏪 Toko** | `/pos` | Penjualan Toko | Scan/manual checkout, pelanggan walk-in/terdaftar, pembayaran tunai/transfer/QRIS/tempo/deposit |
+| **🌐 Order Web** | `/pos/online-orders` | Order Web | Antrian order storefront web (`/store/*`) setelah pembayaran Midtrans |
+| **🛒 Marketplace** | `/pos/marketplace-orders` | Marketplace | Entri manual order Tokopedia/Shopee (scaffold Fase 2 — bukan integrasi API otomatis) |
+
+### Mode A — Penjualan Toko (Offline)
+
+1. Login → buka shift → tab **Toko** (`/pos`)
+2. Cari/tap produk → atur qty → checkout panel (Pelanggan → Pengiriman → Pembayaran)
+3. Pengiriman opsional → masuk antrian `/dashboard/deliveries` tipe **Toko Langsung**
+4. Stok terpotong saat checkout selesai
+
+### Mode B — Order Web
+
+1. Tab **Order Web** (`/pos/online-orders`) — filter cabang aktif
+2. Alur: **Konfirmasi** (PAID) → **Disiapkan** → **Cetak Label** → **Kirim** → **Selesai**
+3. Stok sudah terpotong saat pembayaran web sukses (PAID) — fulfill tidak deduct ulang
+4. Pengiriman web masuk antrian dashboard tipe **Order Online** channel **Order Web**
+
+### Mode C — Marketplace (Scaffold)
+
+1. Tab **Marketplace** (`/pos/marketplace-orders`)
+2. Klik **+ Catat Order** → isi no. order marketplace, channel (Tokopedia/Shopee), pelanggan, item
+3. Simpan → langsung status **Sudah dibayar** (asumsi prepaid di marketplace) + stok terpotong
+4. Fulfillment sama seperti order web: Konfirmasi → Disiapkan → Kirim/Selesai
+5. Integrasi API Tokopedia/Shopee otomatis = **Fase 3** (ADR-003)
+
+## Online Orders (legacy section — lihat Mode B di atas)
+
+- Badge pesanan web di tab **Order Web** header POS
+- Buka **`/pos/online-orders`** — antrian fulfillment kasir (filter per cabang aktif, channel WEB saja)
 - Alur kasir:
   1. **Konfirmasi** (order sudah dibayar / PAID)
   2. **Tandai Disiapkan** (READY) — untuk pengiriman, otomatis masuk antrian `/dashboard/deliveries`

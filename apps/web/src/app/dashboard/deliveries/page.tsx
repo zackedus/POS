@@ -8,6 +8,8 @@ import {
   DELIVERY_STATUS_TRANSITIONS,
   DELIVERY_TYPE_LABELS,
   formatCurrencyIDR,
+  ONLINE_ORDER_CHANNEL_BADGE,
+  type OnlineOrderChannel,
 } from '@barokah/shared';
 import type { DeliveryOrderDetail, DeliveryOrderListItem, DeliveryStatus, DeliveryType } from '@barokah/shared';
 import { Button, Input } from '@barokah/ui';
@@ -326,7 +328,27 @@ export default function DashboardDeliveriesPage() {
                         </Link>
                       ) : null}
                       {order.onlineOrder ? (
-                        <Link href={`/dashboard/online-orders`}>Order {order.onlineOrder.orderNo}</Link>
+                        <>
+                          {order.onlineOrder.channelLabel ? (
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                background:
+                                  ONLINE_ORDER_CHANNEL_BADGE[order.onlineOrder.channel as OnlineOrderChannel]?.bg ??
+                                  '#f1f5f9',
+                                color:
+                                  ONLINE_ORDER_CHANNEL_BADGE[order.onlineOrder.channel as OnlineOrderChannel]?.color ??
+                                  '#334155',
+                              }}
+                            >
+                              {order.onlineOrder.channelLabel}
+                            </span>
+                          ) : null}
+                          <Link href={`/dashboard/online-orders`}>Order {order.onlineOrder.orderNo}</Link>
+                        </>
                       ) : null}
                     </div>
                     <p style={{ margin: 0 }}>{order.addressSnippet}</p>
@@ -411,7 +433,13 @@ export default function DashboardDeliveriesPage() {
                 {detail.onlineOrder ? (
                   <p style={{ margin: 0, fontSize: 13 }}>
                     Order online:{' '}
+                    {detail.onlineOrder.channelLabel ? (
+                      <strong>{detail.onlineOrder.channelLabel} · </strong>
+                    ) : null}
                     <Link href="/dashboard/online-orders">{detail.onlineOrder.orderNo}</Link>
+                    {detail.onlineOrder.externalOrderRef ? (
+                      <span> (ref: {detail.onlineOrder.externalOrderRef})</span>
+                    ) : null}
                   </p>
                 ) : null}
 

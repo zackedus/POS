@@ -1,6 +1,9 @@
 /** Delivery source — store direct (POS) vs online order */
 export type DeliveryType = 'STORE_DIRECT' | 'ONLINE_ORDER';
 
+/** Online order sales channel (when deliveryType = ONLINE_ORDER) */
+export type OnlineOrderChannel = 'WEB' | 'TOKOPEDIA' | 'SHOPEE' | 'OTHER';
+
 /** Delivery order status — POS shipment queue */
 export type DeliveryStatus =
   | 'MENUNGGU'
@@ -33,7 +36,13 @@ export interface DeliveryOrderListItem {
   addressSnippet: string;
   outlet: { id: string; name: string };
   transaction: { id: string; receiptNo: string; total: number } | null;
-  onlineOrder: { id: string; orderNo: string } | null;
+  onlineOrder: {
+    id: string;
+    orderNo: string;
+    channel?: OnlineOrderChannel;
+    channelLabel?: string;
+    externalOrderRef?: string | null;
+  } | null;
   itemCount: number;
 }
 

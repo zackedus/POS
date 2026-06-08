@@ -497,6 +497,7 @@ export default function PosPage() {
   );
   const onlineOrderCount = useOnlineOrderBadge(isOnline && Boolean(user), {
     outletId: activeOutletId ?? undefined,
+    channel: 'WEB',
     onCountIncrease: (_nextCount, delta) => {
       setOnlineOrderToast(
         delta === 1 ? 'Order web baru masuk antrian' : `${delta} order web baru masuk antrian`,
@@ -507,6 +508,10 @@ export default function PosPage() {
       setOnlineOrderToast(`Pembayaran order ${orderNo} diterima`);
       window.setTimeout(() => setOnlineOrderToast(null), 6000);
     },
+  });
+  const marketplaceOrderCount = useOnlineOrderBadge(isOnline && Boolean(user), {
+    outletId: activeOutletId ?? undefined,
+    channel: 'MARKETPLACE',
   });
   const useServerCatalogFilter = catalogTotal > POS_SERVER_FILTER_THRESHOLD;
 
@@ -1651,6 +1656,7 @@ export default function PosPage() {
           userName={user.fullName}
           activeShift={activeShift}
           onlineOrderCount={onlineOrderCount}
+          marketplaceOrderCount={marketplaceOrderCount}
           outlets={outlets}
           selectedOutletId={activeOutletId}
           needsOutletPick={needsOutletPick}

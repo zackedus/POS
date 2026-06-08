@@ -11,6 +11,7 @@ import {
   DELIVERY_STATUS_TRANSITIONS,
   DELIVERY_TYPE_LABELS,
   ErrorCodes,
+  ONLINE_ORDER_CHANNEL_LABELS,
   type DeliveryAddressSnapshot,
   type DeliveryOrderDetail,
   type DeliveryOrderListItem,
@@ -93,7 +94,7 @@ export class DeliveriesService {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           outlet: { select: { id: true, name: true } },
-          onlineOrder: { select: { id: true, orderNo: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
+          onlineOrder: { select: { id: true, orderNo: true, channel: true, externalOrderRef: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
           transaction: {
             select: {
               id: true,
@@ -279,7 +280,7 @@ export class DeliveriesService {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           outlet: { select: { id: true, name: true } },
-          onlineOrder: { select: { id: true, orderNo: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
+          onlineOrder: { select: { id: true, orderNo: true, channel: true, externalOrderRef: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
           transaction: {
             select: {
               id: true,
@@ -358,7 +359,7 @@ export class DeliveriesService {
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         outlet: { select: { id: true, name: true } },
-        onlineOrder: { select: { id: true, orderNo: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
+        onlineOrder: { select: { id: true, orderNo: true, channel: true, externalOrderRef: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
         transaction: {
           select: {
             id: true,
@@ -473,7 +474,7 @@ export class DeliveriesService {
     addressProvince: string | null;
     customer: { id: string; name: string; phone: string };
     outlet: { id: string; name: string };
-    onlineOrder: { id: string; orderNo: string; items: Array<{ productName: string; quantity: { toString(): string }; subtotal: { toString(): string } }> } | null;
+    onlineOrder: { id: string; orderNo: string; channel?: string; externalOrderRef?: string | null; items: Array<{ productName: string; quantity: { toString(): string }; subtotal: { toString(): string } }> } | null;
     transaction: {
       id: string;
       receiptNo: string;
@@ -509,7 +510,17 @@ export class DeliveriesService {
           }
         : null,
       onlineOrder: order.onlineOrder
-        ? { id: order.onlineOrder.id, orderNo: order.onlineOrder.orderNo }
+        ? {
+            id: order.onlineOrder.id,
+            orderNo: order.onlineOrder.orderNo,
+            ...(order.onlineOrder.channel
+              ? {
+                  channel: order.onlineOrder.channel as never,
+                  channelLabel: ONLINE_ORDER_CHANNEL_LABELS[order.onlineOrder.channel as keyof typeof ONLINE_ORDER_CHANNEL_LABELS],
+                }
+              : {}),
+            externalOrderRef: order.onlineOrder.externalOrderRef ?? null,
+          }
         : null,
       itemCount: order.transaction?.items.length ?? onlineItemCount,
     };

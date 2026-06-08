@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchFulfillmentQueue } from '@/lib/online-orders-api';
+import { MARKETPLACE_ORDER_CHANNELS } from '@barokah/shared';
+import { fetchFulfillmentQueue, type FulfillmentChannelFilter } from '@/lib/online-orders-api';
 import {
   connectRealtimeSocket,
   isSocketEnabled,
@@ -9,12 +10,22 @@ import {
 /** Poll interval for kasir online-order badge (fallback when Socket.io unavailable). */
 export const ONLINE_ORDERS_POLL_MS = 15_000;
 
+export type OnlineOrderBadgeChannel = 'WEB' | 'MARKETPLACE';
+
 export interface OnlineOrderBadgeOptions {
   outletId?: string | null;
+  /** Filter badge count by sales channel */
+  channel?: OnlineOrderBadgeChannel;
   /** Fired when queue count increases (polling or Socket.io). */
   onCountIncrease?: (nextCount: number, delta: number) => void;
   /** Fired on realtime paid event (immediate toast). */
   onRealtimePaid?: (orderNo: string) => void;
+}
+
+function resolveChannelFilter(channel?: OnlineOrderBadgeChannel): FulfillmentChannelFilter | undefined {
+  if (channel === 'WEB') return 'WEB';
+  if (channel === 'MARKETPLACE') return MARKETPLACE_ORDER_CHANNELS;
+  return undefined;
 }
 
 export function useOnlineOrderBadge(enabled: boolean, options?: OnlineOrderBadgeOptions): number {
@@ -23,6 +34,7 @@ export function useOnlineOrderBadge(enabled: boolean, options?: OnlineOrderBadge
   const onCountIncrease = options?.onCountIncrease;
   const onRealtimePaid = options?.onRealtimePaid;
   const outletId = options?.outletId;
+  const channelFilter = resolveChannelFilter(options?.channel);
 
   const applyCount = useCallback(
     (nextCount: number, source: 'poll' | 'socket') => {
@@ -38,12 +50,12 @@ export function useOnlineOrderBadge(enabled: boolean, options?: OnlineOrderBadge
 
   const refresh = useCallback(async () => {
     try {
-      const items = await fetchFulfillmentQueue(outletId ?? undefined);
+      const items = await fetchFulfillmentQueue(outletId ?? undefined, channelFilter);
       applyCount(items.length, 'poll');
     } catch {
       // Silent poll — badge is best-effort; errors surface on fulfillment page.
     }
-  }, [applyCount, outletId]);
+  }, [applyCount, outletId, channelFilter]);
 
   useEffect(() => {
     if (!enabled) {

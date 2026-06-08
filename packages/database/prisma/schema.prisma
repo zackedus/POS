@@ -1013,6 +1013,8 @@ model OnlineOrder {
   outletId          String                  @map("outlet_id")
   orderNo           String                  @map("order_no")
   clientRequestId   String                  @map("client_request_id")
+  channel           OnlineOrderChannel      @default(WEB) @map("channel")
+  externalOrderRef  String?                 @map("external_order_ref")
   status            OnlineOrderStatus       @default(NEW)
   fulfillmentType   OnlineFulfillmentType   @map("fulfillment_type")
   customerId        String?                 @map("customer_id")
@@ -1092,6 +1094,13 @@ model OnlineOrderSequence {
 
   @@unique([tenantId, sequenceDate])
   @@map("online_order_sequences")
+}
+
+enum OnlineOrderChannel {
+  WEB
+  TOKOPEDIA
+  SHOPEE
+  OTHER
 }
 
 enum OnlineOrderStatus {

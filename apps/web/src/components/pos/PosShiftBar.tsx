@@ -20,6 +20,20 @@ const navLinkStyle = (active: boolean) => ({
   transition: 'background 0.12s ease, border-color 0.12s ease',
 });
 
+export type PosChannelMode = 'store' | 'web' | 'marketplace';
+
+const MODE_BADGE: Record<PosChannelMode, { label: string; bg: string; color: string }> = {
+  store: { label: 'Penjualan Toko', bg: colors.primary[50], color: colors.primary[700] },
+  web: { label: 'Order Web', bg: '#DBEAFE', color: '#1D4ED8' },
+  marketplace: { label: 'Marketplace', bg: '#ECFDF5', color: '#047857' },
+};
+
+function resolveMode(pathname: string): PosChannelMode {
+  if (pathname.startsWith('/pos/marketplace-orders')) return 'marketplace';
+  if (pathname.startsWith('/pos/online-orders')) return 'web';
+  return 'store';
+}
+
 export interface PosOutletOption {
   id: string;
   label: string;
@@ -29,6 +43,7 @@ export interface PosShiftBarProps {
   userName: string;
   activeShift: ShiftSummary | null;
   onlineOrderCount?: number;
+  marketplaceOrderCount?: number;
   outlets?: PosOutletOption[];
   selectedOutletId?: string | null;
   needsOutletPick?: boolean;
@@ -45,6 +60,7 @@ export function PosShiftBar({
   userName,
   activeShift,
   onlineOrderCount,
+  marketplaceOrderCount,
   outlets = [],
   selectedOutletId,
   needsOutletPick = false,
@@ -53,6 +69,8 @@ export function PosShiftBar({
   onLogout,
 }: PosShiftBarProps) {
   const pathname = usePathname();
+  const mode = resolveMode(pathname);
+  const modeBadge = MODE_BADGE[mode];
   const shiftOpen = Boolean(activeShift);
   const showOutletPicker = outlets.length > 1;
   const selectedOutletLabel =
@@ -159,6 +177,19 @@ export function PosShiftBar({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <strong style={{ fontSize: '0.95rem' }}>Kasir</strong>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: modeBadge.color,
+              background: modeBadge.bg,
+              border: `1px solid ${modeBadge.color}`,
+              borderRadius: 999,
+              padding: '0.15rem 0.55rem',
+            }}
+          >
+            {modeBadge.label}
+          </span>
           <span style={{ color: colors.light.text.secondary, fontSize: '0.875rem' }}>{userName}</span>
           {selectedOutletLabel && !showOutletPicker ? (
             <span
@@ -177,7 +208,7 @@ export function PosShiftBar({
           ) : null}
         </div>
 
-        <nav aria-label="Navigasi kasir" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <nav aria-label="Navigasi kanal penjualan" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {showOutletPicker ? (
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8125rem' }}>
               <span style={{ color: colors.light.text.secondary, fontWeight: 600 }}>Cabang</span>
@@ -205,11 +236,15 @@ export function PosShiftBar({
               </select>
             </label>
           ) : null}
-          <Link href="/pos" style={navLinkStyle(pathname === '/pos')}>
-            Kasir
+          <Link href="/pos" style={navLinkStyle(pathname === '/pos')} aria-current={pathname === '/pos' ? 'page' : undefined}>
+            🏪 Toko
           </Link>
-          <Link href="/pos/online-orders" style={navLinkStyle(pathname.startsWith('/pos/online-orders'))}>
-            Order Online
+          <Link
+            href="/pos/online-orders"
+            style={navLinkStyle(pathname.startsWith('/pos/online-orders'))}
+            aria-current={pathname.startsWith('/pos/online-orders') ? 'page' : undefined}
+          >
+            🌐 Order Web
             {onlineOrderCount && onlineOrderCount > 0 ? (
               <span
                 style={{
@@ -223,6 +258,28 @@ export function PosShiftBar({
                 }}
               >
                 {onlineOrderCount}
+              </span>
+            ) : null}
+          </Link>
+          <Link
+            href="/pos/marketplace-orders"
+            style={navLinkStyle(pathname.startsWith('/pos/marketplace-orders'))}
+            aria-current={pathname.startsWith('/pos/marketplace-orders') ? 'page' : undefined}
+          >
+            🛒 Marketplace
+            {marketplaceOrderCount && marketplaceOrderCount > 0 ? (
+              <span
+                style={{
+                  marginLeft: 6,
+                  background: '#047857',
+                  color: '#fff',
+                  borderRadius: 999,
+                  padding: '0 6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                }}
+              >
+                {marketplaceOrderCount}
               </span>
             ) : null}
           </Link>

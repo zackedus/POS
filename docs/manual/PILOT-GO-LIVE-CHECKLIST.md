@@ -125,8 +125,17 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 | H2 | Pilih cabang + produk → keranjang | Item masuk cart |
 | H3 | Checkout: isi nama + HP wajib | Form validasi HP |
 | H4 | Mock pay / bayar online | Order status PAID |
-| H5 | Kasir → `/pos/online-orders` | Order muncul di antrian |
+| H5 | Kasir → tab **Order Web** `/pos/online-orders` | Order muncul di antrian (channel WEB) |
 | H6 | Fulfill → COMPLETED | Stok **tidak** double-deduct |
+| H7 | Kasir → tab **Marketplace** → catat order manual Tokopedia/Shopee | Order masuk antrian marketplace; stok terpotong saat simpan |
+
+### Skenario H-MP — Marketplace Scaffold (5 menit)
+
+| # | Langkah | Expected |
+|---|---------|----------|
+| MP1 | `/pos/marketplace-orders` → **+ Catat Order** | Form entri manual tampil |
+| MP2 | Isi ref marketplace + item + alamat → Simpan | Status PAID; badge tab Marketplace naik |
+| MP3 | Konfirmasi → Disiapkan → Selesai | Fulfillment sama order web; label channel di antrian pengiriman |
 
 ### Skenario H-DLV — Pengiriman POS ke Proyek (10 menit)
 

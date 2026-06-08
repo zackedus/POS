@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildMarketplaceOrderNo,
   buildOrderNo,
   formatDeliveryAddressSnippet,
   normalizePhone,
+  onlineOrderChannelLabel,
   orderStatusLabel,
   paymentExpiresAt,
 } from './online-order.util';
@@ -15,6 +17,15 @@ test('OnlineOrder util: normalizePhone converts 08 to 62', () => {
 
 test('OnlineOrder util: buildOrderNo pads sequence', () => {
   assert.equal(buildOrderNo('2026-06-05', 42), 'WEB-20260605-0042');
+});
+
+test('OnlineOrder util: buildMarketplaceOrderNo uses channel prefix', () => {
+  assert.equal(buildMarketplaceOrderNo('TOKOPEDIA', '2026-06-09', 3), 'MP-TKP-20260609-0003');
+  assert.equal(buildMarketplaceOrderNo('SHOPEE', '2026-06-09', 1), 'MP-SHP-20260609-0001');
+});
+
+test('OnlineOrder util: onlineOrderChannelLabel maps WEB', () => {
+  assert.equal(onlineOrderChannelLabel('WEB'), 'Order Web');
 });
 
 test('OnlineOrder util: orderStatusLabel maps PAID', () => {

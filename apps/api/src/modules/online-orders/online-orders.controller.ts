@@ -5,6 +5,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import type { AuthJwtPayload } from '../auth/auth.types';
+import { CreateMarketplaceOrderDto } from './dto/create-marketplace-order.dto';
 import { FulfillmentQueryDto } from './dto/fulfillment-query.dto';
 import { ManagerOrdersQueryDto } from './dto/manager-orders-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -19,6 +20,11 @@ export class OnlineOrdersController {
   @Get('fulfillment')
   listFulfillment(@CurrentUser() user: AuthJwtPayload, @Query() query: FulfillmentQueryDto) {
     return this.onlineOrdersService.listFulfillment(user, query);
+  }
+
+  @Post('marketplace')
+  createMarketplaceOrder(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreateMarketplaceOrderDto) {
+    return this.onlineOrdersService.createMarketplaceOrder(user, dto);
   }
 
   @Get('manager')
