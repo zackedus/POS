@@ -18,6 +18,7 @@ import type {
   CreateReceivableDto,
   CustomerStatementQueryDto,
   ListReceivablesQueryDto,
+  RecordCustomerReceivablePaymentDto,
   RecordReceivablePaymentDto,
   UpdateCustomerCreditLimitDto,
 } from './dto/receivable.dto';
@@ -148,10 +149,16 @@ export class ReceivablesService {
 
     await this.prisma.$transaction(async (tx) => {
       await this.financeCheckout.recordReceivablePayment(tx, {
+        tenantId: user.tenantId,
         receivableId,
         amountIdr: dto.amount,
         method: dto.method,
         reference: dto.reference,
+        transferReference: dto.transferReference,
+        bankName: dto.bankName,
+        proofUrl: dto.proofUrl,
+        notes: dto.notes,
+        shiftId: dto.shiftId,
         recordedById: user.sub,
       });
     });
@@ -159,6 +166,134 @@ export class ReceivablesService {
     await this.creditLimitService.recalculateAutoLimit(user.tenantId, receivable.customerId);
 
     return this.getById(user, receivableId);
+  }
+
+  async recordCustomerPayment(
+    user: AuthJwtPayload,
+    customerId: string,
+    dto: RecordCustomerReceivablePaymentDto,
+  ) {
+    await this.ensureCustomer(user.tenantId, customerId);
+
+    const openReceivables = await this.prisma.receivable.findMany({
+      where: {
+        tenantId: user.tenantId,
+        customerId,
+        status: { in: ['OPEN', 'PARTIAL'] },
+        ...(dto.receivableId ? { id: dto.receivableId } : {}),
+      },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, amount: true, paidAmount: true },
+    });
+
+    if (openReceivables.length === 0) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.RECEIVABLE_NOT_OPEN,
+        message: 'Tidak ada piutang terbuka untuk pelanggan ini.',
+      });
+    }
+
+    let remaining = dto.amount;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const row of openReceivables) {
+        if (remaining <= 0) break;
+        const outstanding = Math.max(
+          0,
+          toIdrInteger(row.amount) - toIdrInteger(row.paidAmount),
+        );
+        if (outstanding <= 0) continue;
+        const payAmount = Math.min(remaining, outstanding);
+        await this.financeCheckout.recordReceivablePayment(tx, {
+          tenantId: user.tenantId,
+          receivableId: row.id,
+          amountIdr: payAmount,
+          method: dto.method,
+          reference: dto.reference,
+          transferReference: dto.transferReference,
+          bankName: dto.bankName,
+          proofUrl: dto.proofUrl,
+          notes: dto.notes,
+          shiftId: dto.shiftId,
+          recordedById: user.sub,
+        });
+        remaining -= payAmount;
+      }
+      if (remaining > 0) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.INVALID_INPUT,
+          message: 'Nominal pembayaran melebihi total piutang terbuka.',
+        });
+      }
+    });
+
+    await this.creditLimitService.recalculateAutoLimit(user.tenantId, customerId);
+
+    return this.getCustomerPaymentHistory(user, customerId);
+  }
+
+  async listPayments(user: AuthJwtPayload, receivableId: string) {
+    const receivable = await this.prisma.receivable.findFirst({
+      where: { id: receivableId, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!receivable) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Piutang tidak ditemukan.',
+      });
+    }
+    const payments = await this.prisma.receivablePayment.findMany({
+      where: { receivableId },
+      include: {
+        recordedBy: { select: { id: true, fullName: true } },
+        receivable: {
+          select: {
+            id: true,
+            amount: true,
+            paidAmount: true,
+            status: true,
+            dueDate: true,
+            transaction: { select: { receiptNo: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return payments.map((p) => this.mapPayment(p));
+  }
+
+  async getCustomerPaymentHistory(user: AuthJwtPayload, customerId: string) {
+    const customer = await this.ensureCustomer(user.tenantId, customerId);
+    const payments = await this.prisma.receivablePayment.findMany({
+      where: {
+        receivable: { tenantId: user.tenantId, customerId },
+      },
+      include: {
+        recordedBy: { select: { id: true, fullName: true } },
+        receivable: {
+          select: {
+            id: true,
+            amount: true,
+            paidAmount: true,
+            status: true,
+            dueDate: true,
+            transaction: { select: { receiptNo: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const mapped = payments.map((p) => this.mapPayment(p));
+    return {
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+      },
+      payments: mapped,
+      totalPaid: mapped.reduce((sum, p) => sum + p.amount, 0),
+    };
   }
 
   async listOverdue(user: AuthJwtPayload, query: ListReceivablesQueryDto = {}) {
@@ -348,7 +483,7 @@ export class ReceivablesService {
             date: payment.createdAt,
             type: 'PAYMENT',
             description: `Pembayaran piutang (${payment.method})`,
-            reference: payment.reference,
+            reference: payment.transferReference ?? payment.reference,
             debit: 0,
             credit: toIdrInteger(payment.amount),
           });
@@ -527,15 +662,82 @@ export class ReceivablesService {
         : undefined,
       payments:
         includePayments && row.payments
-          ? row.payments.map((p) => ({
-              id: p.id,
-              amount: toIdrInteger(p.amount),
-              method: p.method,
-              reference: p.reference,
-              recordedBy: p.recordedBy,
-              createdAt: p.createdAt.toISOString(),
-            }))
+          ? row.payments.map((p) =>
+              this.mapPayment({
+                ...p,
+                receivableId: row.id,
+              }),
+            )
           : undefined,
+    };
+  }
+
+  private async ensureCustomer(tenantId: string, customerId: string) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, tenantId },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!customer) {
+      throw new NotFoundException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Pelanggan tidak ditemukan.',
+      });
+    }
+    return customer;
+  }
+
+  private mapPayment(payment: {
+    id: string;
+    receivableId: string;
+    amount: { toString(): string } | Decimal;
+    method: string;
+    reference: string | null;
+    transferReference?: string | null;
+    bankName?: string | null;
+    proofUrl?: string | null;
+    notes?: string | null;
+    depositTransactionId?: string | null;
+    shiftId?: string | null;
+    createdAt: Date;
+    recordedBy: { id: string; fullName: string };
+    receivable?: {
+      id: string;
+      amount: { toString(): string } | Decimal;
+      paidAmount: { toString(): string } | Decimal;
+      status: string;
+      dueDate: Date | null;
+      transaction: { receiptNo: string } | null;
+    };
+  }) {
+    const receivable = payment.receivable;
+    return {
+      id: payment.id,
+      receivableId: payment.receivableId,
+      amount: toIdrInteger(payment.amount),
+      method: payment.method,
+      transferReference: payment.transferReference ?? payment.reference,
+      bankName: payment.bankName ?? null,
+      proofUrl: payment.proofUrl ?? null,
+      notes: payment.notes ?? null,
+      reference: payment.reference,
+      depositTransactionId: payment.depositTransactionId ?? null,
+      shiftId: payment.shiftId ?? null,
+      recordedBy: payment.recordedBy,
+      createdAt: payment.createdAt.toISOString(),
+      receivable: receivable
+        ? {
+            id: receivable.id,
+            amount: toIdrInteger(receivable.amount),
+            paidAmount: toIdrInteger(receivable.paidAmount),
+            outstanding: computeOutstanding(
+              toIdrInteger(receivable.amount),
+              toIdrInteger(receivable.paidAmount),
+            ),
+            status: receivable.status,
+            dueDate: receivable.dueDate?.toISOString().slice(0, 10) ?? null,
+            transactionReceiptNo: receivable.transaction?.receiptNo ?? null,
+          }
+        : undefined,
     };
   }
 }

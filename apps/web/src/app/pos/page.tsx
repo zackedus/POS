@@ -11,6 +11,7 @@ import { PosUnitPickerModal } from '@/components/pos/PosUnitPickerModal';
 import { VoidTransactionModal } from '@/components/pos/VoidTransactionModal';
 import { CustomerPickerModal } from '@/components/pos/CustomerPickerModal';
 import { CreditApprovalModal } from '@/components/pos/CreditApprovalModal';
+import { PosReceivablePaymentModal } from '@/components/pos/PosReceivablePaymentModal';
 import type { CartItem, HeldTransactionSummary, PaymentMode, ProductGridItem } from '@/components/pos/pos-types';
 import { hasMultipleSellUnits, resolveDisplaySellUnit } from '@/components/pos/pos-ui-utils';
 import { apiConfig } from '@/lib/api';
@@ -205,6 +206,7 @@ export default function PosPage() {
   const [pendingFinancePaymentMode, setPendingFinancePaymentMode] = useState<'CREDIT' | 'DEPOSIT' | null>(null);
   const [showCreditApproval, setShowCreditApproval] = useState(false);
   const [managerApprovalToken, setManagerApprovalToken] = useState<string | null>(null);
+  const [showReceivablePayment, setShowReceivablePayment] = useState(false);
 
   useEffect(() => {
     void fetchTenantSettings()
@@ -1703,6 +1705,7 @@ export default function PosPage() {
           onRequestCreditApproval={() => setShowCreditApproval(true)}
           hasCreditApprovalToken={Boolean(managerApprovalToken)}
           onCheckoutDepositPlusCredit={() => void handleCheckoutDepositPlusCredit()}
+          onOpenReceivablePayment={() => setShowReceivablePayment(true)}
         />
       </div>
 
@@ -1714,6 +1717,28 @@ export default function PosPage() {
             setPendingFinancePaymentMode(null);
           }}
           onSelect={handleCustomerSelect}
+        />
+      ) : null}
+
+      {showReceivablePayment && customerId ? (
+        <PosReceivablePaymentModal
+          open={showReceivablePayment}
+          onClose={() => setShowReceivablePayment(false)}
+          customerId={customerId}
+          customerName={customerName.trim() || 'Pelanggan'}
+          customerPhone={customerPhone.trim() || undefined}
+          depositBalance={customerDepositBalance ?? 0}
+          shiftId={activeShift?.id ?? null}
+          onSuccess={(msg) => {
+            setSuccess(msg);
+            void fetchCustomerFinanceSummaryFromCustomers(customerId).then((summary) => {
+              if (summary.finance) {
+                setCustomerReceivableOutstanding(summary.finance.receivableOutstanding);
+                setCustomerDepositBalance(summary.finance.depositBalance);
+                setCustomerCreditAvailable(summary.finance.creditAvailable);
+              }
+            });
+          }}
         />
       ) : null}
 

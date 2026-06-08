@@ -277,15 +277,36 @@ export class FinanceCheckoutService {
   async recordReceivablePayment(
     tx: TxClient,
     params: {
+      tenantId: string;
       receivableId: string;
       amountIdr: number;
       method: PaymentMethod;
       reference?: string | null;
+      transferReference?: string | null;
+      bankName?: string | null;
+      proofUrl?: string | null;
+      notes?: string | null;
       recordedById: string;
+      shiftId?: string | null;
     },
   ) {
-    const receivable = await tx.receivable.findUnique({ where: { id: params.receivableId } });
-    if (!receivable || receivable.status === 'VOID' || receivable.status === 'PAID') {
+    const receivable = await tx.receivable.findUnique({
+      where: { id: params.receivableId },
+      select: {
+        id: true,
+        tenantId: true,
+        customerId: true,
+        status: true,
+        amount: true,
+        paidAmount: true,
+      },
+    });
+    if (
+      !receivable ||
+      receivable.tenantId !== params.tenantId ||
+      receivable.status === 'VOID' ||
+      receivable.status === 'PAID'
+    ) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.RECEIVABLE_NOT_OPEN,
         message: 'Piutang tidak dapat menerima pembayaran.',
@@ -300,13 +321,71 @@ export class FinanceCheckoutService {
         message: `Nominal pembayaran tidak valid. Sisa piutang: ${outstanding}.`,
       });
     }
+
+    let depositTransactionId: string | null = null;
+    if (params.method === PaymentMethod.DEPOSIT) {
+      let deposit = await tx.customerDeposit.findUnique({
+        where: { customerId: receivable.customerId },
+      });
+      if (!deposit) {
+        deposit = await tx.customerDeposit.create({
+          data: {
+            tenantId: params.tenantId,
+            customerId: receivable.customerId,
+            balance: idrToDecimal(0),
+            status: 'ACTIVE',
+          },
+        });
+      }
+      if (deposit.status !== 'ACTIVE' || deposit.tenantId !== params.tenantId) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.DEPOSIT_INSUFFICIENT_BALANCE,
+          message: 'Akun deposit pelanggan tidak aktif.',
+        });
+      }
+      const currentBalance = toIdrInteger(deposit.balance);
+      if (params.amountIdr > currentBalance) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.DEPOSIT_INSUFFICIENT_BALANCE,
+          message: `Saldo deposit tidak mencukupi. Tersedia: ${currentBalance}.`,
+        });
+      }
+      const balanceAfter = currentBalance - params.amountIdr;
+      await tx.customerDeposit.update({
+        where: { id: deposit.id },
+        data: { balance: idrToDecimal(balanceAfter) },
+      });
+      const depositTx = await tx.depositTransaction.create({
+        data: {
+          depositId: deposit.id,
+          type: 'APPLY',
+          amount: idrToDecimal(params.amountIdr),
+          balanceAfter: idrToDecimal(balanceAfter),
+          referenceType: 'receivable_payment',
+          referenceId: params.receivableId,
+          notes: params.notes?.trim() || 'Bayar piutang via deposit',
+          recordedById: params.recordedById,
+        },
+      });
+      depositTransactionId = depositTx.id;
+    }
+
+    const transferRef = params.transferReference?.trim() || null;
+    const legacyRef = params.reference?.trim() || null;
+
     await tx.receivablePayment.create({
       data: {
         receivableId: params.receivableId,
         amount: idrToDecimal(params.amountIdr),
         method: params.method,
-        reference: params.reference?.trim() || null,
+        reference: legacyRef ?? transferRef,
+        transferReference: transferRef,
+        bankName: params.bankName?.trim() || null,
+        proofUrl: params.proofUrl?.trim() || null,
+        notes: params.notes?.trim() || null,
+        depositTransactionId,
         recordedById: params.recordedById,
+        shiftId: params.shiftId ?? null,
       },
     });
     const newPaid = paidSoFar + params.amountIdr;

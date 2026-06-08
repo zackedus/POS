@@ -7,3 +7,4 @@ export * from './pos-config';
 export * from './rbac-permissions';
 export * from './customer-credit';
 export * from './delivery';
+export * from './receivable-payment';

@@ -38,6 +38,17 @@ Panduan singkat shift harian toko bahan bangunan.
 - Accordion **Transaksi Terakhir** → Void → butuh approval manager (PIN/password)
 - Stok otomatis dikembalikan
 
+## Terima Pembayaran Piutang
+
+1. **Pilih pelanggan** yang punya outstanding piutang (panel info menampilkan nominal piutang)
+2. Klik **Terima Pembayaran Piutang** di panel pelanggan
+3. Pilih metode: **Tunai** / **Transfer** / **Deposit** / **QRIS**
+4. Isi nominal, no. referensi TF (wajib untuk transfer), bank, URL bukti (opsional)
+5. Simpan — riwayat tampil di modal; bisa **Cetak bukti pembayaran**
+6. Pembayaran tunai terhubung **shift aktif** untuk rekonsiliasi kas
+
+> Manager/owner juga bisa catat pelunasan di **Dashboard → Piutang** atau tab **Piutang** di detail pelanggan.
+
 ## Tutup Shift
 
 1. Pastikan tidak ada hold aktif (warning muncul saat tutup)

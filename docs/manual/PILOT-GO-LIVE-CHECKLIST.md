@@ -264,6 +264,11 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] **Piutang (tempo):** checkout CREDIT dengan pelanggan + limit kredit — piutang tercatat di `/dashboard/receivables`
 - [ ] **Deposit:** top-up di `/dashboard/deposits` → checkout DEPOSIT di kasir — saldo berkurang, ledger APPLY
 - [ ] Pelunasan piutang partial → full di dashboard — status OPEN → PARTIAL → PAID
+- [ ] **Pembayaran piutang multi-metode:** tunai / transfer (no ref TF + bank) / deposit / QRIS
+- [ ] **Bukti pembayaran:** URL bukti tersimpan; cetak HTML dari riwayat pembayaran
+- [ ] **Riwayat pembayaran piutang:** dashboard piutang (filter pelanggan) + tab Piutang pelanggan + POS
+- [ ] **Export CSV** riwayat pembayaran piutang dari dashboard
+- [ ] **POS terima pembayaran piutang:** modal kasir dengan link shift aktif
 - [ ] Void transaksi kredit/deposit — piutang VOID, deposit di-refund
 - [ ] **Aging piutang:** `/dashboard/receivables/aging` — bucket 0–30/31–60/61–90/90+ hari, ekspor CSV
 - [ ] **Statement pelanggan:** cetak dari `/dashboard/receivables/statement/:id` — saldo awal/akhir + deposit

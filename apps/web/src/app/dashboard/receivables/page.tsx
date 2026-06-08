@@ -18,13 +18,16 @@ import {
 import { mapApiError } from '@/lib/api-client';
 import { fetchCustomers, type CustomerListItem } from '@/lib/customers-api';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
+import { ReceivablePaymentHistoryTable } from '@/components/dashboard/ReceivablePaymentHistoryTable';
+import { ReceivablePaymentModal } from '@/components/dashboard/ReceivablePaymentModal';
 import {
   createReceivable,
+  fetchCustomerPaymentHistory,
   fetchReceivables,
-  recordReceivablePayment,
   RECEIVABLE_STATUS_LABELS,
   type ReceivableRow,
 } from '@/lib/receivables-api';
+import type { ReceivablePaymentView } from '@barokah/shared';
 
 export default function ReceivablesPage() {
   const searchParams = useSearchParams();
@@ -34,11 +37,10 @@ export default function ReceivablesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') ?? '');
-  const [payForm, setPayForm] = useState<{ receivableId: string; amount: string; method: string }>({
-    receivableId: '',
-    amount: '',
-    method: 'CASH',
-  });
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<ReceivablePaymentView[]>([]);
+  const [historyCustomerName, setHistoryCustomerName] = useState('');
   const [createForm, setCreateForm] = useState({
     customerId: '',
     amount: '',
@@ -46,8 +48,8 @@ export default function ReceivablesPage() {
     notes: '',
   });
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
-  const [paying, setPaying] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const loadData = useCallback(async () => {
     if (needsOutletPick) {
@@ -77,34 +79,27 @@ export default function ReceivablesPage() {
     void loadData();
   }, [loadData]);
 
-  async function handlePay(e: FormEvent) {
-    e.preventDefault();
-    if (!payForm.receivableId) {
-      setError('Pilih piutang terlebih dahulu.');
+  const loadPaymentHistory = useCallback(async (custId: string) => {
+    if (!custId) {
+      setPaymentHistory([]);
+      setHistoryCustomerName('');
       return;
     }
-    const amount = parseCurrencyInput(payForm.amount);
-    if (!Number.isInteger(amount) || amount < 1) {
-      setError('Nominal pembayaran harus angka bulat minimal Rp 1.');
-      return;
-    }
-    setPaying(true);
-    setError(null);
-    setSuccess(null);
+    setLoadingHistory(true);
     try {
-      await recordReceivablePayment(payForm.receivableId, {
-        amount,
-        method: payForm.method,
-      });
-      setSuccess('Pembayaran piutang berhasil dicatat.');
-      setPayForm({ receivableId: '', amount: '', method: 'CASH' });
-      await loadData();
+      const history = await fetchCustomerPaymentHistory(custId);
+      setPaymentHistory(history.payments);
+      setHistoryCustomerName(history.customer.name);
     } catch (err) {
-      setError(mapApiError(err, 'Gagal mencatat pembayaran.'));
+      setError(mapApiError(err, 'Gagal memuat riwayat pembayaran.'));
     } finally {
-      setPaying(false);
+      setLoadingHistory(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void loadPaymentHistory(customerFilter);
+  }, [customerFilter, loadPaymentHistory]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -183,17 +178,31 @@ export default function ReceivablesPage() {
       </div>
 
       <SectionCard title="Filter">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
-        >
-          <option value="">Semua status</option>
-          <option value="OPEN">Belum bayar</option>
-          <option value="PARTIAL">Sebagian</option>
-          <option value="OVERDUE">Jatuh tempo</option>
-          <option value="PAID">Lunas</option>
-        </select>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
+          >
+            <option value="">Semua status</option>
+            <option value="OPEN">Belum bayar</option>
+            <option value="PARTIAL">Sebagian</option>
+            <option value="OVERDUE">Jatuh tempo</option>
+            <option value="PAID">Lunas</option>
+          </select>
+          <select
+            value={customerFilter}
+            onChange={(e) => setCustomerFilter(e.target.value)}
+            style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1', minWidth: 200 }}
+          >
+            <option value="">Semua pelanggan (riwayat)</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </SectionCard>
 
       <SectionCard title="Tambah Piutang Manual">
@@ -244,40 +253,50 @@ export default function ReceivablesPage() {
       </SectionCard>
 
       <SectionCard title="Catat Pembayaran">
-        <form onSubmit={(e) => void handlePay(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
-          <label>
-            Piutang
-            <select
-              value={payForm.receivableId}
-              onChange={(e) => setPayForm((p) => ({ ...p, receivableId: e.target.value }))}
-              style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.5rem' }}
-            >
-              <option value="">— Pilih —</option>
-              {openRows.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.customer?.name ?? r.customerId} — sisa {formatCurrencyIDR(r.outstanding)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <CurrencyInput label="Nominal" value={payForm.amount} onChange={(v) => setPayForm((p) => ({ ...p, amount: v }))} />
-          <label>
-            Metode
-            <select
-              value={payForm.method}
-              onChange={(e) => setPayForm((p) => ({ ...p, method: e.target.value }))}
-              style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.5rem' }}
-            >
-              <option value="CASH">Tunai</option>
-              <option value="TRANSFER">Transfer</option>
-              <option value="QRIS">QRIS</option>
-            </select>
-          </label>
-          <Button type="submit" disabled={paying || openRows.length === 0}>
-            {paying ? 'Menyimpan…' : 'Catat Pembayaran'}
-          </Button>
-        </form>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.875rem', color: '#64748b' }}>
+          Catat pelunasan piutang via tunai, transfer, deposit, atau QRIS — dengan bukti pembayaran.
+        </p>
+        <Button
+          type="button"
+          disabled={openRows.length === 0}
+          onClick={() => setShowPayModal(true)}
+        >
+          Catat Pembayaran
+        </Button>
       </SectionCard>
+
+      {customerFilter ? (
+        <SectionCard title={`Riwayat Pembayaran — ${historyCustomerName || '…'}`}>
+          <ReceivablePaymentHistoryTable
+            payments={paymentHistory}
+            customerName={historyCustomerName}
+            loading={loadingHistory}
+          />
+        </SectionCard>
+      ) : (
+        <SectionCard title="Riwayat Pembayaran">
+          <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>
+            Pilih pelanggan di filter untuk melihat riwayat pembayaran piutang lengkap.
+          </p>
+        </SectionCard>
+      )}
+
+      <ReceivablePaymentModal
+        open={showPayModal}
+        onClose={() => setShowPayModal(false)}
+        onSuccess={(msg) => {
+          setSuccess(msg);
+          void loadData();
+          if (customerFilter) void loadPaymentHistory(customerFilter);
+        }}
+        customerId={customerFilter || undefined}
+        customerName={
+          customerFilter
+            ? customers.find((c) => c.id === customerFilter)?.name
+            : undefined
+        }
+        receivables={customerFilter ? openRows.filter((r) => r.customerId === customerFilter) : openRows}
+      />
 
       <SectionCard title="Daftar Piutang">
         {loading ? (

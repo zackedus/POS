@@ -139,6 +139,7 @@ export interface PosCartPanelProps {
   onRequestCreditApproval?: () => void;
   hasCreditApprovalToken?: boolean;
   onCheckoutDepositPlusCredit?: () => void;
+  onOpenReceivablePayment?: () => void;
 }
 
 const standardPaymentModes: PaymentMode[] = ['CASH', 'TRANSFER', 'QRIS'];
@@ -242,6 +243,7 @@ export function PosCartPanel({
   onRequestCreditApproval,
   hasCreditApprovalToken = false,
   onCheckoutDepositPlusCredit,
+  onOpenReceivablePayment,
 }: PosCartPanelProps) {
   const hasCartItems = cart.length > 0;
   const customerLinked = isCustomerLinkedForFinance(customerId);
@@ -636,6 +638,16 @@ export function PosCartPanel({
                   Piutang outstanding:{' '}
                   <strong>{formatCurrencyIDR(customerReceivableOutstanding ?? 0)}</strong>
                 </div>
+                {(customerReceivableOutstanding ?? 0) > 0 && onOpenReceivablePayment ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    style={{ marginTop: '0.35rem', fontSize: '0.8125rem', minHeight: 36 }}
+                    onClick={onOpenReceivablePayment}
+                  >
+                    Terima Pembayaran Piutang
+                  </Button>
+                ) : null}
                 <div>
                   Saldo deposit: <strong>{formatCurrencyIDR(customerDepositBalance ?? 0)}</strong>
                 </div>

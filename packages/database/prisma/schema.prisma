@@ -923,9 +923,10 @@ model Shift {
   openedAt     DateTime  @default(now()) @map("opened_at")
   closedAt     DateTime? @map("closed_at")
 
-  outlet       Outlet        @relation(fields: [outletId], references: [id], onDelete: Restrict)
-  cashier      User          @relation(fields: [cashierId], references: [id], onDelete: Restrict)
-  transactions Transaction[]
+  outlet             Outlet              @relation(fields: [outletId], references: [id], onDelete: Restrict)
+  cashier            User                @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  transactions       Transaction[]
+  receivablePayments ReceivablePayment[]
 
   @@index([outletId, openedAt])
   @@index([cashierId, closedAt])
@@ -1203,18 +1204,27 @@ model Receivable {
 }
 
 model ReceivablePayment {
-  id           String        @id @default(uuid())
-  receivableId String        @map("receivable_id")
-  amount       Decimal       @db.Decimal(15, 2)
-  method       PaymentMethod
-  reference    String?
-  recordedById String        @map("recorded_by_id")
-  createdAt    DateTime      @default(now()) @map("created_at")
+  id                   String        @id @default(uuid())
+  receivableId         String        @map("receivable_id")
+  amount               Decimal       @db.Decimal(15, 2)
+  method               PaymentMethod
+  reference            String?
+  transferReference    String?       @map("transfer_reference")
+  bankName             String?       @map("bank_name")
+  proofUrl             String?       @map("proof_url")
+  notes                String?
+  depositTransactionId String?       @unique @map("deposit_transaction_id")
+  recordedById         String        @map("recorded_by_id")
+  shiftId              String?       @map("shift_id")
+  createdAt            DateTime      @default(now()) @map("created_at")
 
-  receivable Receivable @relation(fields: [receivableId], references: [id], onDelete: Restrict)
-  recordedBy User       @relation("ReceivablePaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  receivable         Receivable          @relation(fields: [receivableId], references: [id], onDelete: Restrict)
+  recordedBy         User                @relation("ReceivablePaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  shift              Shift?              @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  depositTransaction DepositTransaction? @relation(fields: [depositTransactionId], references: [id], onDelete: SetNull)
 
   @@index([receivableId, createdAt])
+  @@index([shiftId])
   @@map("receivable_payments")
 }
 
@@ -1287,8 +1297,9 @@ model DepositTransaction {
   recordedById  String                 @map("recorded_by_id")
   createdAt     DateTime               @default(now()) @map("created_at")
 
-  deposit    CustomerDeposit @relation(fields: [depositId], references: [id], onDelete: Restrict)
-  recordedBy User            @relation("DepositTransactionRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  deposit           CustomerDeposit    @relation(fields: [depositId], references: [id], onDelete: Restrict)
+  recordedBy        User               @relation("DepositTransactionRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  receivablePayment ReceivablePayment?
 
   @@index([depositId, createdAt])
   @@index([referenceType, referenceId])

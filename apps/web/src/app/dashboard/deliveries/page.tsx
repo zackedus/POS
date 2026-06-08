@@ -31,9 +31,9 @@ const STATUS_TABS: Array<{ value: DeliveryStatus | 'ALL'; label: string }> = [
   { value: 'BATAL', label: DELIVERY_STATUS_LABELS.BATAL },
 ];
 
-function statusTone(status: DeliveryStatus): 'neutral' | 'warning' | 'success' | 'danger' {
+function statusVariant(status: DeliveryStatus): 'neutral' | 'warning' | 'success' | 'error' {
   if (status === 'SELESAI') return 'success';
-  if (status === 'BATAL') return 'danger';
+  if (status === 'BATAL') return 'error';
   if (status === 'MENUNGGU') return 'warning';
   return 'neutral';
 }
@@ -123,10 +123,10 @@ export default function DashboardDeliveriesPage() {
     <div style={{ display: 'grid', gap: 16 }}>
       <PageHeader
         title="Antrian Pengiriman"
-        subtitle="Kelola pengiriman barang ke proyek / alamat pelanggan dari transaksi POS."
+        description="Kelola pengiriman barang ke proyek / alamat pelanggan dari transaksi POS."
       />
 
-      {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
+      {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
 
       <SectionCard title="Filter">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -168,7 +168,7 @@ export default function DashboardDeliveriesPage() {
               <SectionCard key={order.id} title={`${order.deliveryNo} · ${order.customer.name}`}>
                 <div style={{ display: 'grid', gap: 8 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                    <StatusBadge tone={statusTone(order.status)}>{order.statusLabel}</StatusBadge>
+                    <StatusBadge label={order.statusLabel} variant={statusVariant(order.status)} />
                     <span style={{ color: '#64748b', fontSize: 13 }}>
                       {new Date(order.createdAt).toLocaleString('id-ID')}
                     </span>
@@ -237,6 +237,8 @@ export default function DashboardDeliveriesPage() {
           <TablePagination
             page={meta.page}
             totalPages={meta.totalPages}
+            totalItems={meta.total}
+            pageSize={meta.limit}
             onPageChange={(page) => void loadOrders(page)}
           />
         </div>

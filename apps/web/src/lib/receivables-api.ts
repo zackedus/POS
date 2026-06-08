@@ -1,4 +1,9 @@
-import type { CustomerStatement, ReceivableAgingReport } from '@barokah/shared';
+import type {
+  CustomerReceivablePaymentHistory,
+  CustomerStatement,
+  ReceivableAgingReport,
+  ReceivablePaymentView,
+} from '@barokah/shared';
 export type { ReceivableAgingReport } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
@@ -194,9 +199,21 @@ export async function createReceivable(body: {
   return json.data;
 }
 
+export type RecordReceivablePaymentBody = {
+  amount: number;
+  method: string;
+  reference?: string;
+  transferReference?: string;
+  bankName?: string;
+  proofUrl?: string;
+  notes?: string;
+  shiftId?: string;
+  receivableId?: string;
+};
+
 export async function recordReceivablePayment(
   receivableId: string,
-  body: { amount: number; method: string; reference?: string },
+  body: RecordReceivablePaymentBody,
 ): Promise<ReceivableRow> {
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/${receivableId}/payments`, {
     method: 'POST',
@@ -206,6 +223,49 @@ export async function recordReceivablePayment(
   const json = (await res.json()) as ApiEnvelope<ReceivableRow>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal mencatat pembayaran piutang.');
+  }
+  return json.data;
+}
+
+export async function recordCustomerReceivablePayment(
+  customerId: string,
+  body: RecordReceivablePaymentBody,
+): Promise<CustomerReceivablePaymentHistory> {
+  const res = await authFetch(
+    `${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/customers/${customerId}/payments`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+  const json = (await res.json()) as ApiEnvelope<CustomerReceivablePaymentHistory>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal mencatat pembayaran piutang pelanggan.');
+  }
+  return json.data;
+}
+
+export async function fetchCustomerPaymentHistory(
+  customerId: string,
+): Promise<CustomerReceivablePaymentHistory> {
+  const res = await authFetch(
+    `${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/customers/${customerId}/payment-history`,
+  );
+  const json = (await res.json()) as ApiEnvelope<CustomerReceivablePaymentHistory>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat riwayat pembayaran piutang.');
+  }
+  return json.data;
+}
+
+export async function fetchReceivablePayments(receivableId: string): Promise<ReceivablePaymentView[]> {
+  const res = await authFetch(
+    `${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/${receivableId}/payments`,
+  );
+  const json = (await res.json()) as ApiEnvelope<ReceivablePaymentView[]>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat pembayaran piutang.');
   }
   return json.data;
 }

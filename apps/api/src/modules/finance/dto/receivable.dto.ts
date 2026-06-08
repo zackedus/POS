@@ -56,6 +56,7 @@ export class RecordReceivablePaymentDto {
   @IsIn([
     PaymentMethod.CASH,
     PaymentMethod.TRANSFER,
+    PaymentMethod.DEPOSIT,
     PaymentMethod.QRIS,
     PaymentMethod.E_WALLET,
     PaymentMethod.CARD,
@@ -65,6 +66,32 @@ export class RecordReceivablePaymentDto {
   @IsOptional()
   @IsString()
   reference?: string;
+
+  @IsOptional()
+  @IsString()
+  transferReference?: string;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  proofUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  shiftId?: string;
+}
+
+export class RecordCustomerReceivablePaymentDto extends RecordReceivablePaymentDto {
+  @IsOptional()
+  @IsUUID('4')
+  receivableId?: string;
 }
 
 export class UpdateCustomerCreditLimitDto {

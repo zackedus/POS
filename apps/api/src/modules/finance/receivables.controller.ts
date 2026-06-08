@@ -8,6 +8,7 @@ import type { AuthJwtPayload } from '../auth/auth.types';
 import {
   CreateReceivableDto,
   ListReceivablesQueryDto,
+  RecordCustomerReceivablePaymentDto,
   RecordReceivablePaymentDto,
   UpdateCustomerCreditLimitDto,
   AgingReportQueryDto,
@@ -57,6 +58,25 @@ export class ReceivablesController {
     return this.receivablesService.getCustomerFinanceSummary(user, customerId);
   }
 
+  @Get('customers/:customerId/payment-history')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.CASHIER)
+  customerPaymentHistory(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.receivablesService.getCustomerPaymentHistory(user, customerId);
+  }
+
+  @Post('customers/:customerId/payments')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.CASHIER)
+  recordCustomerPayment(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('customerId') customerId: string,
+    @Body() dto: RecordCustomerReceivablePaymentDto,
+  ) {
+    return this.receivablesService.recordCustomerPayment(user, customerId, dto);
+  }
+
   @Patch('customers/:customerId/credit-limit')
   @Roles(UserRole.OWNER, UserRole.MANAGER)
   updateCreditLimit(
@@ -77,6 +97,15 @@ export class ReceivablesController {
   @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
   create(@CurrentUser() user: AuthJwtPayload, @Body() dto: CreateReceivableDto) {
     return this.receivablesService.create(user, dto);
+  }
+
+  @Get(':receivableId/payments')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.CASHIER)
+  listPayments(
+    @CurrentUser() user: AuthJwtPayload,
+    @Param('receivableId') receivableId: string,
+  ) {
+    return this.receivablesService.listPayments(user, receivableId);
   }
 
   @Post(':receivableId/payments')

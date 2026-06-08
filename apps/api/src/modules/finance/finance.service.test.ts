@@ -115,6 +115,8 @@ test('Finance checkout: partial receivable payment updates status', async () => 
     receivable: {
       findUnique: async () => ({
         id: 'recv-1',
+        tenantId: 'tenant-1',
+        customerId: 'cust-1',
         status: 'OPEN',
         amount: { toString: () => '100000' },
         paidAmount: { toString: () => '0' },
@@ -130,6 +132,7 @@ test('Finance checkout: partial receivable payment updates status', async () => 
   };
   const service = new FinanceCheckoutService(prisma as never);
   await service.recordReceivablePayment(prisma as never, {
+    tenantId: 'tenant-1',
     receivableId: 'recv-1',
     amountIdr: 40_000,
     method: PaymentMethod.CASH,
@@ -144,6 +147,8 @@ test('Finance checkout: full receivable payment marks PAID', async () => {
     receivable: {
       findUnique: async () => ({
         id: 'recv-1',
+        tenantId: 'tenant-1',
+        customerId: 'cust-1',
         status: 'PARTIAL',
         amount: { toString: () => '100000' },
         paidAmount: { toString: () => '60000' },
@@ -159,9 +164,12 @@ test('Finance checkout: full receivable payment marks PAID', async () => {
   };
   const service = new FinanceCheckoutService(prisma as never);
   await service.recordReceivablePayment(prisma as never, {
+    tenantId: 'tenant-1',
     receivableId: 'recv-1',
     amountIdr: 40_000,
     method: PaymentMethod.TRANSFER,
+    transferReference: 'TRF-12345',
+    bankName: 'BCA',
     recordedById: 'user-1',
   });
   assert.equal(updates[0]?.status, 'PAID');
@@ -286,4 +294,135 @@ test('Finance summary: customer statement opening balance', async () => {
   assert.equal(statement.closingBalance, 50_000);
   assert.equal(statement.depositBalance, 25_000);
   assert.ok(fromDate);
+});
+
+test('Finance checkout: deposit receivable payment deducts deposit balance', async () => {
+  let depositBalance = 150_000;
+  const prisma = {
+    receivable: {
+      findUnique: async () => ({
+        id: 'recv-1',
+        tenantId: 'tenant-1',
+        customerId: 'cust-1',
+        status: 'OPEN',
+        amount: { toString: () => '100000' },
+        paidAmount: { toString: () => '0' },
+      }),
+      update: async () => ({}),
+    },
+    receivablePayment: { create: async () => ({ id: 'pay-dep' }) },
+    customerDeposit: {
+      findUnique: async () => ({
+        id: 'dep-1',
+        tenantId: 'tenant-1',
+        customerId: 'cust-1',
+        status: 'ACTIVE',
+        balance: { toString: () => String(depositBalance) },
+      }),
+      update: async (args: { data: { balance: { toString(): string } } }) => {
+        depositBalance = Number(args.data.balance.toString());
+        return {};
+      },
+    },
+    depositTransaction: {
+      create: async () => ({ id: 'dtx-1' }),
+    },
+  };
+  const service = new FinanceCheckoutService(prisma as never);
+  await service.recordReceivablePayment(prisma as never, {
+    tenantId: 'tenant-1',
+    receivableId: 'recv-1',
+    amountIdr: 50_000,
+    method: PaymentMethod.DEPOSIT,
+    recordedById: 'user-1',
+  });
+  assert.equal(depositBalance, 100_000);
+});
+
+test('Finance checkout: deposit payment blocked when balance insufficient', async () => {
+  const prisma = {
+    receivable: {
+      findUnique: async () => ({
+        id: 'recv-1',
+        tenantId: 'tenant-1',
+        customerId: 'cust-1',
+        status: 'OPEN',
+        amount: { toString: () => '100000' },
+        paidAmount: { toString: () => '0' },
+      }),
+    },
+    customerDeposit: {
+      findUnique: async () => ({
+        id: 'dep-1',
+        tenantId: 'tenant-1',
+        customerId: 'cust-1',
+        status: 'ACTIVE',
+        balance: { toString: () => '20000' },
+      }),
+    },
+  };
+  const service = new FinanceCheckoutService(prisma as never);
+  await assert.rejects(
+    () =>
+      service.recordReceivablePayment(prisma as never, {
+        tenantId: 'tenant-1',
+        receivableId: 'recv-1',
+        amountIdr: 50_000,
+        method: PaymentMethod.DEPOSIT,
+        recordedById: 'user-1',
+      }),
+    (error: unknown) =>
+      error instanceof UnprocessableEntityException &&
+      (error.getResponse() as { code?: string }).code === ErrorCodes.DEPOSIT_INSUFFICIENT_BALANCE,
+  );
+});
+
+test('Receivables: customer payment history lists payments with transfer proof', async () => {
+  const prisma = {
+    customer: {
+      findFirst: async () => ({ id: 'cust-1', name: 'PT ABC', phone: '08123456789' }),
+    },
+    receivablePayment: {
+      findMany: async () => [
+        {
+          id: 'pay-1',
+          receivableId: 'recv-1',
+          amount: { toString: () => '50000' },
+          method: 'TRANSFER',
+          reference: 'TRF-OLD',
+          transferReference: 'TRF-20260609',
+          bankName: 'BCA',
+          proofUrl: 'https://example.com/bukti.jpg',
+          notes: 'Pelunasan invoice',
+          depositTransactionId: null,
+          shiftId: null,
+          createdAt: new Date('2026-06-09T10:00:00.000Z'),
+          recordedBy: { id: 'user-1', fullName: 'Kasir A' },
+          receivable: {
+            id: 'recv-1',
+            amount: { toString: () => '100000' },
+            paidAmount: { toString: () => '50000' },
+            status: 'PARTIAL',
+            dueDate: new Date('2026-06-15'),
+            transaction: { receiptNo: 'TRX-100' },
+          },
+        },
+      ],
+    },
+  };
+  const { ReceivablesService } = await import('./receivables.service');
+  const service = new ReceivablesService(
+    prisma as never,
+    { getCustomerFinanceSummary: async () => null, getCustomerOutstandingReceivableIdr: async () => 0 } as never,
+    { recalculateAutoLimit: async () => false, setCreditLimit: async () => ({}) } as never,
+  );
+  const history = await service.getCustomerPaymentHistory(
+    { tenantId: 'tenant-1', sub: 'user-1', role: 'CASHIER', outletIds: [] } as never,
+    'cust-1',
+  );
+  assert.equal(history.payments.length, 1);
+  assert.equal(history.payments[0]?.transferReference, 'TRF-20260609');
+  assert.equal(history.payments[0]?.bankName, 'BCA');
+  assert.equal(history.payments[0]?.proofUrl, 'https://example.com/bukti.jpg');
+  assert.equal(history.totalPaid, 50_000);
 });

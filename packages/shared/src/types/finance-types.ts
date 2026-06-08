@@ -91,3 +91,38 @@ export interface CustomerStatement {
   depositBalance: number;
   generatedAt: string;
 }
+
+export interface ReceivablePaymentView {
+  id: string;
+  receivableId: string;
+  amount: number;
+  method: string;
+  transferReference: string | null;
+  bankName: string | null;
+  proofUrl: string | null;
+  notes: string | null;
+  reference: string | null;
+  depositTransactionId: string | null;
+  shiftId: string | null;
+  recordedBy: { id: string; fullName: string };
+  createdAt: string;
+  receivable?: {
+    id: string;
+    outstanding: number;
+    amount: number;
+    paidAmount: number;
+    status: string;
+    dueDate: string | null;
+    transactionReceiptNo: string | null;
+  };
+}
+
+export interface CustomerReceivablePaymentHistory {
+  customer: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+  payments: ReceivablePaymentView[];
+  totalPaid: number;
+}

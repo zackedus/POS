@@ -32,7 +32,10 @@ import {
   updateCustomerAddress,
   type CustomerDetail,
 } from '@/lib/customers-api';
-import { recordReceivablePayment } from '@/lib/receivables-api';
+import { ReceivablePaymentHistoryTable } from '@/components/dashboard/ReceivablePaymentHistoryTable';
+import { ReceivablePaymentModal } from '@/components/dashboard/ReceivablePaymentModal';
+import { fetchCustomerPaymentHistory } from '@/lib/receivables-api';
+import type { ReceivablePaymentView } from '@barokah/shared';
 import { topUpDeposit } from '@/lib/deposits-api';
 import { fetchCustomerCreditAuditLog, type CustomerCreditAuditEntry } from '@/lib/finance-api';
 import { CUSTOMER_CREDIT_AUDIT_ACTION_LABELS, DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR } from '@barokah/shared';
@@ -515,12 +518,19 @@ function ReceivablesTab({
   onError: (msg: string) => void;
 }) {
   const [summary, setSummary] = useState<CustomerFinanceSummary | null>(null);
+  const [payments, setPayments] = useState<ReceivablePaymentView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPayModal, setShowPayModal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setSummary(await fetchCustomerFinanceSummaryFromCustomers(customerId));
+      const [fin, history] = await Promise.all([
+        fetchCustomerFinanceSummaryFromCustomers(customerId),
+        fetchCustomerPaymentHistory(customerId),
+      ]);
+      setSummary(fin);
+      setPayments(history.payments);
     } catch (err) {
       onError(mapApiError(err, 'Gagal memuat piutang.'));
     } finally {
@@ -532,41 +542,39 @@ function ReceivablesTab({
     void load();
   }, [load]);
 
-  async function handlePay(receivableId: string, outstanding: number) {
-    const amountStr = window.prompt(`Nominal bayar (max ${formatCurrencyIDR(outstanding)}):`);
-    if (!amountStr) return;
-    const amount = parseCurrencyInput(amountStr);
-    if (amount <= 0) return;
-    try {
-      await recordReceivablePayment(receivableId, { amount, method: 'CASH' });
-      onMessage('Pembayaran piutang tercatat.');
-      await load();
-      await onRefresh();
-    } catch (err) {
-      onError(mapApiError(err, 'Gagal mencatat pembayaran.'));
-    }
-  }
+  const openReceivables =
+    summary?.receivables.filter((r) => r.status === 'OPEN' || r.status === 'PARTIAL') ?? [];
 
   return (
     <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
       {loading ? (
         <LoadingSkeleton rows={4} />
       ) : summary ? (
-        <>
-          <p style={{ margin: '0 0 1rem' }}>
-            Total piutang:{' '}
-            <strong>{formatCurrencyIDR(summary.finance?.receivableOutstanding ?? 0)}</strong>
-          </p>
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+          <div>
+            <p style={{ margin: '0 0 0.75rem' }}>
+              Total piutang:{' '}
+              <strong>{formatCurrencyIDR(summary.finance?.receivableOutstanding ?? 0)}</strong>
+              {' · '}
+              Deposit: <strong>{formatCurrencyIDR(summary.finance?.depositBalance ?? 0)}</strong>
+            </p>
+            {canEdit && openReceivables.length > 0 ? (
+              <Button type="button" variant="primary" onClick={() => setShowPayModal(true)}>
+                Catat Pembayaran
+              </Button>
+            ) : null}
+          </div>
+
           {summary.receivables.length === 0 ? (
-            <p style={{ color: tokens.muted }}>Tidak ada piutang aktif.</p>
+            <p style={{ color: tokens.muted, margin: 0 }}>Tidak ada piutang aktif.</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${tokens.cardBorder}` }}>
                   <th style={{ padding: '0.5rem', textAlign: 'left' }}>Ref</th>
                   <th style={{ padding: '0.5rem', textAlign: 'right' }}>Sisa</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'left' }}>Jatuh Tempo</th>
                   <th style={{ padding: '0.5rem', textAlign: 'left' }}>Status</th>
-                  <th style={{ padding: '0.5rem' }} />
                 </tr>
               </thead>
               <tbody>
@@ -574,25 +582,37 @@ function ReceivablesTab({
                   <tr key={row.id} style={{ borderBottom: `1px solid ${tokens.cardBorder}` }}>
                     <td style={{ padding: '0.5rem' }}>{row.transaction?.receiptNo ?? row.id.slice(0, 8)}</td>
                     <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatCurrencyIDR(row.outstanding)}</td>
+                    <td style={{ padding: '0.5rem' }}>{row.dueDate ?? '—'}</td>
                     <td style={{ padding: '0.5rem' }}>{row.status}</td>
-                    <td style={{ padding: '0.5rem' }}>
-                      {canEdit && row.outstanding > 0 ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          style={{ fontSize: '0.75rem' }}
-                          onClick={() => void handlePay(row.id, row.outstanding)}
-                        >
-                          Bayar
-                        </Button>
-                      ) : null}
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-        </>
+
+          <div>
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Riwayat Pembayaran</h3>
+            <ReceivablePaymentHistoryTable
+              payments={payments}
+              customerName={summary.customer.name}
+              customerPhone={summary.customer.phone}
+            />
+          </div>
+
+          <ReceivablePaymentModal
+            open={showPayModal}
+            onClose={() => setShowPayModal(false)}
+            onSuccess={(msg) => {
+              onMessage(msg);
+              void load();
+              void onRefresh();
+            }}
+            customerId={customerId}
+            customerName={summary.customer.name}
+            depositBalance={summary.finance?.depositBalance ?? 0}
+            receivables={openReceivables}
+          />
+        </div>
       ) : null}
     </section>
   );
