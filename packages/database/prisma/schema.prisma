@@ -1321,7 +1321,7 @@ model PaymentReceiptSequence {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@unique([tenantId, receiptType, sequenceDate])
+  @@unique([tenantId, receiptType, sequenceDate], map: "payment_receipt_sequences_tenant_id_receipt_type_sequence_date_")
   @@map("payment_receipt_sequences")
 }
 
