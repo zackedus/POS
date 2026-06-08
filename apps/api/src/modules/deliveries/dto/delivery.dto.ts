@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   MinLength,
   ValidateIf,
@@ -51,6 +52,15 @@ export class CreateDeliveryOrderDto {
   @ValidateIf((dto: CreateDeliveryOrderDto) => !dto.transactionId)
   @IsUUID('4', { message: 'Customer ID tidak valid' })
   customerId?: string;
+
+  @IsOptional()
+  @IsString({ message: 'customerName harus berupa teks.' })
+  customerName?: string;
+
+  @IsOptional()
+  @IsString({ message: 'customerPhone harus berupa teks.' })
+  @Matches(/^08\d{8,11}$/, { message: 'customerPhone harus format Indonesia (08…).' })
+  customerPhone?: string;
 
   @IsOptional()
   @IsUUID('4', { message: 'Address ID tidak valid' })

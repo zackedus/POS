@@ -61,6 +61,8 @@ export async function fetchDeliveryDetail(id: string, outletId?: string): Promis
 export interface CreateDeliveryPayload {
   transactionId?: string;
   customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
   deliveryType?: 'STORE_DIRECT' | 'ONLINE_ORDER';
   addressId?: string;
   addressSnapshot?: {

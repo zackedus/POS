@@ -917,6 +917,8 @@ describe('PosPage', () => {
       expect(createDeliveryOrderMock).toHaveBeenCalledWith(
         expect.objectContaining({
           transactionId: 'trx-walkin-dlv-1',
+          customerName: 'Pak Joko',
+          customerPhone: '0812987654321',
           addressSnapshot: expect.objectContaining({
             addressLine1: 'Jl. Merdeka 10',
             city: 'Jakarta',
@@ -925,6 +927,49 @@ describe('PosPage', () => {
       );
       expect(screen.getByText(/Masuk antrian pengiriman DLV-20260609-0001/i)).toBeInTheDocument();
     });
+  });
+
+  it('shows error when delivery queue creation fails after successful checkout', async () => {
+    createDeliveryOrderMock.mockRejectedValue(new Error('Pelanggan wajib dipilih untuk pengiriman.'));
+    setCatalogState([
+      { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },
+    ]);
+    queueAuthFetchOverride({
+      match: (url, init) => url.includes('/transactions/checkout-cash') && init?.method === 'POST',
+      respond: () => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            id: 'trx-dlv-fail-1',
+            receiptNo: 'TRX-DLV-FAIL',
+            total: 70000,
+            cashReceived: 100000,
+            change: 30000,
+          },
+        }),
+      }),
+    });
+
+    renderPosPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Semen Portland/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pilih Pelanggan' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Pak Budi/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kirim ke alamat' }));
+    await waitFor(() => {
+      expect(fetchCustomerAddressesMock).toHaveBeenCalledWith('cust-1');
+      expect(screen.getByRole('combobox', { name: 'Pilih alamat tersimpan' })).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByLabelText('Tunai diterima (IDR)'), { target: { value: '100000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout Tunai' }));
+
+    await waitFor(() => {
+      expect(createDeliveryOrderMock).toHaveBeenCalled();
+      expect(screen.getByText(/Checkout berhasil \(TRX-DLV-FAIL\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/Pelanggan wajib dipilih untuk pengiriman/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Masuk antrian pengiriman/i)).not.toBeInTheDocument();
   });
 
   it('keeps registered customer after picker when API stores 62-prefixed phone', async () => {

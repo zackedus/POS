@@ -60,7 +60,7 @@ import { isOutOfStock } from '@/lib/pos-stock-display';
 import type { DeliverySelection } from '@/components/pos/PosDeliverySelector';
 import { isDeliverySelectionValid } from '@/components/pos/PosDeliverySelector';
 import { createDeliveryOrder } from '@/lib/deliveries-api';
-import { buildDeliveryOrderPayload, isWalkInDeliveryEligible } from '@/lib/pos-checkout-delivery';
+import { buildDeliveryOrderPayload, isWalkInDeliveryEligible, toCheckoutCustomerPhone } from '@/lib/pos-checkout-delivery';
 
 function buildOutletScope(outletId: string | null): { outletId?: string } {
   return outletId ? { outletId } : {};
@@ -316,13 +316,20 @@ export default function PosPage() {
         buildDeliveryOrderPayload({
           transactionId,
           customerId,
+          customerName,
+          customerPhone,
           outletId: activeOutletId,
           selection: deliverySelection,
           notes: deliveryNotes,
         }),
       );
       return order.deliveryNo;
-    } catch {
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message.trim()
+          ? err.message.trim()
+          : 'Checkout berhasil, tetapi pengiriman gagal dibuat. Buat manual di Dashboard → Pengiriman.';
+      setError(message);
       return null;
     }
   }
@@ -332,9 +339,6 @@ export default function PosPage() {
     resetDeliveryState();
     if (deliveryNo) {
       return `${baseMessage} Masuk antrian pengiriman ${deliveryNo} — lihat di Dashboard → Pengiriman.`;
-    }
-    if (deliveryEnabled) {
-      return `${baseMessage} (Pengiriman gagal dibuat — buat manual di Dashboard → Pengiriman.)`;
     }
     return baseMessage;
   }
@@ -422,9 +426,10 @@ export default function PosPage() {
     if (customerId) {
       payload.customerId = customerId;
     }
-    if (name.length >= 2 && isValidIndonesianMobilePhone(phone)) {
+    const checkoutPhone = toCheckoutCustomerPhone(phone);
+    if (name.length >= 2 && checkoutPhone) {
       payload.customerName = name;
-      payload.customerPhone = phone;
+      payload.customerPhone = checkoutPhone;
     }
     const pointsToRedeem = parseInt(loyaltyPointsToRedeem, 10);
     if (loyaltyRedeemEnabled && Number.isFinite(pointsToRedeem) && pointsToRedeem > 0) {

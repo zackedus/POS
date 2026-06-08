@@ -118,7 +118,6 @@ export function PosDeliverySelector({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- init walk-in form once per enable; fetch addresses per customer
   }, [enabled, customerId, isWalkIn]);
 
   function handleManualField<K extends keyof CustomerAddressView>(key: K, value: CustomerAddressView[K]) {

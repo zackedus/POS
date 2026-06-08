@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDeliveryOrderPayload } from './pos-checkout-delivery';
+import { buildDeliveryOrderPayload, toCheckoutCustomerPhone } from './pos-checkout-delivery';
 
 describe('pos-checkout-delivery', () => {
   it('builds saved address delivery payload', () => {
@@ -56,6 +56,37 @@ describe('pos-checkout-delivery', () => {
     expect(payload.customerId).toBeUndefined();
     expect(payload.transactionId).toBe('trx-walkin-1');
     expect(payload.addressSnapshot?.addressLine2).toBe('Kel. Sukamaju');
+  });
+
+  it('includes walk-in customer fields when customerId is missing', () => {
+    const payload = buildDeliveryOrderPayload({
+      transactionId: 'trx-walkin-2',
+      customerName: 'Pak Joko',
+      customerPhone: '62812987654321',
+      selection: {
+        mode: 'manual',
+        snapshot: {
+          id: 'manual',
+          label: 'Proyek',
+          addressLine1: 'Jl. Merdeka 10',
+          addressLine2: null,
+          city: 'Jakarta',
+          province: null,
+          postalCode: null,
+          isDefault: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+      },
+    });
+
+    expect(payload.customerName).toBe('Pak Joko');
+    expect(payload.customerPhone).toBe('0812987654321');
+  });
+
+  it('normalizes checkout phone to local 08 format', () => {
+    expect(toCheckoutCustomerPhone('6281234567890')).toBe('081234567890');
+    expect(toCheckoutCustomerPhone('0812-3456-7890')).toBe('081234567890');
   });
 
   it('builds manual address snapshot payload', () => {

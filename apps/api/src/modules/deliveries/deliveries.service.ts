@@ -21,6 +21,7 @@ import {
 type DeliveryTypeValue = PrismaDeliveryType | DeliveryType;
 import { PrismaService } from '../../common/database/prisma.service';
 import { resolveOutletId } from '../../common/utils/outlet.util';
+import { CustomersService } from '../customers/customers.service';
 import { toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { CreateDeliveryOrderDto } from './dto/delivery.dto';
@@ -37,7 +38,10 @@ type AddressFields = DeliveryAddressSnapshot & { addressId?: string | null };
 
 @Injectable()
 export class DeliveriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly customersService: CustomersService,
+  ) {}
 
   async list(user: AuthJwtPayload, query: DeliveryListQueryDto) {
     const outletId = resolveOutletId(user, query.outletId);
@@ -194,6 +198,17 @@ export class DeliveriesService {
       }
 
       customerId = transaction.customerId ?? dto.customerId;
+    }
+
+    if (!customerId) {
+      const resolvedCustomerId = await this.customersService.resolveOptionalCustomerId(user.tenantId, {
+        customerId: dto.customerId,
+        customerName: dto.customerName,
+        customerPhone: dto.customerPhone,
+      });
+      if (resolvedCustomerId) {
+        customerId = resolvedCustomerId;
+      }
     }
 
     if (!customerId) {

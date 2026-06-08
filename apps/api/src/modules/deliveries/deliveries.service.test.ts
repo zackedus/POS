@@ -19,6 +19,12 @@ function managerUser(): AuthJwtPayload {
   return { ...cashierUser(), sub: 'manager-1', role: 'MANAGER' };
 }
 
+function makeService(prisma: object, customersService: { resolveOptionalCustomerId: (...args: unknown[]) => Promise<string | null> } = {
+  resolveOptionalCustomerId: async () => null,
+}) {
+  return new DeliveriesService(prisma as never, customersService as never);
+}
+
 test('Deliveries: updateStatus rejects invalid transition', async () => {
   const prisma = {
     deliveryOrder: {
@@ -38,7 +44,7 @@ test('Deliveries: updateStatus rejects invalid transition', async () => {
     },
   };
 
-  const service = new DeliveriesService(prisma as never);
+  const service = makeService(prisma);
   await assert.rejects(
     () => service.updateStatus(managerUser(), 'delivery-1', { status: 'SELESAI' }),
     (error: unknown) => {
@@ -52,7 +58,7 @@ test('Deliveries: updateStatus rejects invalid transition', async () => {
 
 test('Deliveries: updateStatus requires manager role', async () => {
   const prisma = { deliveryOrder: { findFirst: async () => null } };
-  const service = new DeliveriesService(prisma as never);
+  const service = makeService(prisma);
   await assert.rejects(
     () => service.updateStatus(cashierUser(), 'delivery-1', { status: 'DISIAPKAN' }),
     (error: unknown) => {
@@ -78,7 +84,7 @@ test('Deliveries: create rejects duplicate delivery for transaction', async () =
     customer: { findFirst: async () => ({ id: 'cust-1' }) },
   };
 
-  const service = new DeliveriesService(prisma as never);
+  const service = makeService(prisma);
   await assert.rejects(
     () =>
       service.create(cashierUser(), {
@@ -108,7 +114,7 @@ test('Deliveries: create requires address or snapshot', async () => {
     customer: { findFirst: async () => ({ id: 'cust-1' }) },
   };
 
-  const service = new DeliveriesService(prisma as never);
+  const service = makeService(prisma);
   await assert.rejects(
     () => service.create(cashierUser(), { transactionId: 'trx-1' }),
     (error: unknown) => {
@@ -122,7 +128,7 @@ test('Deliveries: create requires address or snapshot', async () => {
 
 test('Deliveries: getById returns not found', async () => {
   const prisma = { deliveryOrder: { findFirst: async () => null } };
-  const service = new DeliveriesService(prisma as never);
+  const service = makeService(prisma);
   await assert.rejects(
     () => service.getById(cashierUser(), 'missing'),
     (error: unknown) => {
@@ -142,9 +148,92 @@ test('Deliveries: queueSummary aggregates counts', async () => {
     },
   };
 
-  const service = new DeliveriesService(prisma as never);
+  const service = makeService(prisma);
   const summary = await service.queueSummary(cashierUser(), {});
   assert.equal(summary.MENUNGGU, 3);
   assert.equal(summary.DISIAPKAN, 2);
   assert.equal(summary.total, 5);
+});
+
+test('Deliveries: create resolves walk-in customer from checkout snapshot when transaction has no customerId', async () => {
+  let resolvedCustomerId: string | null = null;
+  const prisma = {
+    transaction: {
+      findFirst: async () => ({
+        id: 'trx-walkin-1',
+        customerId: null,
+        outletId: 'outlet-1',
+        status: 'COMPLETED',
+      }),
+    },
+    deliveryOrder: {
+      findFirst: async () => null,
+    },
+    customer: {
+      findFirst: async () => ({ id: 'cust-walkin-1' }),
+    },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        deliveryOrderSequence: {
+          upsert: async () => ({ lastValue: 1 }),
+        },
+        deliveryOrder: {
+          create: async ({
+            data,
+          }: {
+            data: {
+              customerId: string;
+              deliveryNo: string;
+              addressLine1: string;
+            };
+          }) => ({
+            id: 'delivery-walkin-1',
+            deliveryNo: data.deliveryNo,
+            deliveryType: 'STORE_DIRECT',
+            status: 'MENUNGGU',
+            createdAt: new Date('2026-06-09T10:00:00.000Z'),
+            scheduledAt: null,
+            driverName: null,
+            notes: null,
+            addressLine1: data.addressLine1,
+            addressLine2: null,
+            addressCity: 'Jakarta',
+            addressProvince: null,
+            customer: { id: data.customerId, name: 'Pak Joko', phone: '0812987654321' },
+            outlet: { id: 'outlet-1', name: 'Toko Utama' },
+            transaction: {
+              id: 'trx-walkin-1',
+              receiptNo: 'TRX-WLK-01',
+              total: { toString: () => '70000' },
+              items: [{ id: 'item-1' }],
+            },
+          }),
+        },
+      }),
+  };
+
+  const customersService = {
+    resolveOptionalCustomerId: async (...args: unknown[]) => {
+      const dto = (args[1] ?? {}) as { customerName?: string; customerPhone?: string };
+      resolvedCustomerId =
+        dto.customerName === 'Pak Joko' && dto.customerPhone === '0812987654321' ? 'cust-walkin-1' : null;
+      return resolvedCustomerId;
+    },
+  };
+
+  const service = makeService(prisma, customersService);
+  const created = await service.create(cashierUser(), {
+    transactionId: 'trx-walkin-1',
+    customerName: 'Pak Joko',
+    customerPhone: '0812987654321',
+    addressSnapshot: {
+      label: 'Proyek',
+      addressLine1: 'Jl. Merdeka 10',
+      city: 'Jakarta',
+    },
+  });
+
+  assert.equal(resolvedCustomerId, 'cust-walkin-1');
+  assert.equal(created.deliveryNo, 'DLV-20260609-0001');
+  assert.equal(created.customer.id, 'cust-walkin-1');
 });
