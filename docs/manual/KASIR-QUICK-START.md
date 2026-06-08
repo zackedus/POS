@@ -9,7 +9,7 @@ Panduan singkat shift harian toko bahan bangunan.
 ## Sebelum Shift
 
 1. Login dengan akun **Kasir** di `/login`
-2. Buka **Shift** → masukkan saldo awal kas (uang di laci)
+2. Buka **Shift & Kas** (`/shift`) → masukkan saldo awal kas (uang di laci)
 3. Pastikan indikator **Online** hijau (offline mode tersedia Fase 2)
 
 ## Transaksi Walk-in
@@ -51,10 +51,12 @@ Panduan singkat shift harian toko bahan bangunan.
 
 ## Tutup Shift
 
-1. Pastikan tidak ada hold aktif (warning muncul saat tutup)
-2. Hitung uang fisik di laci
-3. Sistem bandingkan dengan **expected cash**
-4. Catat selisih jika ada
+1. Buka **Shift & Kas** dari header kasir (`/shift`) atau tab **Shift Aktif**
+2. Klik **Tutup Shift** — panel rekonsiliasi muncul inline (tanpa pindah halaman)
+3. Pastikan tidak ada hold aktif (warning muncul jika ada)
+4. Hitung uang fisik di laci, bandingkan dengan **kas diharapkan** (termasuk penjualan tunai, terima piutang tunai, minus pengeluaran)
+5. Isi saldo akhir kas fisik — sistem hitung selisih otomatis
+6. Konfirmasi penutupan shift
 
 ## Online Orders (jika aktif)
 

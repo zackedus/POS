@@ -324,3 +324,45 @@ test('Shifts: expected cash includes AR collections and subtracts expenses', asy
   assert.equal(preview.cashExpenses, 20_000);
   assert.equal(preview.expectedCash, 205_000);
 });
+
+test('SCR-S04: listShiftHistory scopes cashier to own closed shifts', async () => {
+  const closedAt = new Date('2026-06-02T18:00:00.000Z');
+  let capturedWhere: { cashierId?: string } | null = null;
+
+  const prisma = {
+    shift: {
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        capturedWhere = where;
+        return [
+          {
+            id: 'shift-closed-1',
+            outletId: 'outlet-1',
+            cashierId: 'user-1',
+            openingCash: '100000',
+            closingCash: '250000',
+            expectedCash: '250000',
+            difference: '0',
+            openedAt: new Date('2026-06-02T08:00:00.000Z'),
+            closedAt,
+            cashier: { id: 'user-1', fullName: 'Kasir A' },
+            outlet: { id: 'outlet-1', name: 'Cabang Utama', code: 'MAIN' },
+          },
+        ];
+      },
+      count: async () => 1,
+    },
+  };
+
+  const service = new ShiftsService(prisma as never);
+  const result = await service.listShiftHistory(createUser(UserRole.CASHIER), {
+    outletId: 'outlet-1',
+    page: 1,
+    limit: 20,
+  });
+
+  assert.equal((capturedWhere as { cashierId?: string } | null)?.cashierId, 'user-1');
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].cashierName, 'Kasir A');
+  assert.equal(result.items[0].difference, 0);
+  assert.equal(result.meta.total, 1);
+});

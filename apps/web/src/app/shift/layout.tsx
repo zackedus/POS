@@ -61,14 +61,9 @@ function ShiftLayoutContent({
               Ke kasir
             </Button>
           </Link>
-          <Link href="/shift/open" style={{ textDecoration: 'none' }}>
+          <Link href="/shift" style={{ textDecoration: 'none' }}>
             <Button type="button" variant="ghost">
-              Buka shift
-            </Button>
-          </Link>
-          <Link href="/shift/close" style={{ textDecoration: 'none' }}>
-            <Button type="button" variant="ghost">
-              Tutup shift
+              Shift & Kas
             </Button>
           </Link>
         </nav>

@@ -9,6 +9,7 @@ import { CloseShiftDto } from './dto/close-shift.dto';
 import { ForceCloseShiftDto } from './dto/force-close-shift.dto';
 import { OpenShiftDto } from './dto/open-shift.dto';
 import { ClosePreviewQueryDto } from './dto/close-preview-query.dto';
+import { ShiftHistoryQueryDto } from './dto/shift-history-query.dto';
 import { ShiftsService } from './shifts.service';
 @Controller('shifts')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -23,6 +24,11 @@ export class ShiftsController {
   @Get('active')
   getActiveShift(@CurrentUser() user: AuthJwtPayload, @Query() query: ActiveShiftQueryDto) {
     return this.shiftsService.getActiveShift(user, query.outletId);
+  }
+
+  @Get('history')
+  listShiftHistory(@CurrentUser() user: AuthJwtPayload, @Query() query: ShiftHistoryQueryDto) {
+    return this.shiftsService.listShiftHistory(user, query);
   }
 
   @Get(':shiftId/close-preview')

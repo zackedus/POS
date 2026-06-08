@@ -129,7 +129,7 @@ export function PosShiftBar({
         </div>
         {!shiftOpen ? (
           <Link
-            href={selectedOutletId ? `/shift/open?outletId=${encodeURIComponent(selectedOutletId)}` : '/shift/open'}
+            href={selectedOutletId ? `/shift?outletId=${encodeURIComponent(selectedOutletId)}` : '/shift'}
             style={{
               padding: '0.35rem 0.75rem',
               borderRadius: 6,
@@ -226,8 +226,8 @@ export function PosShiftBar({
               </span>
             ) : null}
           </Link>
-          <Link href="/shift/close" style={navLinkStyle(pathname.startsWith('/shift/close'))}>
-            Tutup Shift
+          <Link href="/shift" style={navLinkStyle(pathname.startsWith('/shift'))}>
+            Shift & Kas
           </Link>
           <Button type="button" variant="ghost" onClick={onLogout} style={{ minHeight: 40 }}>
             Keluar

@@ -43,7 +43,7 @@ function PosLayoutInner({ children }: { children: React.ReactNode }) {
             <strong>Shift belum dibuka.</strong> Buka shift terlebih dahulu sebelum transaksi kasir.
           </span>
           <Link
-            href={selectedOutletId ? `/shift/open?outletId=${encodeURIComponent(selectedOutletId)}` : '/shift/open'}
+            href={selectedOutletId ? `/shift?outletId=${encodeURIComponent(selectedOutletId)}` : '/shift'}
             style={{ textDecoration: 'none' }}
           >
             <Button type="button" variant="secondary">

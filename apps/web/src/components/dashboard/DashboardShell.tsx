@@ -39,8 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Operasional',
     items: [
       { href: '/pos', label: 'Kasir' },
-      { href: '/shift/open', label: 'Buka Shift' },
-      { href: '/shift/close', label: 'Tutup Shift' },
+      { href: '/dashboard/shifts', label: 'Shift & Kas' },
       { href: '/dashboard/transactions', label: 'Void & Struk' },
       { href: '/dashboard/deliveries', label: 'Pengiriman', badgeKey: 'deliveries' },
       { href: '/dashboard/online-orders', label: 'Pesanan Web' },
@@ -56,7 +55,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Keuangan',
-    items: [{ href: '/dashboard/finance', label: 'Keuangan', exact: true }],
+    items: [
+      { href: '/dashboard/finance', label: 'Keuangan', exact: true },
+      { href: '/dashboard/reports/finance', label: 'Laporan Keuangan' },
+    ],
   },
   {
     title: 'Katalog',
@@ -90,11 +92,11 @@ const ICONS: Record<string, string> = {
   'Order Online (Kasir)': '◎',
   'Pesanan Web': '◈',
   Pengiriman: '➚',
-  'Buka Shift': '◷',
-  'Tutup Shift': '◴',
+  'Shift & Kas': '◷',
   'Void & Struk': '↩',
   Stok: '▤',
   Keuangan: '◫',
+  'Laporan Keuangan': '◧',
   'Order Distributor': '⇄',
   Produk: '▦',
   'Paket Bundling': '▣',
@@ -169,6 +171,7 @@ function roleLabel(role: string): string {
 function pageTitle(pathname: string): string {
   if (pathname === '/dashboard') return 'Ringkasan';
   if (pathname.startsWith('/dashboard/analytics')) return 'Analitik';
+  if (pathname.startsWith('/dashboard/reports/finance')) return 'Laporan Keuangan';
   if (pathname.startsWith('/dashboard/admin')) return 'Pusat Admin';
   if (pathname.startsWith('/dashboard/integrations')) return 'Integrasi & API';
   if (pathname.startsWith('/dashboard/promotions')) return 'Promo & Diskon';
@@ -196,8 +199,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard/online-orders')) return 'Pesanan Web';
   if (pathname.startsWith('/dashboard/deliveries')) return 'Antrian Pengiriman';
   if (pathname.startsWith('/pos/online-orders')) return 'Order Online';
-  if (pathname.startsWith('/shift/open')) return 'Buka Shift';
-  if (pathname.startsWith('/shift/close')) return 'Tutup Shift';
+  if (pathname.startsWith('/dashboard/shifts') || pathname.startsWith('/shift')) return 'Shift & Kas';
   if (pathname.startsWith('/pos')) return 'Kasir';
   return 'Admin';
 }
@@ -254,11 +256,17 @@ export function DashboardShell({
         pathname.startsWith('/dashboard/expenses')
       );
     }
+    if (href === '/dashboard/reports/finance') {
+      return pathname === href || pathname.startsWith(`${href}/`);
+    }
     if (href === '/dashboard/users') {
       return pathname === href || pathname.startsWith('/dashboard/roles');
     }
     if (href === '/dashboard/settings') {
       return pathname === href || pathname.startsWith('/dashboard/integrations');
+    }
+    if (href === '/dashboard/shifts') {
+      return pathname === href || pathname.startsWith('/shift');
     }
     if (exact) return pathname === href;
     return pathname === href || pathname.startsWith(`${href}/`);

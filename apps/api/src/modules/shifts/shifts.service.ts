@@ -4,11 +4,12 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { ErrorCodes } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
-import { assertOutletAccess, resolveOutletId } from '../../common/utils/outlet.util';
+import { assertOutletAccess, canAccessAnyTenantOutlet, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { ForceCloseShiftDto } from './dto/force-close-shift.dto';
 import { OpenShiftDto } from './dto/open-shift.dto';
+import { ShiftHistoryQueryDto } from './dto/shift-history-query.dto';
 
 @Injectable()
 export class ShiftsService {
@@ -47,6 +48,69 @@ export class ShiftsService {
       openingCash: toIdrInteger(shift.openingCash),
       openedAt: shift.openedAt,
       closedAt: shift.closedAt,
+    };
+  }
+
+  async listShiftHistory(user: AuthJwtPayload, query: ShiftHistoryQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const outletFilter = query.outletId
+      ? [resolveOutletId(user, query.outletId)]
+      : canAccessAnyTenantOutlet(user)
+        ? undefined
+        : user.outletIds;
+
+    const closedAtFilter: { gte?: Date; lte?: Date; not: null } = { not: null };
+    if (query.dateFrom) {
+      closedAtFilter.gte = new Date(`${query.dateFrom.slice(0, 10)}T00:00:00.000Z`);
+    }
+    if (query.dateTo) {
+      closedAtFilter.lte = new Date(`${query.dateTo.slice(0, 10)}T23:59:59.999Z`);
+    }
+
+    const where = {
+      closedAt: closedAtFilter,
+      outlet: { tenantId: user.tenantId },
+      ...(outletFilter ? { outletId: { in: outletFilter } } : {}),
+      ...(user.role === UserRole.CASHIER ? { cashierId: user.sub } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.shift.findMany({
+        where,
+        orderBy: { closedAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          cashier: { select: { id: true, fullName: true } },
+          outlet: { select: { id: true, name: true, code: true } },
+        },
+      }),
+      this.prisma.shift.count({ where }),
+    ]);
+
+    return {
+      items: items.map((shift) => ({
+        id: shift.id,
+        outletId: shift.outletId,
+        outletLabel: `${shift.outlet.name} (${shift.outlet.code})`,
+        cashierId: shift.cashierId,
+        cashierName: shift.cashier.fullName,
+        openingCash: toIdrInteger(shift.openingCash),
+        closingCash: shift.closingCash != null ? toIdrInteger(shift.closingCash) : null,
+        expectedCash: shift.expectedCash != null ? toIdrInteger(shift.expectedCash) : null,
+        difference: shift.difference != null ? toIdrInteger(shift.difference) : null,
+        openedAt: shift.openedAt,
+        closedAt: shift.closedAt,
+      })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
     };
   }
 
