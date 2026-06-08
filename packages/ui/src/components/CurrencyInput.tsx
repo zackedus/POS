@@ -17,6 +17,21 @@ export interface CurrencyInputProps
   onChange: (value: string) => void;
 }
 
+function digitsFromInput(raw: string): string {
+  return raw.replace(/\D/g, '');
+}
+
+function formatDigits(digits: string): string {
+  if (!digits) {
+    return '';
+  }
+  const parsed = parseInt(digits, 10);
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+  return formatCurrencyAmountOnly(parsed);
+}
+
 export function CurrencyInput({
   label,
   error,
@@ -105,30 +120,28 @@ export function CurrencyInput({
           style={{ ...inputStyle, border: 'none', borderRadius: 0 }}
           onFocus={() => {
             setFocused(true);
-            const parsed = parseCurrencyInput(value || text);
-            setText(parsed > 0 ? String(parsed) : '');
+            const parsed = parseCurrencyInput(value);
+            setText(parsed > 0 ? formatCurrencyAmountOnly(parsed) : '');
           }}
           onBlur={() => {
             setFocused(false);
-            const parsed = parseCurrencyInput(text);
+            const digits = digitsFromInput(text);
+            const parsed = digits ? parseInt(digits, 10) : 0;
             onChange(parsed > 0 ? String(parsed) : '');
           }}
           onChange={(event) => {
-            const next = event.target.value;
-            setText(next);
-            if (next.includes(',')) {
-              const fraction = next.slice(next.lastIndexOf(',') + 1);
-              if (fraction.length > 0 && !/^0+$/.test(fraction)) {
-                onChange(next);
-                return;
-              }
-            }
-            if (/\.\d{1,2}$/.test(next.replace(/\s/g, ''))) {
-              onChange(next);
+            const digits = digitsFromInput(event.target.value);
+            if (!digits) {
+              setText('');
+              onChange('');
               return;
             }
-            const parsed = parseCurrencyInput(next);
-            onChange(parsed > 0 ? String(parsed) : '');
+            const parsed = parseInt(digits, 10);
+            if (!Number.isFinite(parsed)) {
+              return;
+            }
+            setText(formatDigits(digits));
+            onChange(String(parsed));
           }}
           {...props}
         />

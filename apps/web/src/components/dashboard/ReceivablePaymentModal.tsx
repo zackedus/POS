@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   formatCurrencyIDR,
   parseCurrencyInput,
@@ -36,7 +36,10 @@ export function ReceivablePaymentModal({
   receivables = [],
   shiftId,
 }: ReceivablePaymentModalProps) {
-  const openRows = receivables.filter((r) => r.outstanding > 0);
+  const openRows = useMemo(
+    () => receivables.filter((r) => r.outstanding > 0),
+    [receivables],
+  );
   const [receivableId, setReceivableId] = useState('');
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<string>('CASH');
@@ -48,6 +51,11 @@ export function ReceivablePaymentModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const openRowsKey = useMemo(
+    () => openRows.map((r) => `${r.id}:${r.outstanding}`).join('|'),
+    [openRows],
+  );
+
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -58,7 +66,7 @@ export function ReceivablePaymentModal({
       setReceivableId('');
       setAmount('');
     }
-  }, [open, openRows]);
+  }, [open, openRowsKey, openRows]);
 
   if (!open) return null;
 

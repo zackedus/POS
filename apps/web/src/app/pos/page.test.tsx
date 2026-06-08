@@ -558,7 +558,7 @@ describe('PosPage', () => {
     });
   });
 
-  it('blocks split checkout when nominal has decimal input', async () => {
+  it('normalizes decimal-like split input to integer and blocks mismatch checkout', async () => {
     setCatalogState([
       { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 125000, unit: { name: 'Sak', symbol: 'sak' } },
     ]);
@@ -571,7 +571,7 @@ describe('PosPage', () => {
     fireEvent.change(screen.getByPlaceholderText('75.000'), { target: { value: '74500' } });
 
     expect(screen.getByRole('button', { name: 'Checkout Split' })).toBeDisabled();
-    expect(screen.getByText(/Nominal split harus angka bulat >= 0 \(contoh: 50.000\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Total split harus sama dengan total keranjang/i)).toBeInTheDocument();
   });
 
   it('shows formatted stock badges for paku and seng products', async () => {
