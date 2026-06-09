@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { formatCurrencyIDR, DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
@@ -14,6 +14,7 @@ import {
   TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   createSupplier,
@@ -23,13 +24,37 @@ import {
   PO_STATUS_LABELS,
   poStatusVariant,
   updateSupplier,
+  type PurchaseOrderStatus,
   type PurchaseOrderSummary,
   type SupplierRow,
 } from '@/lib/suppliers-api';
 import { mapApiError } from '@/lib/api-client';
+import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
+
+type PoFilters = {
+  outletId: string;
+  status: string;
+  supplierId: string;
+  dateFrom: string;
+  dateTo: string;
+  search: string;
+};
+
+function createPoFilterDefaults(outletId = ''): PoFilters {
+  const dates = defaultDateFilters();
+  return {
+    outletId,
+    status: '',
+    supplierId: '',
+    dateFrom: dates.dateFrom,
+    dateTo: dates.dateTo,
+    search: '',
+  };
+}
 
 export default function PurchaseOrdersPage() {
-  const { selectedOutletId, needsOutletPick } = useOutletSelection();
+  const { outlets, selectedOutletId, needsOutletPick } = useOutletSelection();
+  const multiOutlet = outlets.length > 1;
   const [orders, setOrders] = useState<PurchaseOrderSummary[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,9 +62,55 @@ export default function PurchaseOrdersPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: '', phone: '', email: '' });
+  const [draftFilters, setDraftFilters] = useState<PoFilters>(() =>
+    createPoFilterDefaults(selectedOutletId ?? ''),
+  );
+  const [appliedFilters, setAppliedFilters] = useState<PoFilters>(() =>
+    createPoFilterDefaults(selectedOutletId ?? ''),
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
+
+  const queryOutletId = useMemo(() => {
+    if (needsOutletPick && !multiOutlet) return undefined;
+    if (multiOutlet) return appliedFilters.outletId || undefined;
+    return selectedOutletId ?? undefined;
+  }, [needsOutletPick, multiOutlet, appliedFilters.outletId, selectedOutletId]);
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'outlet',
+          label: `Cabang: ${outlets.find((o) => o.id === appliedFilters.outletId)?.label ?? 'Semua'}`,
+          active: multiOutlet && Boolean(appliedFilters.outletId),
+        },
+        {
+          key: 'status',
+          label: `Status: ${PO_STATUS_LABELS[appliedFilters.status as PurchaseOrderStatus] ?? appliedFilters.status}`,
+          active: Boolean(appliedFilters.status),
+        },
+        {
+          key: 'supplier',
+          label: `Supplier: ${suppliers.find((s) => s.id === appliedFilters.supplierId)?.name ?? appliedFilters.supplierId}`,
+          active: Boolean(appliedFilters.supplierId),
+        },
+        {
+          key: 'date',
+          label: `Tanggal: ${appliedFilters.dateFrom} – ${appliedFilters.dateTo}`,
+          active:
+            appliedFilters.dateFrom !== defaultDateFilters().dateFrom ||
+            appliedFilters.dateTo !== defaultDateFilters().dateTo,
+        },
+        {
+          key: 'search',
+          label: `Cari: ${appliedFilters.search}`,
+          active: Boolean(appliedFilters.search.trim()),
+        },
+      ]),
+    [appliedFilters, multiOutlet, outlets, suppliers],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -47,9 +118,14 @@ export default function PurchaseOrdersPage() {
     try {
       const supplierRows = await fetchSuppliers();
       setSuppliers(supplierRows);
-      if (!needsOutletPick) {
+      if (!needsOutletPick || multiOutlet) {
         const result = await fetchPurchaseOrders({
-          outletId: selectedOutletId ?? undefined,
+          outletId: queryOutletId,
+          status: (appliedFilters.status as PurchaseOrderStatus) || undefined,
+          supplierId: appliedFilters.supplierId || undefined,
+          dateFrom: appliedFilters.dateFrom || undefined,
+          dateTo: appliedFilters.dateTo || undefined,
+          search: appliedFilters.search || undefined,
           page,
           limit: pageSize,
         });
@@ -64,7 +140,26 @@ export default function PurchaseOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [needsOutletPick, selectedOutletId, page, pageSize]);
+  }, [needsOutletPick, multiOutlet, queryOutletId, appliedFilters, page, pageSize]);
+
+  useEffect(() => {
+    if (!multiOutlet && selectedOutletId) {
+      setDraftFilters((prev) => ({ ...prev, outletId: selectedOutletId }));
+      setAppliedFilters((prev) => ({ ...prev, outletId: selectedOutletId }));
+    }
+  }, [multiOutlet, selectedOutletId]);
+
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
+  }
+
+  function resetFilters() {
+    const defaults = createPoFilterDefaults(multiOutlet ? '' : (selectedOutletId ?? ''));
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
 
   useEffect(() => {
     void loadData();

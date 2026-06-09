@@ -215,7 +215,6 @@ export function ListFilterBar({
           onClick={() => setExpanded((prev) => !prev)}
           aria-expanded={expanded}
           style={{
-            display: 'none',
             minHeight: 44,
             padding: '0.5rem 0.75rem',
             borderRadius: 8,
@@ -223,23 +222,13 @@ export function ListFilterBar({
             background: '#f8fafc',
             fontWeight: 600,
             cursor: 'pointer',
+            width: '100%',
           }}
-          className="list-filter-toggle-mobile"
         >
           {expanded ? 'Sembunyikan filter' : 'Tampilkan filter'}
         </button>
-        <div className="list-filter-body">{filterBody}</div>
+        {expanded ? filterBody : null}
       </div>
-      <style jsx>{`
-        @media (max-width: 640px) {
-          .list-filter-toggle-mobile {
-            display: block !important;
-          }
-          .list-filter-body {
-            display: ${expanded ? 'block' : 'none'};
-          }
-        }
-      `}</style>
     </SectionCard>
   );
 }

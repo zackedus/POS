@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { formatCurrency, getTodayDate } from '@barokah/shared';
-import { Button, Input } from '@barokah/ui';
+import { formatCurrency, ONLINE_ORDER_CHANNEL_LABELS } from '@barokah/shared';
+import { Button } from '@barokah/ui';
 import {
   AlertBanner,
   DataTable,
@@ -15,6 +15,8 @@ import {
   TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
+import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
 import { mapApiError } from '@/lib/api-client';
 import {
   fetchManagerOrders,
@@ -38,14 +40,34 @@ const STATUS_OPTIONS = [
   { value: 'EXPIRED', label: 'Kedaluwarsa' },
 ];
 
+const CHANNEL_OPTIONS = [
+  { value: '', label: 'Semua channel' },
+  { value: 'WEB', label: ONLINE_ORDER_CHANNEL_LABELS.WEB },
+  { value: 'TOKOPEDIA', label: ONLINE_ORDER_CHANNEL_LABELS.TOKOPEDIA },
+  { value: 'SHOPEE', label: ONLINE_ORDER_CHANNEL_LABELS.SHOPEE },
+  { value: 'OTHER', label: ONLINE_ORDER_CHANNEL_LABELS.OTHER },
+];
+
+type OrderFilters = {
+  status: string;
+  channel: string;
+  dateFrom: string;
+  dateTo: string;
+  search: string;
+};
+
+function createDefaultOrderFilters(): OrderFilters {
+  const dates = defaultDateFilters();
+  return { status: '', channel: '', dateFrom: dates.dateFrom, dateTo: dates.dateTo, search: '' };
+}
+
 export default function DashboardOnlineOrdersPage() {
   const { selectedOutletId } = useOutletSelection();
   const [orders, setOrders] = useState<FulfillmentOrder[]>([]);
+  const [page, setPage] = useState(1);
   const [meta, setMeta] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
-  const [status, setStatus] = useState('');
-  const [dateFrom, setDateFrom] = useState(() => getTodayDate());
-  const [dateTo, setDateTo] = useState(() => getTodayDate());
-  const [search, setSearch] = useState('');
+  const [draftFilters, setDraftFilters] = useState<OrderFilters>(createDefaultOrderFilters);
+  const [appliedFilters, setAppliedFilters] = useState<OrderFilters>(createDefaultOrderFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -54,33 +76,72 @@ export default function DashboardOnlineOrdersPage() {
   const [labelData, setLabelData] = useState<ShippingLabelData | null>(null);
   const [printingLabel, setPrintingLabel] = useState(false);
 
-  const loadOrders = useCallback(
-    async (page = 1) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await fetchManagerOrders({
-          outletId: selectedOutletId ?? undefined,
-          status: status || undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-          search: search || undefined,
-          page,
-          limit: 20,
-        });
-        setOrders(result.items);
-        setMeta(result.meta);
-      } catch (err) {
-        setError(mapApiError(err, 'Gagal memuat pesanan online.'));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [selectedOutletId, status, dateFrom, dateTo, search],
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'status',
+          label: `Status: ${STATUS_OPTIONS.find((o) => o.value === appliedFilters.status)?.label ?? appliedFilters.status}`,
+          active: Boolean(appliedFilters.status),
+        },
+        {
+          key: 'channel',
+          label: `Channel: ${CHANNEL_OPTIONS.find((o) => o.value === appliedFilters.channel)?.label ?? appliedFilters.channel}`,
+          active: Boolean(appliedFilters.channel),
+        },
+        {
+          key: 'date',
+          label: `Tanggal: ${appliedFilters.dateFrom} – ${appliedFilters.dateTo}`,
+          active:
+            appliedFilters.dateFrom !== defaultDateFilters().dateFrom ||
+            appliedFilters.dateTo !== defaultDateFilters().dateTo,
+        },
+        {
+          key: 'search',
+          label: `Cari: ${appliedFilters.search}`,
+          active: Boolean(appliedFilters.search.trim()),
+        },
+      ]),
+    [appliedFilters],
   );
 
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchManagerOrders({
+        outletId: selectedOutletId ?? undefined,
+        channel: appliedFilters.channel || undefined,
+        status: appliedFilters.status || undefined,
+        dateFrom: appliedFilters.dateFrom || undefined,
+        dateTo: appliedFilters.dateTo || undefined,
+        search: appliedFilters.search || undefined,
+        page,
+        limit: 20,
+      });
+      setOrders(result.items);
+      setMeta(result.meta);
+    } catch (err) {
+      setError(mapApiError(err, 'Gagal memuat pesanan online.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedOutletId, appliedFilters, page]);
+
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
+  }
+
+  function resetFilters() {
+    const defaults = createDefaultOrderFilters();
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
+
   useEffect(() => {
-    void loadOrders(1);
+    void loadOrders();
   }, [loadOrders]);
 
   async function openDetail(orderId: string) {
@@ -135,43 +196,43 @@ export default function DashboardOnlineOrdersPage() {
 
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
 
-      <SectionCard title="Filter">
-        <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
-            Status
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value || 'all'} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Input label="Dari tanggal" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} fullWidth />
-          <Input label="Sampai tanggal" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} fullWidth />
-          <Input
-            label="Cari no. order / nama / HP"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="WEB-… atau Budi"
-            fullWidth
-          />
-        </div>
-        <div style={{ marginTop: '0.75rem' }}>
-          <Button type="button" variant="secondary" onClick={() => void loadOrders(1)}>
-            Terapkan filter
-          </Button>
-        </div>
-      </SectionCard>
+      <ListFilterBar
+        selects={[
+          {
+            id: 'status',
+            label: 'Status',
+            value: draftFilters.status,
+            options: STATUS_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, status: value })),
+          },
+          {
+            id: 'channel',
+            label: 'Channel',
+            value: draftFilters.channel,
+            options: CHANNEL_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, channel: value })),
+          },
+        ]}
+        dateFrom={draftFilters.dateFrom}
+        dateTo={draftFilters.dateTo}
+        onDateFromChange={(value) => setDraftFilters((prev) => ({ ...prev, dateFrom: value }))}
+        onDateToChange={(value) => setDraftFilters((prev) => ({ ...prev, dateTo: value }))}
+        search={draftFilters.search}
+        searchPlaceholder="No. order / nama / HP…"
+        onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
 
       {loading ? <LoadingSkeleton rows={5} /> : null}
 
       {!loading && orders.length === 0 ? (
-        <EmptyState title="Tidak ada pesanan" description="Belum ada pesanan online untuk filter yang dipilih." icon="◎" />
+        <EmptyState
+          title="Tidak ada pesanan"
+          description={activeChips.length > 0 ? FILTER_EMPTY_DESCRIPTION : 'Belum ada pesanan online untuk filter yang dipilih.'}
+          icon="◎"
+        />
       ) : null}
 
       {!loading && orders.length > 0 ? (
@@ -215,7 +276,7 @@ export default function DashboardOnlineOrdersPage() {
             totalPages={meta.totalPages}
             totalItems={meta.total}
             pageSize={meta.limit}
-            onPageChange={(page) => void loadOrders(page)}
+            onPageChange={setPage}
           />
         </>
       ) : null}

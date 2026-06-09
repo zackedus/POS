@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MARKETPLACE_ORDER_CHANNELS } from '@barokah/shared';
+import { MARKETPLACE_ORDER_CHANNELS, ONLINE_ORDER_CHANNEL_LABELS } from '@barokah/shared';
 import { Button, Input, colors } from '@barokah/ui';
 import { PosShiftBar } from '@/components/pos/PosShiftBar';
 import { PosFulfillmentQueue } from '@/components/pos/PosFulfillmentQueue';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
+import { buildFilterChips } from '@/lib/list-filters';
 import { mapApiError } from '@/lib/api-client';
 import { fetchMe, tokenStorage, type AuthUser } from '@/lib/auth';
 import {
@@ -23,6 +25,30 @@ import { createClientRequestId } from '@/lib/offline-queue';
 import type { ProductGridItem } from '@/components/pos/pos-types';
 
 type MarketplaceChannel = 'TOKOPEDIA' | 'SHOPEE' | 'OTHER';
+
+const QUEUE_CHANNEL_OPTIONS = [
+  { value: MARKETPLACE_ORDER_CHANNELS, label: 'Semua marketplace' },
+  { value: 'TOKOPEDIA', label: ONLINE_ORDER_CHANNEL_LABELS.TOKOPEDIA },
+  { value: 'SHOPEE', label: ONLINE_ORDER_CHANNEL_LABELS.SHOPEE },
+  { value: 'OTHER', label: ONLINE_ORDER_CHANNEL_LABELS.OTHER },
+];
+
+const QUEUE_STATUS_OPTIONS = [
+  { value: '', label: 'Semua status' },
+  { value: 'PAID', label: 'Dibayar' },
+  { value: 'CONFIRMED', label: 'Dikonfirmasi' },
+  { value: 'READY', label: 'Siap' },
+  { value: 'COMPLETED', label: 'Selesai' },
+];
+
+type QueueFilters = {
+  channel: string;
+  status: string;
+};
+
+function createDefaultQueueFilters(): QueueFilters {
+  return { channel: MARKETPLACE_ORDER_CHANNELS, status: '' };
+}
 
 interface LineItemDraft {
   productId: string;
@@ -56,8 +82,27 @@ export default function MarketplaceOrdersPage() {
   const [productQuery, setProductQuery] = useState('');
   const [productResults, setProductResults] = useState<ProductGridItem[]>([]);
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
+  const [draftQueueFilters, setDraftQueueFilters] = useState<QueueFilters>(createDefaultQueueFilters);
+  const [appliedQueueFilters, setAppliedQueueFilters] = useState<QueueFilters>(createDefaultQueueFilters);
 
   const { outlets, selectedOutletId, needsOutletPick, setSelectedOutletId } = useOutletSelection();
+
+  const queueActiveChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'channel',
+          label: `Channel: ${QUEUE_CHANNEL_OPTIONS.find((o) => o.value === appliedQueueFilters.channel)?.label ?? appliedQueueFilters.channel}`,
+          active: appliedQueueFilters.channel !== MARKETPLACE_ORDER_CHANNELS,
+        },
+        {
+          key: 'status',
+          label: `Status: ${QUEUE_STATUS_OPTIONS.find((o) => o.value === appliedQueueFilters.status)?.label ?? appliedQueueFilters.status}`,
+          active: Boolean(appliedQueueFilters.status),
+        },
+      ]),
+    [appliedQueueFilters],
+  );
   const shiftOutletMismatch = Boolean(
     selectedOutletId && activeShift?.outletId && activeShift.outletId !== selectedOutletId,
   );
@@ -97,7 +142,10 @@ export default function MarketplaceOrdersPage() {
       try {
         const result = await fetchFulfillmentQueue({
           outletId: selectedOutletId ?? undefined,
-          channel: MARKETPLACE_ORDER_CHANNELS,
+          channel: appliedQueueFilters.channel,
+          status: appliedQueueFilters.status || undefined,
+          page: 1,
+          limit: 50,
         });
         setOrders(result.items);
         setError(null);
@@ -110,8 +158,18 @@ export default function MarketplaceOrdersPage() {
         }
       }
     },
-    [selectedOutletId, needsOutletPick],
+    [selectedOutletId, needsOutletPick, appliedQueueFilters],
   );
+
+  function applyQueueFilters() {
+    setAppliedQueueFilters({ ...draftQueueFilters });
+  }
+
+  function resetQueueFilters() {
+    const defaults = createDefaultQueueFilters();
+    setDraftQueueFilters(defaults);
+    setAppliedQueueFilters(defaults);
+  }
 
   useEffect(() => {
     void load();
@@ -475,6 +533,29 @@ export default function MarketplaceOrdersPage() {
           </div>
         ) : null}
 
+        <ListFilterBar
+          selects={[
+            {
+              id: 'channel',
+              label: 'Channel',
+              value: draftQueueFilters.channel,
+              options: QUEUE_CHANNEL_OPTIONS,
+              onChange: (value) => setDraftQueueFilters((prev) => ({ ...prev, channel: value })),
+            },
+            {
+              id: 'status',
+              label: 'Status',
+              value: draftQueueFilters.status,
+              options: QUEUE_STATUS_OPTIONS,
+              onChange: (value) => setDraftQueueFilters((prev) => ({ ...prev, status: value })),
+            },
+          ]}
+          showDateRange={false}
+          onApply={applyQueueFilters}
+          onReset={resetQueueFilters}
+          activeChips={queueActiveChips}
+        />
+
         <PosFulfillmentQueue
           orders={orders}
           loading={loading}
@@ -483,7 +564,11 @@ export default function MarketplaceOrdersPage() {
           selectedOutletId={selectedOutletId}
           showChannelBadge
           emptyTitle="Belum ada order marketplace yang perlu disiapkan"
-          emptyDescription="Catat order manual dari Tokopedia/Shopee via tombol Catat Order. Stok langsung terpotong saat disimpan (asumsi sudah dibayar di marketplace)."
+          emptyDescription={
+            queueActiveChips.length > 0
+              ? FILTER_EMPTY_DESCRIPTION
+              : 'Catat order manual dari Tokopedia/Shopee via tombol Catat Order. Stok langsung terpotong saat disimpan (asumsi sudah dibayar di marketplace).'
+          }
           onReload={() => void load(true)}
         />
       </div>

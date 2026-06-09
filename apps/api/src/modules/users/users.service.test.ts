@@ -74,3 +74,26 @@ test('Users: listUsers returns tenant scoped summaries', async () => {
   assert.equal(result.items[0]?.outlets[0]?.code, 'MAIN');
   assert.equal(result.meta.total, 1);
 });
+
+test('Users: listUsers applies role and search filters', async () => {
+  let capturedWhere: Record<string, unknown> | null = null;
+  const prisma = {
+    user: {
+      findMany: async (args: { where: Record<string, unknown> }) => {
+        capturedWhere = args.where;
+        return [];
+      },
+      count: async () => 0,
+    },
+  };
+
+  const service = new UsersService(prisma as never);
+  await service.listUsers(createOwner(), { role: 'MANAGER', search: 'budi', isActive: true, page: 1, limit: 10 });
+
+  assert.ok(capturedWhere);
+  const where = capturedWhere as unknown as { tenantId: string; role: string; isActive: boolean; OR: unknown[] };
+  assert.equal(where.tenantId, 'tenant-1');
+  assert.equal(where.role, 'MANAGER');
+  assert.equal(where.isActive, true);
+  assert.ok(Array.isArray(where.OR));
+});

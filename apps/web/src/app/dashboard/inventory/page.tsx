@@ -31,8 +31,20 @@ import {
 import { mapApiError } from '@/lib/api-client';
 import { lookupProductByCode } from '@/lib/catalog-api';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
+import { buildFilterChips } from '@/lib/list-filters';
 
 type InventoryTab = 'stok' | 'riwayat' | 'opname' | 'transfer';
+
+type StockFilters = {
+  categoryId: string;
+  lowStockOnly: boolean;
+  search: string;
+};
+
+function emptyStockFilters(): StockFilters {
+  return { categoryId: '', lowStockOnly: false, search: '' };
+}
 
 interface CategoryOption {
   id: string;
@@ -50,9 +62,8 @@ export default function InventoryPage() {
   const [movementsLoading, setMovementsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [lowStockOnly, setLowStockOnly] = useState(false);
-  const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [draftStockFilters, setDraftStockFilters] = useState<StockFilters>(emptyStockFilters);
+  const [appliedStockFilters, setAppliedStockFilters] = useState<StockFilters>(emptyStockFilters);
   const [adjustProductId, setAdjustProductId] = useState('');
   const [adjustDirection, setAdjustDirection] = useState<'IN' | 'OUT'>('IN');
   const [adjustReason, setAdjustReason] = useState<StockAdjustReason>('OTHER');
@@ -88,6 +99,36 @@ export default function InventoryPage() {
   const { page, totalPages, pageItems, setPage, totalItems, pageSize } = useClientPagination(items, 12);
   const movementsPagination = useClientPagination(movements, 15);
 
+  const stockActiveChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'category',
+          label: `Kategori: ${categories.find((c) => c.id === appliedStockFilters.categoryId)?.name ?? appliedStockFilters.categoryId}`,
+          active: Boolean(appliedStockFilters.categoryId),
+        },
+        { key: 'lowStock', label: 'Stok rendah saja', active: appliedStockFilters.lowStockOnly },
+        {
+          key: 'search',
+          label: `Cari: ${appliedStockFilters.search}`,
+          active: Boolean(appliedStockFilters.search.trim()),
+        },
+      ]),
+    [appliedStockFilters, categories],
+  );
+
+  function applyStockFilters() {
+    setAppliedStockFilters({ ...draftStockFilters });
+    setPage(1);
+  }
+
+  function resetStockFilters() {
+    const defaults = emptyStockFilters();
+    setDraftStockFilters(defaults);
+    setAppliedStockFilters(defaults);
+    setPage(1);
+  }
+
   const loadCategories = useCallback(async () => {
     try {
       const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/categories`);
@@ -112,9 +153,9 @@ export default function InventoryPage() {
     try {
       const data = await fetchInventory({
         outletId: selectedOutletId ?? undefined,
-        lowStockOnly,
-        categoryId: categoryId || undefined,
-        search: search || undefined,
+        lowStockOnly: appliedStockFilters.lowStockOnly,
+        categoryId: appliedStockFilters.categoryId || undefined,
+        search: appliedStockFilters.search || undefined,
       });
       setItems(data.items);
       setLowStockCount(data.lowStockCount);
@@ -124,7 +165,7 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [needsOutletPick, selectedOutletId, lowStockOnly, categoryId, search]);
+  }, [needsOutletPick, selectedOutletId, appliedStockFilters]);
 
   const loadMovements = useCallback(async () => {
     if (needsOutletPick) {
@@ -154,7 +195,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [lowStockOnly, selectedOutletId, categoryId, search, setPage]);
+  }, [selectedOutletId, setPage]);
 
   useEffect(() => {
     if (tab === 'stok' || tab === 'opname' || tab === 'transfer') {
@@ -380,32 +421,40 @@ export default function InventoryPage() {
       ) : null}
 
       {tab === 'stok' ? (
-        <section style={cardStyle()}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
+        <>
+          <ListFilterBar
+            selects={[
+              {
+                id: 'category',
+                label: 'Kategori',
+                value: draftStockFilters.categoryId,
+                options: [
+                  { value: '', label: 'Semua kategori' },
+                  ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+                ],
+                onChange: (value) => setDraftStockFilters((prev) => ({ ...prev, categoryId: value })),
+              },
+            ]}
+            showDateRange={false}
+            search={draftStockFilters.search}
+            searchPlaceholder="Cari SKU / nama…"
+            onSearchChange={(value) => setDraftStockFilters((prev) => ({ ...prev, search: value }))}
+            toggles={[
+              {
+                id: 'lowStock',
+                label: 'Stok rendah saja',
+                checked: draftStockFilters.lowStockOnly,
+                onChange: (checked) => setDraftStockFilters((prev) => ({ ...prev, lowStockOnly: checked })),
+              },
+            ]}
+            onApply={applyStockFilters}
+            onReset={resetStockFilters}
+            activeChips={stockActiveChips}
+          />
+
+          <section style={cardStyle()}>
+          <div style={{ marginBottom: '1rem' }}>
             <StatusBadge label={`Stok rendah: ${lowStockCount}`} variant={lowStockCount > 0 ? 'warning' : 'success'} />
-            <input
-              type="search"
-              placeholder="Cari SKU / nama…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid #e2e8f0', minWidth: 180 }}
-            />
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              style={{ padding: '0.4rem 0.6rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-            >
-              <option value="">Semua kategori</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-              <input type="checkbox" checked={lowStockOnly} onChange={(e) => setLowStockOnly(e.target.checked)} />
-              Stok rendah saja
-            </label>
           </div>
 
           {loading ? (
@@ -414,9 +463,11 @@ export default function InventoryPage() {
             <EmptyState
               title="Tidak ada data stok"
               description={
-                lowStockOnly
-                  ? 'Semua stok aman — tidak ada produk di bawah minimum.'
-                  : 'Belum ada inventori untuk outlet ini. Terima barang dari supplier atau sesuaikan stok manual.'
+                stockActiveChips.length > 0
+                  ? FILTER_EMPTY_DESCRIPTION
+                  : appliedStockFilters.lowStockOnly
+                    ? 'Semua stok aman — tidak ada produk di bawah minimum.'
+                    : 'Belum ada inventori untuk outlet ini. Terima barang dari supplier atau sesuaikan stok manual.'
               }
               actionHref="/dashboard/purchase-orders"
               actionLabel="Order Distributor"
@@ -486,6 +537,7 @@ export default function InventoryPage() {
             </>
           )}
         </section>
+        </>
       ) : null}
 
       {tab === 'stok' ? (

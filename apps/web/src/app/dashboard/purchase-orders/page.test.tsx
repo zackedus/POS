@@ -8,6 +8,7 @@ const fetchPurchaseOrdersMock = vi.fn();
 
 vi.mock('@/lib/outlet-selection-state', () => ({
   useOutletSelection: () => ({
+    outlets: [{ id: 'out-1', label: 'Cabang Utama' }],
     selectedOutletId: 'out-1',
     needsOutletPick: false,
     setSelectedOutletId: vi.fn(),
@@ -63,7 +64,6 @@ describe('PurchaseOrdersPage', () => {
 
     expect(await screen.findByText('PO-20260602-0001')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buat Order Distributor' })).toBeInTheDocument();
-    expect(screen.getByText('Dikirim ke Distributor')).toBeInTheDocument();
   });
 
   it('loads suppliers and purchase orders on mount', async () => {

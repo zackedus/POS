@@ -3,16 +3,18 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { formatCurrencyIDR, getTodayDate, parseCurrencyInput } from '@barokah/shared';
+import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
 import { Button, CurrencyInput, Input } from '@barokah/ui';
 import {
   AlertBanner,
   EmptyState,
   PageHeader,
-  ReportDateFilters,
   SectionCard,
   StatCard,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
+import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
+import { fetchUsers } from '@/lib/users-api';
 import {
   ShiftStatusBadge,
   ShiftTabs,
@@ -35,6 +37,18 @@ import {
   type ShiftHistoryItem,
   type ShiftSummary,
 } from '@/lib/shifts-api';
+
+type HistoryFilters = {
+  outletId: string;
+  cashierId: string;
+  dateFrom: string;
+  dateTo: string;
+};
+
+function createDefaultHistoryFilters(outletId = ''): HistoryFilters {
+  const dates = defaultDateFilters();
+  return { outletId, cashierId: '', dateFrom: dates.dateFrom, dateTo: dates.dateTo };
+}
 
 function formatDateTime(iso: string): string {
   return new Intl.DateTimeFormat('id-ID', {
@@ -67,10 +81,15 @@ export function ShiftsPageClient({
   const [preview, setPreview] = useState<ShiftClosePreview | null>(null);
   const [history, setHistory] = useState<ShiftHistoryItem[]>([]);
   const [historyMeta, setHistoryMeta] = useState({ page: 1, totalPages: 1, total: 0 });
-  const [historyDateFrom, setHistoryDateFrom] = useState(() => getTodayDate());
-  const [historyDateTo, setHistoryDateTo] = useState(() => getTodayDate());
-  const [historyDateMode, setHistoryDateMode] = useState<'single' | 'range'>('single');
-  const [historySingleDate, setHistorySingleDate] = useState(() => getTodayDate());
+  const [historyPage, setHistoryPage] = useState(1);
+  const [draftHistoryFilters, setDraftHistoryFilters] = useState<HistoryFilters>(() =>
+    createDefaultHistoryFilters(selectedOutletId ?? ''),
+  );
+  const [appliedHistoryFilters, setAppliedHistoryFilters] = useState<HistoryFilters>(() =>
+    createDefaultHistoryFilters(selectedOutletId ?? ''),
+  );
+  const [cashierOptions, setCashierOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const multiOutlet = outlets.length > 1;
 
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -136,17 +155,77 @@ export function ShiftsPageClient({
     };
   }, [reloadActive]);
 
+  const historyQueryOutletId = useMemo(() => {
+    if (multiOutlet) {
+      return appliedHistoryFilters.outletId || activeOutletId;
+    }
+    return activeOutletId;
+  }, [multiOutlet, appliedHistoryFilters.outletId, activeOutletId]);
+
+  const historyActiveChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'outlet',
+          label: `Cabang: ${outlets.find((o) => o.id === appliedHistoryFilters.outletId)?.label ?? 'Semua'}`,
+          active: multiOutlet && Boolean(appliedHistoryFilters.outletId),
+        },
+        {
+          key: 'cashier',
+          label: `Kasir: ${cashierOptions.find((c) => c.id === appliedHistoryFilters.cashierId)?.label ?? appliedHistoryFilters.cashierId}`,
+          active: Boolean(appliedHistoryFilters.cashierId),
+        },
+        {
+          key: 'date',
+          label: `Tanggal: ${appliedHistoryFilters.dateFrom} – ${appliedHistoryFilters.dateTo}`,
+          active:
+            appliedHistoryFilters.dateFrom !== defaultDateFilters().dateFrom ||
+            appliedHistoryFilters.dateTo !== defaultDateFilters().dateTo,
+        },
+      ]),
+    [appliedHistoryFilters, multiOutlet, outlets, cashierOptions],
+  );
+
+  function applyHistoryFilters() {
+    setAppliedHistoryFilters({ ...draftHistoryFilters });
+    setHistoryPage(1);
+  }
+
+  function resetHistoryFilters() {
+    const defaults = createDefaultHistoryFilters(multiOutlet ? '' : (activeOutletId ?? ''));
+    setDraftHistoryFilters(defaults);
+    setAppliedHistoryFilters(defaults);
+    setHistoryPage(1);
+  }
+
+  useEffect(() => {
+    if (!multiOutlet && activeOutletId) {
+      setDraftHistoryFilters((prev) => ({ ...prev, outletId: activeOutletId }));
+      setAppliedHistoryFilters((prev) => ({ ...prev, outletId: activeOutletId }));
+    }
+  }, [multiOutlet, activeOutletId]);
+
+  useEffect(() => {
+    if (activeTab !== 'riwayat') return;
+    void fetchUsers({ role: 'CASHIER', limit: 100 })
+      .then((result) =>
+        setCashierOptions(
+          result.items.map((user) => ({ id: user.id, label: user.fullName })),
+        ),
+      )
+      .catch(() => setCashierOptions([]));
+  }, [activeTab]);
+
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     setError(null);
-    const dateFrom = historyDateMode === 'single' ? historySingleDate : historyDateFrom;
-    const dateTo = historyDateMode === 'single' ? historySingleDate : historyDateTo;
     try {
       const result = await fetchShiftHistory({
-        outletId: activeOutletId,
-        dateFrom,
-        dateTo,
-        page: historyMeta.page,
+        outletId: historyQueryOutletId,
+        cashierId: appliedHistoryFilters.cashierId || undefined,
+        dateFrom: appliedHistoryFilters.dateFrom,
+        dateTo: appliedHistoryFilters.dateTo,
+        page: historyPage,
         limit: 20,
       });
       setHistory(result.items);
@@ -160,7 +239,7 @@ export function ShiftsPageClient({
     } finally {
       setHistoryLoading(false);
     }
-  }, [activeOutletId, historyDateFrom, historyDateTo, historyDateMode, historySingleDate, historyMeta.page]);
+  }, [historyQueryOutletId, appliedHistoryFilters, historyPage]);
 
   useEffect(() => {
     if (activeTab !== 'riwayat') return;
@@ -548,29 +627,57 @@ export function ShiftsPageClient({
       ) : null}
 
       {activeTab === 'riwayat' ? (
-        <SectionCard title="Riwayat Shift">
-          <ReportDateFilters
-            mode={historyDateMode}
-            onModeChange={setHistoryDateMode}
-            singleDate={historySingleDate}
-            onSingleDateChange={setHistorySingleDate}
-            dateFrom={historyDateFrom}
-            dateTo={historyDateTo}
-            onDateFromChange={setHistoryDateFrom}
-            onDateToChange={setHistoryDateTo}
+        <>
+          <ListFilterBar
+            selects={[
+              ...(multiOutlet
+                ? [
+                    {
+                      id: 'outlet',
+                      label: 'Cabang',
+                      value: draftHistoryFilters.outletId,
+                      options: [
+                        { value: '', label: 'Semua cabang' },
+                        ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.label })),
+                      ],
+                      onChange: (value: string) =>
+                        setDraftHistoryFilters((prev) => ({ ...prev, outletId: value })),
+                      minWidth: 200,
+                    },
+                  ]
+                : []),
+              {
+                id: 'cashier',
+                label: 'Kasir',
+                value: draftHistoryFilters.cashierId,
+                options: [
+                  { value: '', label: 'Semua kasir' },
+                  ...cashierOptions.map((cashier) => ({ value: cashier.id, label: cashier.label })),
+                ],
+                onChange: (value) => setDraftHistoryFilters((prev) => ({ ...prev, cashierId: value })),
+                minWidth: 200,
+              },
+            ]}
+            dateFrom={draftHistoryFilters.dateFrom}
+            dateTo={draftHistoryFilters.dateTo}
+            onDateFromChange={(value) => setDraftHistoryFilters((prev) => ({ ...prev, dateFrom: value }))}
+            onDateToChange={(value) => setDraftHistoryFilters((prev) => ({ ...prev, dateTo: value }))}
+            onApply={applyHistoryFilters}
+            onReset={resetHistoryFilters}
+            activeChips={historyActiveChips}
           />
-          <div style={{ marginTop: '0.75rem' }}>
-            <Button type="button" variant="secondary" disabled={historyLoading} onClick={() => void loadHistory()}>
-              Terapkan filter
-            </Button>
-          </div>
 
+          <SectionCard title="Riwayat Shift">
           {historyLoading ? (
             <p style={{ color: '#64748b', marginTop: '1rem' }}>Memuat riwayat…</p>
           ) : history.length === 0 ? (
             <EmptyState
               title="Belum ada shift ditutup"
-              description="Shift yang sudah ditutup dalam rentang tanggal ini akan muncul di sini."
+              description={
+                historyActiveChips.length > 0
+                  ? FILTER_EMPTY_DESCRIPTION
+                  : 'Shift yang sudah ditutup dalam rentang tanggal ini akan muncul di sini.'
+              }
               icon="◷"
             />
           ) : (
@@ -633,25 +740,26 @@ export function ShiftsPageClient({
               <Button
                 type="button"
                 variant="secondary"
-                disabled={historyMeta.page <= 1 || historyLoading}
-                onClick={() => setHistoryMeta((m) => ({ ...m, page: m.page - 1 }))}
+                disabled={historyPage <= 1 || historyLoading}
+                onClick={() => setHistoryPage((p) => p - 1)}
               >
                 Sebelumnya
               </Button>
               <span style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                Halaman {historyMeta.page} / {historyMeta.totalPages}
+                Halaman {historyPage} / {historyMeta.totalPages}
               </span>
               <Button
                 type="button"
                 variant="secondary"
-                disabled={historyMeta.page >= historyMeta.totalPages || historyLoading}
-                onClick={() => setHistoryMeta((m) => ({ ...m, page: m.page + 1 }))}
+                disabled={historyPage >= historyMeta.totalPages || historyLoading}
+                onClick={() => setHistoryPage((p) => p + 1)}
               >
                 Berikutnya
               </Button>
             </div>
           ) : null}
         </SectionCard>
+        </>
       ) : null}
     </div>
   );

@@ -21,7 +21,8 @@ import {
   importProductsCsv,
   type ProductImportResult,
 } from '@/lib/catalog-api';
-import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
+import { buildFilterChips } from '@/lib/list-filters';
 import { adjustStock, fetchInventory } from '@/lib/inventory-api';
 import { createProductVariant } from '@/lib/variants-api';
 import { canViewCostPrice } from '@/lib/rbac';
@@ -115,12 +116,23 @@ const badgeStyle = (bg: string, color: string) =>
     color,
     whiteSpace: 'nowrap',
   }) as const;
-const filterInputStyle = {
+type ProductFilters = {
+  search: string;
+  categoryId: string;
+  showInactive: boolean;
+};
+
+function emptyProductFilters(): ProductFilters {
+  return { search: '', categoryId: '', showInactive: false };
+}
+
+const filterSelectStyle = {
   padding: '0.5rem 0.65rem',
   borderRadius: 8,
   border: '1px solid #e2e8f0',
   minHeight: 44,
   fontSize: '0.875rem',
+  minWidth: 160,
 } as const;
 
 function productToWizardForm(product: Product, _showCost: boolean): ProductWizardFormState {
@@ -204,11 +216,9 @@ export default function ProductsPage() {
   const [stockByProductId, setStockByProductId] = useState<Map<string, { quantity: number; isLowStock: boolean }>>(
     new Map(),
   );
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
-  const [filterCategoryId, setFilterCategoryId] = useState('');
+  const [draftFilters, setDraftFilters] = useState<ProductFilters>(emptyProductFilters);
+  const [appliedFilters, setAppliedFilters] = useState<ProductFilters>(emptyProductFilters);
   const [filterType, setFilterType] = useState<'ALL' | 'SIMPLE' | 'MULTI_UNIT' | 'VARIANT'>('ALL');
-  const [showInactive, setShowInactive] = useState(false);
   const [page, setPage] = useState(1);
   const [listMeta, setListMeta] = useState({ total: 0, totalPages: 1 });
   const [units, setUnits] = useState<Unit[]>([]);
@@ -259,24 +269,54 @@ export default function ProductsPage() {
     staleTime: MASTER_PRODUCTS_STALE_MS,
   });
 
+  const productActiveChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'category',
+          label: `Kategori: ${categories.find((c) => c.id === appliedFilters.categoryId)?.name ?? appliedFilters.categoryId}`,
+          active: Boolean(appliedFilters.categoryId),
+        },
+        {
+          key: 'search',
+          label: `Cari: ${appliedFilters.search}`,
+          active: Boolean(appliedFilters.search.trim()),
+        },
+        { key: 'inactive', label: 'Tampilkan nonaktif', active: appliedFilters.showInactive },
+      ]),
+    [appliedFilters, categories],
+  );
+
+  function applyProductFilters() {
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
+  }
+
+  function resetProductFilters() {
+    const defaults = emptyProductFilters();
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
+
   const productsQuery = useQuery({
     queryKey: [
       'products',
       'master',
       page,
-      debouncedSearchQuery,
-      filterCategoryId,
-      showInactive,
+      appliedFilters.search,
+      appliedFilters.categoryId,
+      appliedFilters.showInactive,
       viewerRole,
     ],
     queryFn: () =>
       fetchMasterProducts<Product>({
         page,
         limit: MASTER_PRODUCTS_PAGE_SIZE,
-        q: debouncedSearchQuery,
-        categoryId: filterCategoryId || undefined,
+        q: appliedFilters.search || undefined,
+        categoryId: appliedFilters.categoryId || undefined,
         includeCost: canViewCostPrice(viewerRole ?? ''),
-        includeInactive: showInactive,
+        includeInactive: appliedFilters.showInactive,
       }),
     enabled: Boolean(viewerRole),
     staleTime: MASTER_PRODUCTS_STALE_MS,
@@ -605,10 +645,6 @@ export default function ProductsPage() {
     }
   }, [categoriesQuery.data]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearchQuery, filterCategoryId, showInactive]);
-
   const filteredProducts = useMemo(
     () =>
       products.filter((product) => {
@@ -692,44 +728,52 @@ export default function ProductsPage() {
         </div>
       ) : null}
 
-      <div style={{ ...cardStyle, marginBottom: '0.875rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-        <input
-          type="search"
-          placeholder="Cari nama / SKU…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          aria-label="Cari produk"
-          style={{ ...filterInputStyle, flex: '1 1 180px', minWidth: 160 }}
-        />
-        <select
-          value={filterCategoryId}
-          onChange={(e) => setFilterCategoryId(e.target.value)}
-          aria-label="Filter kategori"
-          style={{ ...filterInputStyle, flex: '0 1 auto' }}
-        >
-          <option value="">Semua kategori</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value as typeof filterType)}
-          aria-label="Filter tipe produk"
-          style={{ ...filterInputStyle, flex: '0 1 auto' }}
-        >
-          <option value="ALL">Semua tipe</option>
-          <option value="SIMPLE">Sederhana</option>
-          <option value="MULTI_UNIT">Multi-satuan</option>
-          <option value="VARIANT">Varian</option>
-        </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', minHeight: 44 }}>
-          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-          Nonaktif
-        </label>
-      </div>
+      <ListFilterBar
+        selects={[
+          {
+            id: 'category',
+            label: 'Kategori',
+            value: draftFilters.categoryId,
+            options: [
+              { value: '', label: 'Semua kategori' },
+              ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+            ],
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, categoryId: value })),
+          },
+        ]}
+        showDateRange={false}
+        search={draftFilters.search}
+        searchPlaceholder="Cari nama / SKU…"
+        onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+        toggles={[
+          {
+            id: 'showInactive',
+            label: 'Tampilkan nonaktif',
+            checked: draftFilters.showInactive,
+            onChange: (checked) => setDraftFilters((prev) => ({ ...prev, showInactive: checked })),
+          },
+        ]}
+        onApply={applyProductFilters}
+        onReset={resetProductFilters}
+        activeChips={productActiveChips}
+      >
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end' }}>
+          <label style={{ display: 'grid', gap: 4, minWidth: 160 }}>
+            <span style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>Tipe produk</span>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as typeof filterType)}
+              aria-label="Filter tipe produk"
+              style={filterSelectStyle}
+            >
+              <option value="ALL">Semua tipe</option>
+              <option value="SIMPLE">Sederhana</option>
+              <option value="MULTI_UNIT">Multi-satuan</option>
+              <option value="VARIANT">Varian</option>
+            </select>
+          </label>
+        </div>
+      </ListFilterBar>
 
       <section style={{ ...cardStyle, marginBottom: '0.875rem' }}>
         <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Tambah Produk</h2>
@@ -804,8 +848,10 @@ export default function ProductsPage() {
           <div style={{ padding: '1rem' }}>
             <p style={{ margin: 0, color: '#64748b' }}>
               {products.length === 0
-                ? 'Belum ada produk. Tambahkan produk pertama untuk mulai transaksi kasir.'
-                : 'Tidak ada produk sesuai filter.'}
+                ? productActiveChips.length > 0
+                  ? FILTER_EMPTY_DESCRIPTION
+                  : 'Belum ada produk. Tambahkan produk pertama untuk mulai transaksi kasir.'
+                : 'Tidak ada produk sesuai filter tipe.'}
             </p>
           </div>
         ) : (

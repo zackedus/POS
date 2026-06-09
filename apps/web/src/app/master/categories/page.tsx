@@ -1,6 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
+import { buildFilterChips } from '@/lib/list-filters';
 import { Button, Input } from '@barokah/ui';
 import { apiConfig, toUserFacingError } from '@/lib/api';
 import { authFetch } from '@/lib/auth';
@@ -35,6 +37,31 @@ export default function CategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [draftSearch, setDraftSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        { key: 'search', label: `Cari: ${appliedSearch}`, active: Boolean(appliedSearch.trim()) },
+      ]),
+    [appliedSearch],
+  );
+
+  const filteredCategories = useMemo(() => {
+    const query = appliedSearch.trim().toLowerCase();
+    if (!query) return categories;
+    return categories.filter((category) => category.name.toLowerCase().includes(query));
+  }, [categories, appliedSearch]);
+
+  function applyFilters() {
+    setAppliedSearch(draftSearch);
+  }
+
+  function resetFilters() {
+    setDraftSearch('');
+    setAppliedSearch('');
+  }
 
   async function loadCategories() {
     setLoading(true);
@@ -203,13 +230,25 @@ export default function CategoriesPage() {
         </div>
       ) : null}
 
+      <ListFilterBar
+        showDateRange={false}
+        search={draftSearch}
+        searchPlaceholder="Cari nama kategori…"
+        onSearchChange={setDraftSearch}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
+
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         {categories.length === 0 ? (
           <p style={{ padding: '1rem', margin: 0, color: '#64748b' }}>
             Belum ada kategori. Tambahkan kategori pertama untuk membantu klasifikasi produk.
           </p>
+        ) : filteredCategories.length === 0 ? (
+          <p style={{ padding: '1rem', margin: 0, color: '#64748b' }}>{FILTER_EMPTY_DESCRIPTION}</p>
         ) : (
-          categories.map((category) => (
+          filteredCategories.map((category) => (
             <div
               key={category.id}
               style={{

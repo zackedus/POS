@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@barokah/ui';
 import { DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
@@ -28,8 +28,31 @@ import {
   USER_ROLE_LABELS,
   type UserSummary,
 } from '@/lib/users-api';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
+import { buildFilterChips } from '@/lib/list-filters';
 
 const ASSIGNABLE_ROLES = ['MANAGER', 'CASHIER', 'INVENTORY', 'ACCOUNTANT'] as const;
+
+const ROLE_FILTER_OPTIONS = [
+  { value: '', label: 'Semua role' },
+  ...Object.entries(USER_ROLE_LABELS).map(([value, label]) => ({ value, label })),
+];
+
+const ACTIVE_FILTER_OPTIONS = [
+  { value: '', label: 'Semua status' },
+  { value: 'true', label: 'Aktif' },
+  { value: 'false', label: 'Nonaktif' },
+];
+
+type UserFilters = {
+  role: string;
+  isActive: string;
+  search: string;
+};
+
+function emptyUserFilters(): UserFilters {
+  return { role: '', isActive: '', search: '' };
+}
 
 type UserFormState = {
   email: string;
@@ -114,14 +137,58 @@ function UsersManagementPanel({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
+  const [draftFilters, setDraftFilters] = useState<UserFilters>(emptyUserFilters);
+  const [appliedFilters, setAppliedFilters] = useState<UserFilters>(emptyUserFilters);
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'role',
+          label: `Role: ${ROLE_FILTER_OPTIONS.find((o) => o.value === appliedFilters.role)?.label ?? appliedFilters.role}`,
+          active: Boolean(appliedFilters.role),
+        },
+        {
+          key: 'isActive',
+          label: `Status: ${ACTIVE_FILTER_OPTIONS.find((o) => o.value === appliedFilters.isActive)?.label ?? appliedFilters.isActive}`,
+          active: Boolean(appliedFilters.isActive),
+        },
+        {
+          key: 'search',
+          label: `Cari: ${appliedFilters.search}`,
+          active: Boolean(appliedFilters.search.trim()),
+        },
+      ]),
+    [appliedFilters],
+  );
+
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
+  }
+
+  function resetFilters() {
+    const defaults = emptyUserFilters();
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const isActiveParam =
+        appliedFilters.isActive === 'true' ? true : appliedFilters.isActive === 'false' ? false : undefined;
       const [me, rows, outletsRes] = await Promise.all([
         fetchMe(),
-        fetchUsers({ page, limit: pageSize }),
+        fetchUsers({
+          page,
+          limit: pageSize,
+          search: appliedFilters.search || undefined,
+          role: appliedFilters.role || undefined,
+          isActive: isActiveParam,
+        }),
         fetchOutlets(),
       ]);
       setCurrentUser(me);
@@ -137,7 +204,7 @@ function UsersManagementPanel({
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, appliedFilters]);
 
   useEffect(() => {
     void loadData();
@@ -277,6 +344,32 @@ function UsersManagementPanel({
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
       {success ? <AlertBanner variant="success">{success}</AlertBanner> : null}
 
+      <ListFilterBar
+        selects={[
+          {
+            id: 'role',
+            label: 'Role',
+            value: draftFilters.role,
+            options: ROLE_FILTER_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, role: value })),
+          },
+          {
+            id: 'isActive',
+            label: 'Status aktif',
+            value: draftFilters.isActive,
+            options: ACTIVE_FILTER_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, isActive: value })),
+          },
+        ]}
+        showDateRange={false}
+        search={draftFilters.search}
+        searchPlaceholder="Cari nama atau email…"
+        onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
+
       <section style={cardStyle()}>
         <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Daftar Pengguna</h3>
 
@@ -285,9 +378,13 @@ function UsersManagementPanel({
         ) : users.length === 0 ? (
           <EmptyState
             title="Belum ada pengguna staff"
-            description="Tambahkan akun kasir atau manajer untuk mulai operasional."
-            actionHref="#tambah-pengguna"
-            actionLabel="Tambah pengguna"
+            description={
+              activeChips.length > 0
+                ? FILTER_EMPTY_DESCRIPTION
+                : 'Tambahkan akun kasir atau manajer untuk mulai operasional.'
+            }
+            actionHref={activeChips.length > 0 ? undefined : '#tambah-pengguna'}
+            actionLabel={activeChips.length > 0 ? undefined : 'Tambah pengguna'}
           />
         ) : (
           <>

@@ -1031,7 +1031,7 @@ export class ReportsService {
   private resolveTrendBucket(
     completedAt: Date,
     period: AnalyticsPeriod | 'custom',
-    range: ReportDayRange,
+    _range: ReportDayRange,
   ): { key: string; label: string; date?: string } {
     const jakarta = new Date(completedAt.getTime() + 7 * 60 * 60 * 1000);
     const isoDate = jakarta.toISOString().slice(0, 10);

@@ -253,7 +253,7 @@ describe('PosPage', () => {
     fetchRecentTransactionsMock.mockReset();
     fetchTransactionReceiptMock.mockReset();
     replaceMock.mockReset();
-    fetchRecentTransactionsMock.mockResolvedValue([]);
+    fetchRecentTransactionsMock.mockResolvedValue({ items: [], meta: { page: 1, limit: 8, total: 0, totalPages: 1 } });
     fetchTransactionReceiptMock.mockResolvedValue(mockReceiptResponse('trx-1', 'TRX-001'));
     fetchMeMock.mockResolvedValue({
       id: 'cashier-1',
@@ -264,7 +264,7 @@ describe('PosPage', () => {
       tenantName: 'Barokah',
       outletIds: ['outlet-1'],
     });
-    fetchCustomersMock.mockResolvedValue([sampleCustomer]);
+    fetchCustomersMock.mockResolvedValue({ items: [sampleCustomer], meta: { page: 1, limit: 50, total: 1, totalPages: 1 } });
     lookupCustomerByPhoneMock.mockResolvedValue(null);
     lookupCustomerByMemberCodeMock.mockResolvedValue(null);
     fetchCustomerFinanceSummaryMock.mockResolvedValue({
@@ -989,7 +989,7 @@ describe('PosPage', () => {
       ...sampleCustomer,
       phone: '6281234567890',
     };
-    fetchCustomersMock.mockResolvedValue([customerStored62]);
+    fetchCustomersMock.mockResolvedValue({ items: [customerStored62], meta: { page: 1, limit: 50, total: 1, totalPages: 1 } });
     lookupCustomerByPhoneMock.mockResolvedValue(customerStored62);
     setCatalogState([
       { id: 'prod-1', name: 'Semen Portland', sku: 'SMN-001', price: 70000, unit: { name: 'Sak', symbol: 'sak' } },

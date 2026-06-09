@@ -93,7 +93,7 @@ describe('PosPage offline checkout', () => {
     fetchRecentTransactionsMock.mockReset();
     queueCashCheckoutMock.mockClear();
 
-    fetchRecentTransactionsMock.mockResolvedValue([]);
+    fetchRecentTransactionsMock.mockResolvedValue({ items: [], meta: { page: 1, limit: 8, total: 0, totalPages: 1 } });
     fetchMeMock.mockResolvedValue({
       id: 'cashier-1',
       email: 'cashier@barokah.local',

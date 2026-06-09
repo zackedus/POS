@@ -104,7 +104,7 @@ describe('DashboardHomePage', () => {
       status: 'unavailable',
       message: 'Export belum tersedia.',
     });
-    fetchFulfillmentQueueMock.mockResolvedValue([]);
+    fetchFulfillmentQueueMock.mockResolvedValue({ items: [], meta: { page: 1, limit: 20, total: 0, totalPages: 1 } });
   });
 
   it('renders sales widgets, shift status, and payment mix from dashboard API', async () => {
@@ -144,10 +144,13 @@ describe('DashboardHomePage', () => {
       source: 'api',
       dashboard: sampleDashboard,
     });
-    fetchFulfillmentQueueMock.mockResolvedValue([
-      { id: 'o1', orderNo: 'WEB-001', status: 'PAID' },
-      { id: 'o2', orderNo: 'WEB-002', status: 'CONFIRMED' },
-    ]);
+    fetchFulfillmentQueueMock.mockResolvedValue({
+      items: [
+        { id: 'o1', orderNo: 'WEB-001', status: 'PAID' },
+        { id: 'o2', orderNo: 'WEB-002', status: 'CONFIRMED' },
+      ],
+      meta: { page: 1, limit: 20, total: 2, totalPages: 1 },
+    });
 
     render(<DashboardHomePage />);
     await screen.findByLabelText('Omzet harian');
@@ -155,7 +158,7 @@ describe('DashboardHomePage', () => {
     await waitFor(() => {
       expect(screen.getByText('2')).toBeInTheDocument();
     });
-    expect(fetchFulfillmentQueueMock).toHaveBeenCalledWith('out-1');
+    expect(fetchFulfillmentQueueMock).toHaveBeenCalledWith(expect.objectContaining({ outletId: 'out-1' }));
   });
 
   it('shows mock fallback banner when API is unavailable', async () => {
