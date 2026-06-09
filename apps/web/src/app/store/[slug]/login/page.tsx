@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, colors } from '@barokah/ui';
+import { getPostAuthRedirectUrl } from '@/lib/store/store-auth-redirect';
 import { loginStoreCustomer } from '@/lib/store/store-api';
 import { useStoreCustomerAuth } from '@/lib/store/store-customer-auth-context';
 
@@ -12,7 +13,7 @@ export default function StoreLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const returnUrl = searchParams.get('returnUrl') ?? `/store/${slug}/products`;
+  const returnUrl = getPostAuthRedirectUrl(slug, searchParams);
   const { setSession } = useStoreCustomerAuth();
 
   const [identifier, setIdentifier] = useState('');
@@ -88,7 +89,7 @@ export default function StoreLoginPage() {
 
       <p style={{ marginTop: '1.25rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
         Belum punya akun?{' '}
-        <Link href={`/store/${slug}/register?returnUrl=${encodeURIComponent(returnUrl)}`} style={{ color: colors.primary[600] }}>
+        <Link href={`/store/${slug}/register?redirect=${encodeURIComponent(returnUrl)}`} style={{ color: colors.primary[600] }}>
           Daftar untuk belanja
         </Link>
       </p>

@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, colors } from '@barokah/ui';
 import {
@@ -10,6 +11,7 @@ import {
   updateStoreCustomerAddress,
 } from '@/lib/store/store-api';
 import type { StoreCustomerAddress } from '@/lib/store/store-customer-auth-context';
+import { getPostAuthRedirectUrl } from '@/lib/store/store-auth-redirect';
 import { useStoreCustomerAuth } from '@/lib/store/store-customer-auth-context';
 
 const LABEL_PRESETS = ['Rumah', 'Kantor', 'Proyek'];
@@ -19,7 +21,7 @@ export default function StoreAccountAddressesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const returnUrl = searchParams.get('returnUrl') ?? `/store/${slug}/products`;
+  const returnUrl = getPostAuthRedirectUrl(slug, searchParams, `/store/${slug}/account`);
   const isWelcome = searchParams.get('welcome') === '1';
   const { isLoggedIn, accessToken, loading: authLoading, refreshProfile } = useStoreCustomerAuth();
 
@@ -56,7 +58,7 @@ export default function StoreAccountAddressesPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!isLoggedIn) {
-      router.replace(`/store/${slug}/login?returnUrl=${encodeURIComponent(`/store/${slug}/account/addresses`)}`);
+      router.replace(`/store/${slug}/login?redirect=${encodeURIComponent(`/store/${slug}/account/addresses`)}`);
       return;
     }
     void loadAddresses();
@@ -137,6 +139,18 @@ export default function StoreAccountAddressesPage() {
 
   return (
     <div style={{ padding: '1rem', paddingBottom: 100 }}>
+      <Link
+        href={`/store/${slug}/account`}
+        style={{
+          display: 'inline-block',
+          marginBottom: '0.75rem',
+          fontSize: '0.8125rem',
+          color: colors.primary[600],
+          textDecoration: 'none',
+        }}
+      >
+        ← Kembali ke akun
+      </Link>
       <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.25rem' }}>Alamat Pengiriman</h1>
       {isWelcome ? (
         <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: colors.light.text.secondary }}>

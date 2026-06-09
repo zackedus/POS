@@ -64,7 +64,7 @@ export default function StoreCheckoutPage() {
 
   useEffect(() => {
     if (!authLoading && requireLogin && !isLoggedIn) {
-      router.replace(`/store/${slug}/login?returnUrl=${encodeURIComponent(`/store/${slug}/checkout`)}`);
+      router.replace(`/store/${slug}/login?redirect=${encodeURIComponent(`/store/${slug}/checkout`)}`);
     }
   }, [authLoading, requireLogin, isLoggedIn, router, slug]);
 

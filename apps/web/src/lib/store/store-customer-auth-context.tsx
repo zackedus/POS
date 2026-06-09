@@ -80,12 +80,44 @@ export function StoreCustomerAuthProvider({ slug, children }: { slug: string; ch
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = readStored(slug);
-    if (stored) {
-      setCustomer(stored.customer);
-      setAccessToken(stored.accessToken);
+    let cancelled = false;
+
+    async function hydrateSession() {
+      const stored = readStored(slug);
+      if (!stored) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      if (!cancelled) {
+        setCustomer(stored.customer);
+        setAccessToken(stored.accessToken);
+      }
+
+      try {
+        const { fetchStoreCustomerMe } = await import('@/lib/store/store-api');
+        const profile = await fetchStoreCustomerMe(slug, stored.accessToken);
+        if (cancelled) return;
+        setCustomer(profile);
+        writeStored(slug, { ...stored, customer: profile });
+      } catch (err) {
+        const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: string }).code) : '';
+        if (code === 'UNAUTHORIZED' || code === 'INVALID_CREDENTIALS') {
+          if (!cancelled) {
+            setCustomer(null);
+            setAccessToken(null);
+            writeStored(slug, null);
+          }
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-    setLoading(false);
+
+    void hydrateSession();
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
 
   const setSession = useCallback(
@@ -106,11 +138,21 @@ export function StoreCustomerAuthProvider({ slug, children }: { slug: string; ch
   const refreshProfile = useCallback(async () => {
     if (!accessToken) return;
     const { fetchStoreCustomerMe } = await import('@/lib/store/store-api');
-    const profile = await fetchStoreCustomerMe(slug, accessToken);
-    setCustomer(profile);
-    const stored = readStored(slug);
-    if (stored) {
-      writeStored(slug, { ...stored, customer: profile });
+    try {
+      const profile = await fetchStoreCustomerMe(slug, accessToken);
+      setCustomer(profile);
+      const stored = readStored(slug);
+      if (stored) {
+        writeStored(slug, { ...stored, customer: profile });
+      }
+    } catch (err) {
+      const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: string }).code) : '';
+      if (code === 'UNAUTHORIZED' || code === 'INVALID_CREDENTIALS') {
+        setCustomer(null);
+        setAccessToken(null);
+        writeStored(slug, null);
+      }
+      throw err;
     }
   }, [accessToken, slug]);
 

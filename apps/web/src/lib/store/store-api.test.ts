@@ -43,4 +43,35 @@ describe('store-api payload mapping', () => {
       expect.objectContaining({ headers: expect.any(Object) }),
     );
   });
+
+  it('fetches storefront customer profile with bearer token', async () => {
+    const { fetchStoreCustomerMe } = await import('./store-api');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          id: 'cust-1',
+          name: 'Budi Santoso',
+          phone: '081234567890',
+          email: 'budi@example.com',
+          memberCode: 'MBR-ABC123',
+          points: 0,
+          memberSince: '2026-06-01T00:00:00.000Z',
+          addressCount: 2,
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const profile = await fetchStoreCustomerMe('toko-a', 'token-xyz');
+    expect(profile.memberCode).toBe('MBR-ABC123');
+    expect(profile.addressCount).toBe(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/api/v1/store/toko-a/customers/me',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer token-xyz' }),
+      }),
+    );
+  });
 });

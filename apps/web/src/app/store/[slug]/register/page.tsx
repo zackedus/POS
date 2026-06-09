@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, colors } from '@barokah/ui';
+import { getPostAuthRedirectUrl } from '@/lib/store/store-auth-redirect';
 import { registerStoreMember } from '@/lib/store/store-api';
 import { useStoreCustomerAuth } from '@/lib/store/store-customer-auth-context';
 
@@ -12,7 +13,7 @@ export default function StoreRegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const returnUrl = searchParams.get('returnUrl') ?? `/store/${slug}/products`;
+  const returnUrl = getPostAuthRedirectUrl(slug, searchParams);
   const { setSession } = useStoreCustomerAuth();
 
   const [name, setName] = useState('');
@@ -45,7 +46,11 @@ export default function StoreRegisterPage() {
         refreshToken: result.tokens.refreshToken,
         customer: result.customer,
       });
-      router.push(`/store/${slug}/account/addresses?returnUrl=${encodeURIComponent(returnUrl)}&welcome=1`);
+      if (returnUrl.includes('checkout')) {
+        router.push(`/store/${slug}/account/addresses?returnUrl=${encodeURIComponent(returnUrl)}&welcome=1`);
+        return;
+      }
+      router.push(`/store/${slug}/account`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Pendaftaran gagal.');
     } finally {
@@ -89,13 +94,13 @@ export default function StoreRegisterPage() {
         </label>
         <input type="text" name="website" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }} />
         <Button type="submit" variant="primary" disabled={loading} style={{ marginTop: '0.25rem' }}>
-          {loading ? 'Mendaftar…' : 'Daftar & lanjut tambah alamat'}
+          {loading ? 'Mendaftar…' : 'Daftar'}
         </Button>
       </form>
 
       <p style={{ marginTop: '1.25rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
         Sudah punya akun?{' '}
-        <Link href={`/store/${slug}/login?returnUrl=${encodeURIComponent(returnUrl)}`} style={{ color: colors.primary[600] }}>
+        <Link href={`/store/${slug}/login?redirect=${encodeURIComponent(returnUrl)}`} style={{ color: colors.primary[600] }}>
           Masuk di sini
         </Link>
       </p>

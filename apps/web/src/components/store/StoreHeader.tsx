@@ -1,20 +1,35 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { colors } from '@barokah/ui';
 import { useStoreCart } from '@/lib/store/cart-context';
+import { shortCustomerName } from '@/lib/store/store-auth-redirect';
 import { useStoreConfig } from '@/lib/store/store-config-context';
 import { useStoreCustomerAuth } from '@/lib/store/store-customer-auth-context';
 
+const navLinkStyle = (accentColor: string): React.CSSProperties => ({
+  fontSize: '0.8125rem',
+  fontWeight: 600,
+  color: accentColor,
+  textDecoration: 'none',
+  padding: '0.35rem 0.5rem',
+});
+
 export function StoreHeader() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const { itemCount } = useStoreCart();
   const { config, accentColor } = useStoreConfig();
-  const { isLoggedIn, customer } = useStoreCustomerAuth();
+  const { isLoggedIn, customer, clearSession } = useStoreCustomerAuth();
   const tenantName = config?.tenant.name ?? slug;
   const logoUrl = config?.tenant.logoUrl;
+
+  function handleLogout() {
+    clearSession();
+    router.push(`/store/${slug}`);
+  }
 
   return (
     <header
@@ -65,28 +80,78 @@ export function StoreHeader() {
       </Link>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-        <Link href={`/store/${slug}/products`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }}>
+        <Link href={`/store/${slug}/products`} style={navLinkStyle(accentColor)}>
           Katalog
         </Link>
-        <Link href={`/store/${slug}/register`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }}>
-          {isLoggedIn ? 'Akun' : 'Daftar'}
-        </Link>
         {isLoggedIn ? (
-          <Link href={`/store/${slug}/account/addresses`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }} title={customer?.name}>
-            Alamat
-          </Link>
+          <>
+            <Link
+              href={`/store/${slug}/account`}
+              style={navLinkStyle(accentColor)}
+              title={customer?.name}
+            >
+              Akun{customer?.name ? ` (${shortCustomerName(customer.name)})` : ''}
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                ...navLinkStyle(accentColor),
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Keluar
+            </button>
+          </>
         ) : (
-          <Link href={`/store/${slug}/login`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }}>
-            Masuk
-          </Link>
+          <>
+            <Link href={`/store/${slug}/login`} style={navLinkStyle(accentColor)}>
+              Masuk
+            </Link>
+            <Link href={`/store/${slug}/register`} style={navLinkStyle(accentColor)}>
+              Daftar
+            </Link>
+          </>
         )}
-        <Link href={`/store/${slug}/orders`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }}>
+        <Link href={`/store/${slug}/orders`} style={navLinkStyle(accentColor)}>
           Pesanan
         </Link>
-        <Link href={`/store/${slug}/cart`} aria-label="Keranjang" style={{ position: 'relative', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', fontSize: '1.25rem' }}>
+        <Link
+          href={`/store/${slug}/cart`}
+          aria-label="Keranjang"
+          style={{
+            position: 'relative',
+            width: 44,
+            height: 44,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textDecoration: 'none',
+            fontSize: '1.25rem',
+          }}
+        >
           🛒
           {itemCount > 0 ? (
-            <span style={{ position: 'absolute', top: 4, right: 4, minWidth: 18, height: 18, borderRadius: 9, background: colors.semantic.error, color: colors.light.text.inverse, fontSize: '0.6875rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
+            <span
+              style={{
+                position: 'absolute',
+                top: 4,
+                right: 4,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                background: colors.semantic.error,
+                color: colors.light.text.inverse,
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+              }}
+            >
               {itemCount}
             </span>
           ) : null}
