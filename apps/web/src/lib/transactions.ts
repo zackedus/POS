@@ -1,6 +1,6 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
-import type { PaginationMeta } from '@barokah/shared';
+import type { PaginationMeta, SalePurchaseListItem } from '@barokah/shared';
 import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 export interface ApiEnvelope<T> {
@@ -9,6 +9,7 @@ export interface ApiEnvelope<T> {
   error?: { code?: string; message?: string };
 }
 
+/** @deprecated Use SalePurchaseListItem — kept for POS void modal compatibility */
 export interface RecentTransactionSummary {
   id: string;
   receiptNo: string;
@@ -17,6 +18,8 @@ export interface RecentTransactionSummary {
   completedAt: string | null;
   cashierName: string;
 }
+
+export type { SalePurchaseListItem };
 
 export interface ReceiptLineItem {
   name: string;
@@ -122,17 +125,19 @@ export async function fetchRecentTransactions(options?: {
   page?: number;
   limit?: number;
   outletId?: string;
-  status?: 'COMPLETED' | 'VOID' | 'ALL';
+  sourceType?: 'ALL' | 'TOKO' | 'WEB' | 'MARKETPLACE';
+  status?: 'COMPLETED' | 'VOID' | 'REFUND' | 'PARTIAL' | 'IN_PROGRESS' | 'ALL';
   paymentMethod?: string;
   dateFrom?: string;
   dateTo?: string;
   search?: string;
-}): Promise<PaginatedResult<RecentTransactionSummary>> {
+}): Promise<PaginatedResult<SalePurchaseListItem>> {
   const qs = buildPaginationQuery({
     page: options?.page,
     limit: options?.limit,
     extra: {
       outletId: options?.outletId,
+      sourceType: options?.sourceType && options.sourceType !== 'ALL' ? options.sourceType : undefined,
       status: options?.status,
       paymentMethod: options?.paymentMethod,
       dateFrom: options?.dateFrom,
@@ -141,7 +146,19 @@ export async function fetchRecentTransactions(options?: {
     },
   });
   const res = await authFetch(`${base}/recent${qs}`);
-  return parseEnvelope<{ items: RecentTransactionSummary[]; meta: PaginationMeta }>(res);
+  return parseEnvelope<{ items: SalePurchaseListItem[]; meta: PaginationMeta }>(res);
+}
+
+/** Map list item to legacy shape for VoidTransactionModal on POS. */
+export function toRecentTransactionSummary(row: SalePurchaseListItem): RecentTransactionSummary {
+  return {
+    id: row.transactionId ?? row.id,
+    receiptNo: row.receiptNo,
+    total: row.total,
+    status: row.status,
+    completedAt: row.completedAt,
+    cashierName: row.cashierName ?? '—',
+  };
 }
 
 export async function fetchTransactionReceipt(transactionId: string): Promise<ReceiptResponse> {

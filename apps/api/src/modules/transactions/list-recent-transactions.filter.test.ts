@@ -24,6 +24,9 @@ function createService() {
       },
       count: async () => 0,
     },
+    onlineOrder: {
+      findMany: async () => [],
+    },
   };
 
   const service = new TransactionsService(
@@ -60,4 +63,17 @@ test('Transactions: listRecentTransactions applies paymentMethod filter', async 
 
   const where = getWhere();
   assert.deepEqual(where?.payments, { some: { method: PaymentMethod.QRIS } });
+});
+
+test('Transactions: listRecentTransactions applies sourceType TOKO filter', async () => {
+  const { service, getWhere } = createService();
+  await service.listRecentTransactions(createUser(), {
+    outletId: 'outlet-1',
+    sourceType: 'TOKO',
+    page: 1,
+    limit: 20,
+  });
+
+  const where = getWhere();
+  assert.ok(where?.NOT);
 });

@@ -11,3 +11,4 @@ export * from './delivery';
 export * from './receivable-payment';
 export * from './finance-reports';
 export * from './pagination';
+export * from './sales-purchases';

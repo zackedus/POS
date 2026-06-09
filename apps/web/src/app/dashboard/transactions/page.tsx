@@ -3,11 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { formatCurrency, DEFAULT_PAGE_SIZE, PaymentMethod, type PaginationMeta } from '@barokah/shared';
+import {
+  DEFAULT_PAGE_SIZE,
+  PaymentMethod,
+  SALE_DISPLAY_STATUS_LABELS,
+  SALE_SOURCE_TYPE_LABELS,
+  type PaginationMeta,
+  type SalePurchaseListItem,
+  type SaleSourceType,
+  type SaleSourceTypeFilter,
+} from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
-  cardStyle,
   EmptyState,
   LoadingSkeleton,
   PageHeader,
@@ -15,18 +23,26 @@ import {
   TablePagination,
 } from '@/components/dashboard/dashboard-ui';
 import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
-import { ReceiptPanel } from '@/components/pos/ReceiptPanel';
+import { SaleSourceBadge, saleDisplayStatusVariant } from '@/components/dashboard/transactions/sale-badges';
+import { TransactionDetailPanel } from '@/components/dashboard/transactions/TransactionDetailPanel';
 import { VoidTransactionModal } from '@/components/pos/VoidTransactionModal';
 import { fetchMe, type AuthUser } from '@/lib/auth';
 import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
+import { PAYMENT_METHOD_LABELS } from '@/lib/reports';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   fetchRecentTransactions,
   fetchTransactionReceipt,
-  type RecentTransactionSummary,
+  toRecentTransactionSummary,
   type ReceiptResponse,
 } from '@/lib/transactions';
-import { printReceiptBrowser } from '@/lib/thermal-print';
+
+const SOURCE_TABS: Array<{ value: SaleSourceTypeFilter; label: string }> = [
+  { value: 'ALL', label: 'Semua' },
+  { value: 'TOKO', label: SALE_SOURCE_TYPE_LABELS.TOKO },
+  { value: 'WEB', label: SALE_SOURCE_TYPE_LABELS.WEB },
+  { value: 'MARKETPLACE', label: SALE_SOURCE_TYPE_LABELS.MARKETPLACE },
+];
 
 const PAYMENT_METHOD_OPTIONS = [
   { value: '', label: 'Semua metode' },
@@ -41,23 +57,47 @@ const PAYMENT_METHOD_OPTIONS = [
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'Semua status' },
-  { value: 'COMPLETED', label: 'Selesai' },
-  { value: 'VOID', label: 'Void' },
+  { value: 'COMPLETED', label: SALE_DISPLAY_STATUS_LABELS.COMPLETED },
+  { value: 'IN_PROGRESS', label: SALE_DISPLAY_STATUS_LABELS.IN_PROGRESS },
+  { value: 'VOID', label: SALE_DISPLAY_STATUS_LABELS.VOID },
+  { value: 'REFUND', label: SALE_DISPLAY_STATUS_LABELS.REFUND },
+  { value: 'PARTIAL', label: SALE_DISPLAY_STATUS_LABELS.PARTIAL },
 ];
 
-type TransactionFilters = {
+const EMPTY_BY_TAB: Record<SaleSourceTypeFilter, { title: string; description: string }> = {
+  ALL: {
+    title: 'Belum ada pembelian',
+    description: 'Transaksi penjualan hari ini akan muncul di sini. Sesuaikan filter tanggal jika perlu.',
+  },
+  TOKO: {
+    title: 'Belum ada penjualan toko',
+    description: 'Checkout dari kasir POS akan tampil di tab ini.',
+  },
+  WEB: {
+    title: 'Belum ada order web',
+    description: 'Pesanan web yang sudah dibayar akan muncul di sini.',
+  },
+  MARKETPLACE: {
+    title: 'Belum ada order marketplace',
+    description: 'Order Tokopedia/Shopee yang tercatat akan muncul di sini.',
+  },
+};
+
+type PurchaseFilters = {
   outletId: string;
-  status: 'ALL' | 'COMPLETED' | 'VOID';
+  sourceType: SaleSourceTypeFilter;
+  status: 'ALL' | 'COMPLETED' | 'VOID' | 'REFUND' | 'PARTIAL' | 'IN_PROGRESS';
   paymentMethod: string;
   dateFrom: string;
   dateTo: string;
   search: string;
 };
 
-function createDefaultFilters(outletId = ''): TransactionFilters {
+function createDefaultFilters(outletId = ''): PurchaseFilters {
   const dates = defaultDateFilters();
   return {
     outletId,
+    sourceType: 'ALL',
     status: 'ALL',
     paymentMethod: '',
     dateFrom: dates.dateFrom,
@@ -66,26 +106,56 @@ function createDefaultFilters(outletId = ''): TransactionFilters {
   };
 }
 
+function sourceTabStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '0.45rem 0.85rem',
+    borderRadius: '999px',
+    border: active ? '1px solid #2563eb' : '1px solid #e2e8f0',
+    background: active ? '#eff6ff' : '#fff',
+    color: active ? '#1d4ed8' : '#334155',
+    fontWeight: active ? 600 : 500,
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+  };
+}
+
+function formatShortDate(value: string | null): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatIdr(value: number): string {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
+    value,
+  );
+}
+
 export default function DashboardTransactionsPage() {
   const searchParams = useSearchParams();
   const linkedTransactionId = searchParams.get('id');
+  const linkedReceiptNo = searchParams.get('receiptNo');
   const { outlets, selectedOutletId, needsOutletPick } = useOutletSelection();
   const multiOutlet = outlets.length > 1;
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [recentTransactions, setRecentTransactions] = useState<RecentTransactionSummary[]>([]);
+  const [items, setItems] = useState<SalePurchaseListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<ReceiptResponse | null>(null);
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
-  const [voidTarget, setVoidTarget] = useState<RecentTransactionSummary | null>(null);
-  const [draftFilters, setDraftFilters] = useState<TransactionFilters>(() =>
+  const [voidTarget, setVoidTarget] = useState<SalePurchaseListItem | null>(null);
+  const [selectedRow, setSelectedRow] = useState<SalePurchaseListItem | null>(null);
+  const [draftFilters, setDraftFilters] = useState<PurchaseFilters>(() =>
     createDefaultFilters(selectedOutletId ?? ''),
   );
-  const [appliedFilters, setAppliedFilters] = useState<TransactionFilters>(() =>
+  const [appliedFilters, setAppliedFilters] = useState<PurchaseFilters>(() =>
     createDefaultFilters(selectedOutletId ?? ''),
   );
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
@@ -105,6 +175,11 @@ export default function DashboardTransactionsPage() {
           key: 'outlet',
           label: `Cabang: ${outlets.find((o) => o.id === appliedFilters.outletId)?.label ?? 'Semua'}`,
           active: multiOutlet && Boolean(appliedFilters.outletId),
+        },
+        {
+          key: 'source',
+          label: `Tipe: ${SOURCE_TABS.find((o) => o.value === appliedFilters.sourceType)?.label ?? appliedFilters.sourceType}`,
+          active: appliedFilters.sourceType !== 'ALL',
         },
         {
           key: 'status',
@@ -135,7 +210,7 @@ export default function DashboardTransactionsPage() {
   const loadData = useCallback(async () => {
     if (needsOutletPick && !multiOutlet) {
       setLoading(false);
-      setRecentTransactions([]);
+      setItems([]);
       return;
     }
 
@@ -148,16 +223,17 @@ export default function DashboardTransactionsPage() {
         page,
         limit: pageSize,
         outletId: queryOutletId,
+        sourceType: appliedFilters.sourceType,
         status: appliedFilters.status,
         paymentMethod: appliedFilters.paymentMethod || undefined,
         dateFrom: appliedFilters.dateFrom || undefined,
         dateTo: appliedFilters.dateTo || undefined,
         search: appliedFilters.search || undefined,
       });
-      setRecentTransactions(result.items);
+      setItems(result.items);
       setMeta(result.meta);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat transaksi.');
+      setError(err instanceof Error ? err.message : 'Gagal memuat daftar pembelian.');
     } finally {
       setLoading(false);
     }
@@ -181,18 +257,27 @@ export default function DashboardTransactionsPage() {
 
   function resetFilters() {
     const defaults = createDefaultFilters(multiOutlet ? '' : (selectedOutletId ?? ''));
-    setDraftFilters(defaults);
-    setAppliedFilters(defaults);
+    setDraftFilters({ ...defaults, sourceType: draftFilters.sourceType });
+    setAppliedFilters({ ...defaults, sourceType: appliedFilters.sourceType });
     setPage(1);
   }
 
-  async function openReceipt(transactionId: string) {
-    setLoadingReceiptId(transactionId);
+  function switchSourceTab(sourceType: SaleSourceTypeFilter) {
+    setDraftFilters((prev) => ({ ...prev, sourceType }));
+    setAppliedFilters((prev) => ({ ...prev, sourceType }));
+    setPage(1);
+    setSelectedRow(null);
+    setReceiptPreview(null);
+  }
+
+  async function openReceipt(row: SalePurchaseListItem) {
+    const txId = row.transactionId ?? row.id;
+    if (row.recordType !== 'TRANSACTION') return;
+    setLoadingReceiptId(txId);
     setError(null);
     try {
-      const data = await fetchTransactionReceipt(transactionId);
+      const data = await fetchTransactionReceipt(txId);
       setReceiptPreview(data);
-      setExpandedId(transactionId);
     } catch (err) {
       setReceiptPreview(null);
       setError(err instanceof Error ? err.message : 'Gagal memuat struk.');
@@ -201,21 +286,35 @@ export default function DashboardTransactionsPage() {
     }
   }
 
+  function openDetail(row: SalePurchaseListItem) {
+    setSelectedRow(row);
+    if (row.canReprint && row.recordType === 'TRANSACTION') {
+      void openReceipt(row);
+    } else {
+      setReceiptPreview(null);
+    }
+  }
+
   useEffect(() => {
-    if (!linkedTransactionId || recentTransactions.length === 0) {
+    if (items.length === 0) return;
+    if (linkedTransactionId) {
+      const match = items.find((row) => row.transactionId === linkedTransactionId || row.id === linkedTransactionId);
+      if (match) openDetail(match);
       return;
     }
-    const match = recentTransactions.find((row) => row.id === linkedTransactionId);
-    if (match && expandedId !== match.id) {
-      void openReceipt(match.id);
+    if (linkedReceiptNo) {
+      const match = items.find((row) => row.receiptNo === linkedReceiptNo);
+      if (match) openDetail(match);
     }
-  }, [linkedTransactionId, recentTransactions, expandedId]);
+  }, [linkedTransactionId, linkedReceiptNo, items]);
+
+  const emptyState = EMPTY_BY_TAB[appliedFilters.sourceType];
 
   return (
-    <div style={{ display: 'grid', gap: '1.25rem', maxWidth: 960 }}>
+    <div style={{ display: 'grid', gap: '1.25rem', maxWidth: 1200 }}>
       <PageHeader
-        title="Void & Struk Transaksi"
-        description="Panel admin untuk void transaksi selesai, filter riwayat, dan pratinjau struk digital."
+        title="Daftar Pembelian"
+        description="Kelola semua penjualan — toko POS, order web, dan marketplace. Void, cetak struk, dan pantau status dari satu tempat."
         actions={
           <Button type="button" variant="secondary" onClick={() => void loadData()} disabled={loading}>
             {loading ? 'Memuat…' : 'Muat ulang'}
@@ -228,12 +327,31 @@ export default function DashboardTransactionsPage() {
         <Link href="/pos" style={{ color: '#2563eb' }}>
           layar POS
         </Link>{' '}
-        dengan persetujuan manager.
+        dengan persetujuan manager. Order web dikelola di{' '}
+        <Link href="/dashboard/online-orders" style={{ color: '#2563eb' }}>
+          Pesanan Web
+        </Link>
+        .
       </AlertBanner>
 
       {needsOutletPick ? (
-        <AlertBanner variant="warning">Pilih cabang di header sebelum melihat transaksi.</AlertBanner>
+        <AlertBanner variant="warning">Pilih cabang di header sebelum melihat daftar pembelian.</AlertBanner>
       ) : null}
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }} role="tablist" aria-label="Tipe pembelian">
+        {SOURCE_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={appliedFilters.sourceType === tab.value}
+            style={sourceTabStyle(appliedFilters.sourceType === tab.value)}
+            onClick={() => switchSourceTab(tab.value)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       <ListFilterBar
         selects={[
@@ -258,7 +376,7 @@ export default function DashboardTransactionsPage() {
             value: draftFilters.status,
             options: STATUS_OPTIONS,
             onChange: (value) =>
-              setDraftFilters((prev) => ({ ...prev, status: value as TransactionFilters['status'] })),
+              setDraftFilters((prev) => ({ ...prev, status: value as PurchaseFilters['status'] })),
           },
           {
             id: 'paymentMethod',
@@ -274,7 +392,7 @@ export default function DashboardTransactionsPage() {
         onDateFromChange={(value) => setDraftFilters((prev) => ({ ...prev, dateFrom: value }))}
         onDateToChange={(value) => setDraftFilters((prev) => ({ ...prev, dateTo: value }))}
         search={draftFilters.search}
-        searchPlaceholder="Cari no. struk…"
+        searchPlaceholder="Cari no. struk / pelanggan…"
         onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
         onApply={applyFilters}
         onReset={resetFilters}
@@ -284,84 +402,88 @@ export default function DashboardTransactionsPage() {
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
       {success ? <AlertBanner variant="success">{success}</AlertBanner> : null}
 
-      {loading ? <LoadingSkeleton rows={4} /> : null}
+      {loading ? <LoadingSkeleton rows={6} /> : null}
 
-      {!loading && recentTransactions.length === 0 ? (
+      {!loading && items.length === 0 ? (
         <EmptyState
-          title="Belum ada transaksi"
-          description={
-            activeChips.length > 0
-              ? FILTER_EMPTY_DESCRIPTION
-              : 'Transaksi selesai di outlet aktif akan muncul di sini. Sesuaikan filter tanggal jika perlu.'
-          }
+          title={emptyState.title}
+          description={activeChips.length > 0 ? FILTER_EMPTY_DESCRIPTION : emptyState.description}
           actionHref="/pos"
           actionLabel="Buka Kasir"
         />
       ) : null}
 
-      {!loading && recentTransactions.length > 0 ? (
+      {!loading && items.length > 0 ? (
         <>
-          <div style={{ display: 'grid', gap: '0.65rem' }}>
-            {recentTransactions.map((trx) => (
-              <div key={trx.id} style={cardStyle()}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <div>
-                    <strong>{trx.receiptNo}</strong>{' '}
-                    <StatusBadge
-                      label={trx.status === 'VOID' ? 'Void' : 'Selesai'}
-                      variant={trx.status === 'VOID' ? 'error' : 'success'}
-                    />
-                    <p style={{ margin: '0.35rem 0 0', color: '#475569', fontSize: '0.9375rem' }}>
-                      {formatCurrency(trx.total)} · {trx.cashierName}
-                      {trx.completedAt
-                        ? ` · ${new Date(trx.completedAt).toLocaleString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}`
-                        : ''}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      disabled={loadingReceiptId === trx.id}
-                      onClick={() => void openReceipt(trx.id)}
-                    >
-                      {loadingReceiptId === trx.id ? 'Memuat…' : expandedId === trx.id ? 'Sembunyikan' : 'Detail & Struk'}
-                    </Button>
-                    {trx.status === 'COMPLETED' ? (
-                      <Button type="button" variant="secondary" onClick={() => setVoidTarget(trx)}>
-                        Void
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                {expandedId === trx.id && receiptPreview?.receipt.transactionId === trx.id ? (
-                  <div style={{ marginTop: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-                    <ReceiptPanel
-                      receipt={receiptPreview.receipt}
-                      escpos={receiptPreview.escpos}
-                      onPrint={() => printReceiptBrowser('barokah-receipt-print')}
-                      onClose={() => {
-                        setExpandedId(null);
-                        setReceiptPreview(null);
-                      }}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            ))}
+          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#fff' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', textAlign: 'left', color: '#64748b' }}>
+                  <th style={{ padding: '0.75rem 1rem' }}>No. Struk</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Tanggal</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Tipe</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Pelanggan</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Total</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Metode</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Status</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((row) => (
+                  <tr
+                    key={`${row.recordType}-${row.id}`}
+                    style={{
+                      borderTop: '1px solid #e2e8f0',
+                      background: selectedRow?.id === row.id && selectedRow.recordType === row.recordType ? '#f8fafc' : undefined,
+                    }}
+                  >
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{row.receiptNo}</td>
+                    <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>{formatShortDate(row.completedAt)}</td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <SaleSourceBadge sourceType={row.sourceType as SaleSourceType} label={row.sourceLabel} />
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem' }}>{row.customerName ?? 'Walk-in'}</td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600 }}>{formatIdr(row.total)}</td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      {row.paymentMethodLabel ??
+                        (row.paymentMethod ? PAYMENT_METHOD_LABELS[row.paymentMethod] : '—')}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <StatusBadge
+                        label={row.displayStatusLabel}
+                        variant={saleDisplayStatusVariant(row.displayStatus)}
+                      />
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        <Button type="button" variant="ghost" onClick={() => openDetail(row)}>
+                          Detail
+                        </Button>
+                        {row.canReprint ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={loadingReceiptId === (row.transactionId ?? row.id)}
+                            onClick={() => {
+                              openDetail(row);
+                              void openReceipt(row);
+                            }}
+                          >
+                            Struk
+                          </Button>
+                        ) : null}
+                        {row.canVoid ? (
+                          <Button type="button" variant="ghost" onClick={() => setVoidTarget(row)}>
+                            Void
+                          </Button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           <TablePagination
             page={meta.page}
@@ -377,18 +499,36 @@ export default function DashboardTransactionsPage() {
         </>
       ) : null}
 
+      {selectedRow ? (
+        <TransactionDetailPanel
+          row={selectedRow}
+          receiptPreview={receiptPreview}
+          loadingReceipt={loadingReceiptId === (selectedRow.transactionId ?? selectedRow.id)}
+          onLoadReceipt={() => void openReceipt(selectedRow)}
+          onClose={() => {
+            setSelectedRow(null);
+            setReceiptPreview(null);
+          }}
+          onVoid={
+            selectedRow.canVoid
+              ? () => setVoidTarget(selectedRow)
+              : undefined
+          }
+        />
+      ) : null}
+
       {voidTarget && user ? (
         <VoidTransactionModal
-          transaction={voidTarget}
+          transaction={toRecentTransactionSummary(voidTarget)}
           userRole={user.role}
           onClose={() => setVoidTarget(null)}
           onSuccess={(message) => {
-            const voidedId = voidTarget.id;
+            const voidedId = voidTarget.transactionId ?? voidTarget.id;
             setSuccess(message);
             setVoidTarget(null);
             void loadData();
             if (receiptPreview?.receipt.transactionId === voidedId) {
-              void openReceipt(voidedId);
+              void openReceipt(voidTarget);
             }
           }}
         />

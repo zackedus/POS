@@ -1,14 +1,21 @@
-import { PaymentMethod } from '@barokah/shared';
+import { PaymentMethod, SALE_SOURCE_TYPE_FILTER_VALUES } from '@barokah/shared';
 import { IsEnum, IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
-export class ListRecentTransactionsDto extends PaginationQueryDto {  @IsOptional()
+export class ListRecentTransactionsDto extends PaginationQueryDto {
+  @IsOptional()
   @IsUUID('4', { message: 'outletId harus UUID valid.' })
   outletId?: string;
 
   @IsOptional()
-  @IsIn(['COMPLETED', 'VOID', 'ALL'], { message: 'status harus COMPLETED, VOID, atau ALL.' })
-  status?: 'COMPLETED' | 'VOID' | 'ALL';
+  @IsIn(['COMPLETED', 'VOID', 'REFUND', 'PARTIAL', 'IN_PROGRESS', 'ALL'], {
+    message: 'status tidak valid.',
+  })
+  status?: 'COMPLETED' | 'VOID' | 'REFUND' | 'PARTIAL' | 'IN_PROGRESS' | 'ALL';
+
+  @IsOptional()
+  @IsIn(SALE_SOURCE_TYPE_FILTER_VALUES, { message: 'sourceType tidak valid.' })
+  sourceType?: (typeof SALE_SOURCE_TYPE_FILTER_VALUES)[number];
 
   @IsOptional()
   @IsISO8601({}, { message: 'dateFrom harus tanggal ISO8601 valid.' })

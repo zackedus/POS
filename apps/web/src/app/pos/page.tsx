@@ -18,6 +18,7 @@ import { apiConfig, ApiRequestError as ApiClientError } from '@/lib/api';
 import { authFetch, fetchMe, tokenStorage, type AuthUser } from '@/lib/auth';
 import {
   fetchRecentTransactions,
+  toRecentTransactionSummary,
   fetchTransactionReceipt,
   TransactionApiError,
   type RecentTransactionSummary,
@@ -836,8 +837,14 @@ export default function PosPage() {
   async function loadRecentTransactions() {
     setLoadingRecent(true);
     try {
-      const rows = await fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined });
-      setRecentTransactions(rows.items);
+      const rows = await fetchRecentTransactions({
+        limit: 8,
+        outletId: activeOutletId ?? undefined,
+        sourceType: 'TOKO',
+      });
+      setRecentTransactions(
+        rows.items.filter((row) => row.recordType === 'TRANSACTION').map(toRecentTransactionSummary),
+      );
     } catch (err) {
       if (err instanceof TransactionApiError) {
         setError(err.message);
@@ -917,8 +924,12 @@ export default function PosPage() {
         const heldParams = activeOutletId ? `?outletId=${encodeURIComponent(activeOutletId)}` : '';
         const [heldRes, recentRows] = await Promise.all([
           authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held${heldParams}`),
-          fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined })
-            .then((result) => result.items)
+          fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined, sourceType: 'TOKO' })
+            .then((result) =>
+              result.items
+                .filter((row) => row.recordType === 'TRANSACTION')
+                .map(toRecentTransactionSummary),
+            )
             .catch(() => []),
         ]);
         const heldJson = (await heldRes.json()) as ApiEnvelope<HeldTransactionSummary[]>;

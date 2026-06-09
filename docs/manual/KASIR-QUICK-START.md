@@ -38,7 +38,8 @@ Panduan singkat shift harian toko bahan bangunan.
 
 ## Void (Manager)
 
-- Accordion **Transaksi Terakhir** → Void → butuh approval manager (PIN/password)
+- **Dashboard → Daftar Pembelian** (`/dashboard/transactions`) — cari transaksi, void dengan alasan wajib + approval manager
+- Di kasir: accordion **Transaksi Terakhir** → Void → butuh approval manager (PIN/password)
 - Stok otomatis dikembalikan
 
 ## Terima Pembayaran Piutang

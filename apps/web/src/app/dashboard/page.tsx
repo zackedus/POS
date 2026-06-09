@@ -38,7 +38,7 @@ const QUICK_LINKS = [
   { href: '/master/products', label: 'Produk', desc: 'Kelola katalog barang' },
   { href: '/master/categories', label: 'Kategori', desc: 'Kelompok produk' },
   { href: '/pos/online-orders', label: 'Order Online', desc: 'Antrian fulfillment web' },
-  { href: '/dashboard/transactions', label: 'Void & Struk', desc: 'Admin transaksi' },
+  { href: '/dashboard/transactions', label: 'Daftar Pembelian', desc: 'Penjualan & void' },
   { href: '/dashboard/shifts', label: 'Shift & Kas', desc: 'Buka/tutup shift & rekonsiliasi kas' },
 ] as const;
 

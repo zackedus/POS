@@ -40,7 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/pos', label: 'Kasir' },
       { href: '/dashboard/shifts', label: 'Shift & Kas' },
-      { href: '/dashboard/transactions', label: 'Void & Struk' },
+      { href: '/dashboard/transactions', label: 'Daftar Pembelian' },
       { href: '/dashboard/deliveries', label: 'Pengiriman', badgeKey: 'deliveries' },
       { href: '/dashboard/online-orders', label: 'Pesanan Web' },
       { href: '/pos/online-orders', label: 'Order Online (Kasir)', badgeKey: 'onlineOrders' },
@@ -93,7 +93,7 @@ const ICONS: Record<string, string> = {
   'Pesanan Web': '◈',
   Pengiriman: '➚',
   'Shift & Kas': '◷',
-  'Void & Struk': '↩',
+  'Daftar Pembelian': '🧾',
   Stok: '▤',
   Keuangan: '◫',
   'Laporan Keuangan': '◧',
@@ -190,7 +190,7 @@ function pageTitle(pathname: string): string {
     return 'Keuangan';
   }
   if (pathname.startsWith('/dashboard/purchase-orders')) return 'Order Distributor';
-  if (pathname.startsWith('/dashboard/transactions')) return 'Void & Struk';
+  if (pathname.startsWith('/dashboard/transactions')) return 'Daftar Pembelian';
   if (pathname.startsWith('/dashboard/settings')) return 'Pengaturan';
   if (pathname.startsWith('/master/products')) return 'Produk';
   if (pathname.startsWith('/master/bundles')) return 'Paket Bundling';

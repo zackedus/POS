@@ -42,6 +42,18 @@ import { ListRecentTransactionsDto } from './dto/list-recent-transactions.dto';
 import { RefundTransactionDto } from './dto/refund-transaction.dto';
 import { VoidTransactionDto } from './dto/void-transaction.dto';
 import { buildEscPosStub, type DigitalReceiptPayload } from './receipt.util';
+import {
+  buildOnlineOrderChannelWhere,
+  buildTransactionSourceWhere,
+  deriveOnlineOrderDisplayStatus,
+  deriveSaleSourceFromOnlineChannel,
+  deriveSaleSourceFromTransaction,
+  deriveTransactionDisplayStatus,
+  matchesDisplayStatusFilter,
+  onlineOrderPaymentLabel,
+  saleSourceLabel,
+  summarizePaymentMethods,
+} from './sale-source.util';
 import { ValidateCartDto } from './dto/validate-cart.dto';
 import {
   computeBundleEffectiveCost,
@@ -1948,58 +1960,207 @@ export class TransactionsService {
   async listRecentTransactions(user: AuthJwtPayload, query: ListRecentTransactionsDto) {
     const outletId = resolveOutletId(user, query.outletId);
     const { page, limit, skip } = resolvePagination(query);
+    const sourceTypeFilter = query.sourceType ?? 'ALL';
 
     let completedAtFilter: { not: null } | { gte: Date; lt: Date } = { not: null };
+    let paidAtFilter: { not: null } | { gte: Date; lt: Date } = { not: null };
     if (query.dateFrom || query.dateTo) {
       const range = resolveReportDayRange(undefined, query.dateFrom, query.dateTo);
       completedAtFilter = { gte: range.startUtc, lt: range.endUtc };
+      paidAtFilter = { gte: range.startUtc, lt: range.endUtc };
     }
 
-    const search = query.search?.trim();
+    const search = query.search?.trim().toLowerCase();
+    const sourceWhere = buildTransactionSourceWhere(sourceTypeFilter);
 
-    const where = {
+    const txWhere = {
       outletId,
       outlet: { tenantId: user.tenantId },
       completedAt: completedAtFilter,
-      ...(query.status && query.status !== 'ALL' ? { status: query.status } : {}),
+      ...(sourceWhere ?? {}),
       ...(query.paymentMethod ? { payments: { some: { method: query.paymentMethod } } } : {}),
       ...(search
         ? {
             OR: [
               { receiptNo: { contains: search, mode: 'insensitive' as const } },
               { cashier: { fullName: { contains: search, mode: 'insensitive' as const } } },
+              { customer: { name: { contains: search, mode: 'insensitive' as const } } },
             ],
           }
         : {}),
     };
 
-    const [rows, total] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where,
-        orderBy: { completedAt: 'desc' },
-        skip,
-        take: limit,
+    const txSelect = {
+      id: true,
+      receiptNo: true,
+      total: true,
+      status: true,
+      completedAt: true,
+      outletId: true,
+      outlet: { select: { name: true } },
+      cashier: { select: { fullName: true } },
+      customer: { select: { id: true, name: true } },
+      payments: { select: { method: true } },
+      adjustments: { select: { type: true, amount: true } },
+      receivable: { select: { id: true } },
+      deliveryOrders: {
         select: {
           id: true,
-          receiptNo: true,
-          total: true,
-          status: true,
-          completedAt: true,
-          cashier: { select: { fullName: true } },
+          onlineOrderId: true,
+          onlineOrder: { select: { id: true, orderNo: true, channel: true } },
         },
-      }),
-      this.prisma.transaction.count({ where }),
-    ]);
+      },
+    } as const;
+
+    const onlineChannelWhere = buildOnlineOrderChannelWhere(sourceTypeFilter);
+
+    const transactionRows = await this.prisma.transaction.findMany({
+      where: txWhere,
+      orderBy: { completedAt: 'desc' },
+      select: txSelect,
+    });
+
+    const onlineOrderRows =
+      onlineChannelWhere === null
+        ? []
+        : await this.prisma.onlineOrder.findMany({
+            where: {
+              AND: [
+                {
+                  outletId,
+                  tenantId: user.tenantId,
+                  paidAt: paidAtFilter,
+                  status: { notIn: ['NEW', 'PENDING_PAYMENT', 'EXPIRED'] },
+                  ...onlineChannelWhere,
+                },
+                {
+                  OR: [{ deliveryOrder: null }, { deliveryOrder: { transactionId: null } }],
+                },
+                ...(search
+                  ? [
+                      {
+                        OR: [
+                          { orderNo: { contains: search, mode: 'insensitive' as const } },
+                          { customerName: { contains: search, mode: 'insensitive' as const } },
+                          { customerPhone: { contains: search, mode: 'insensitive' as const } },
+                        ],
+                      },
+                    ]
+                  : []),
+              ],
+            },
+            orderBy: { paidAt: 'desc' },
+            select: {
+              id: true,
+              orderNo: true,
+              channel: true,
+              status: true,
+              total: true,
+              paidAt: true,
+              completedAt: true,
+              customerName: true,
+              outletId: true,
+              outlet: { select: { name: true } },
+              payments: {
+                where: { status: 'PAID' },
+                select: { paymentType: true },
+                take: 1,
+                orderBy: { createdAt: 'desc' as const },
+              },
+              deliveryOrder: { select: { id: true } },
+            },
+          });
+
+    type UnifiedRow = {
+      sortAt: Date;
+      item: Record<string, unknown>;
+    };
+
+    const unified: UnifiedRow[] = [];
+
+    for (const row of transactionRows) {
+      const sourceType = deriveSaleSourceFromTransaction(row);
+      const { displayStatus, displayStatusLabel } = deriveTransactionDisplayStatus(row);
+      if (!matchesDisplayStatusFilter(displayStatus, query.status)) continue;
+
+      const paymentSummary = summarizePaymentMethods(row.payments.map((p) => p.method));
+      const onlineDelivery = row.deliveryOrders.find((d) => d.onlineOrder);
+      const completedAt = row.completedAt;
+
+      unified.push({
+        sortAt: completedAt ?? new Date(0),
+        item: {
+          id: row.id,
+          recordType: 'TRANSACTION',
+          receiptNo: row.receiptNo,
+          sourceType,
+          sourceLabel: saleSourceLabel(sourceType),
+          customerName: row.customer?.name ?? null,
+          total: toIdrInteger(row.total),
+          paymentMethod: paymentSummary.paymentMethod,
+          paymentMethodLabel: paymentSummary.paymentMethodLabel,
+          status: row.status,
+          displayStatus,
+          displayStatusLabel,
+          outletId: row.outletId,
+          outletName: row.outlet.name,
+          completedAt,
+          cashierName: row.cashier.fullName,
+          transactionId: row.id,
+          onlineOrderId: onlineDelivery?.onlineOrder?.id ?? null,
+          deliveryId: row.deliveryOrders[0]?.id ?? null,
+          receivableId: row.receivable?.id ?? null,
+          canVoid: row.status === 'COMPLETED',
+          canReprint: true,
+        },
+      });
+    }
+
+    for (const row of onlineOrderRows) {
+      const sourceType = deriveSaleSourceFromOnlineChannel(row.channel);
+      const { displayStatus, displayStatusLabel } = deriveOnlineOrderDisplayStatus(row.status);
+      if (!matchesDisplayStatusFilter(displayStatus, query.status)) continue;
+
+      if (query.paymentMethod && query.paymentMethod !== PaymentMethod.TRANSFER && query.paymentMethod !== PaymentMethod.QRIS) {
+        continue;
+      }
+
+      const paidAt = row.paidAt ?? row.completedAt;
+      unified.push({
+        sortAt: paidAt ?? new Date(0),
+        item: {
+          id: row.id,
+          recordType: 'ONLINE_ORDER',
+          receiptNo: row.orderNo,
+          sourceType,
+          sourceLabel: saleSourceLabel(sourceType),
+          customerName: row.customerName,
+          total: toIdrInteger(row.total),
+          paymentMethod: 'ONLINE',
+          paymentMethodLabel: onlineOrderPaymentLabel(row.payments[0]?.paymentType),
+          status: row.status,
+          displayStatus,
+          displayStatusLabel,
+          outletId: row.outletId,
+          outletName: row.outlet.name,
+          completedAt: paidAt,
+          cashierName: null,
+          transactionId: null,
+          onlineOrderId: row.id,
+          deliveryId: row.deliveryOrder?.id ?? null,
+          receivableId: null,
+          canVoid: false,
+          canReprint: false,
+        },
+      });
+    }
+
+    unified.sort((a, b) => b.sortAt.getTime() - a.sortAt.getTime());
+    const total = unified.length;
+    const pageItems = unified.slice(skip, skip + limit).map((row) => row.item);
 
     return {
-      items: rows.map((row) => ({
-        id: row.id,
-        receiptNo: row.receiptNo,
-        total: toIdrInteger(row.total),
-        status: row.status,
-        completedAt: row.completedAt,
-        cashierName: row.cashier.fullName,
-      })),
+      items: pageItems,
       meta: buildPaginationMeta(page, limit, total),
     };
   }
