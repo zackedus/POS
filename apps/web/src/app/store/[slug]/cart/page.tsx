@@ -12,6 +12,8 @@ import { mapApiError } from '@/lib/api-client';
 import { fetchProduct } from '@/lib/store/store-api';
 import { calculateOrderTotals, calculateSubtotal } from '@/lib/store/pricing';
 import { useStoreCart } from '@/lib/store/cart-context';
+import { useStoreConfig } from '@/lib/store/store-config-context';
+import { useStoreCustomerAuth } from '@/lib/store/store-customer-auth-context';
 import { useStoreOutlet } from '@/lib/store/use-store-outlet';
 
 export default function StoreCartPage() {
@@ -20,6 +22,9 @@ export default function StoreCartPage() {
   const slug = params.slug as string;
   const { outletId } = useStoreOutlet(slug);
   const { lines, updateQuantity, removeItem } = useStoreCart();
+  const { config } = useStoreConfig();
+  const { isLoggedIn, loading: authLoading } = useStoreCustomerAuth();
+  const requireLogin = config?.settings.checkout.requireCustomerLogin !== false;
   const [lineError, setLineError] = useState<string | null>(null);
 
   const subtotal = calculateSubtotal(lines);
@@ -128,7 +133,16 @@ export default function StoreCartPage() {
           gap: '0.5rem',
         }}
       >
-        <Button fullWidth onClick={() => router.push(`/store/${slug}/checkout`)}>
+        <Button
+          fullWidth
+          onClick={() => {
+            if (requireLogin && !authLoading && !isLoggedIn) {
+              router.push(`/store/${slug}/login?returnUrl=${encodeURIComponent(`/store/${slug}/checkout`)}`);
+              return;
+            }
+            router.push(`/store/${slug}/checkout`);
+          }}
+        >
           Lanjut checkout
         </Button>
         <Link

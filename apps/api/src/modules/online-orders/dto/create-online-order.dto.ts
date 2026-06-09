@@ -91,6 +91,12 @@ export class CreateOnlineOrderDto {
   @Type(() => DeliveryAddressDto)
   deliveryAddress?: DeliveryAddressDto;
 
+  /** Saved customer address ID — required for delivery when customer login is enforced. */
+  @ValidateIf((dto: CreateOnlineOrderDto) => dto.fulfillmentType === 'DELIVERY')
+  @IsOptional()
+  @IsUUID('4')
+  customerAddressId?: string;
+
   /** Honeypot — must stay empty; bots that fill this field are rejected. */
   @IsOptional()
   @IsString()

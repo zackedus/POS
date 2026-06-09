@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -15,6 +16,8 @@ import type { CatalogProductsQueryDto } from './dto/catalog-products-query.dto';
 import { MidtransService, type MidtransRuntimeConfig } from './midtrans.service';
 import { OnlineOrdersService } from './online-orders.service';
 import { CustomersService } from '../customers/customers.service';
+import { StorefrontCustomerAuthService } from './storefront-customer-auth.service';
+import type { StorefrontCustomerJwtPayload } from './storefront-customer-auth.types';
 import {
   buildOrderNo,
   formatPhoneDisplay,
@@ -33,6 +36,7 @@ export class StorefrontService {
     private readonly midtrans: MidtransService,
     private readonly onlineOrdersService: OnlineOrdersService,
     private readonly customersService: CustomersService,
+    private readonly storefrontCustomerAuth: StorefrontCustomerAuthService,
   ) {}
 
   private async resolveTenant(slug: string) {
@@ -516,7 +520,11 @@ export class StorefrontService {
     };
   }
 
-  async createOrder(tenantSlug: string, dto: CreateOnlineOrderDto) {
+  async createOrder(
+    tenantSlug: string,
+    dto: CreateOnlineOrderDto,
+    authenticatedCustomer: StorefrontCustomerJwtPayload | null = null,
+  ) {
     if (dto.website?.trim()) {
       throw new BadRequestException({
         code: ErrorCodes.INVALID_INPUT,
@@ -527,6 +535,24 @@ export class StorefrontService {
     const tenant = await this.resolveTenant(tenantSlug);
     const storefrontSettings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
     await this.assertStorefrontAcceptingOrders(storefrontSettings);
+
+    const requireLogin = storefrontSettings.checkout.requireCustomerLogin !== false;
+    if (requireLogin) {
+      if (!authenticatedCustomer || authenticatedCustomer.tenantSlug !== tenantSlug) {
+        throw new UnauthorizedException({
+          code: ErrorCodes.UNAUTHORIZED,
+          message: 'Login pelanggan wajib sebelum checkout. Daftar atau masuk terlebih dahulu.',
+        });
+      }
+    } else if (
+      authenticatedCustomer &&
+      authenticatedCustomer.tenantSlug !== tenantSlug
+    ) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Sesi tidak valid untuk toko ini.',
+      });
+    }
 
     if (dto.fulfillmentType === 'DELIVERY' && !storefrontSettings.branches.deliveryEnabled) {
       throw new UnprocessableEntityException({
@@ -692,25 +718,75 @@ export class StorefrontService {
       });
     }
 
-    const deliveryAddress =
-      dto.fulfillmentType === 'DELIVERY' && dto.deliveryAddress
-        ? {
-            street: dto.deliveryAddress.street.trim(),
-            district: dto.deliveryAddress.district.trim(),
-            city: dto.deliveryAddress.city.trim(),
-            ...(dto.deliveryAddress.postalCode?.trim()
-              ? { postalCode: dto.deliveryAddress.postalCode.trim() }
-              : {}),
-          }
-        : null;
+    let deliveryAddress: {
+      street: string;
+      district: string;
+      city: string;
+      postalCode?: string;
+    } | null = null;
+
+    if (dto.fulfillmentType === 'DELIVERY') {
+      if (requireLogin && authenticatedCustomer) {
+        if (!dto.customerAddressId) {
+          throw new UnprocessableEntityException({
+            code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+            message: 'Pilih alamat pengiriman tersimpan atau tambah alamat baru.',
+          });
+        }
+        const saved = await this.storefrontCustomerAuth.resolveCustomerAddress(
+          authenticatedCustomer.sub,
+          tenant.id,
+          dto.customerAddressId,
+        );
+        deliveryAddress = {
+          street: saved.addressLine1,
+          district: saved.province?.trim() || saved.addressLine2?.trim() || '-',
+          city: saved.city,
+          ...(saved.postalCode?.trim() ? { postalCode: saved.postalCode.trim() } : {}),
+        };
+      } else if (dto.deliveryAddress) {
+        deliveryAddress = {
+          street: dto.deliveryAddress.street.trim(),
+          district: dto.deliveryAddress.district.trim(),
+          city: dto.deliveryAddress.city.trim(),
+          ...(dto.deliveryAddress.postalCode?.trim()
+            ? { postalCode: dto.deliveryAddress.postalCode.trim() }
+            : {}),
+        };
+      } else if (storefrontSettings.checkout.requireAddress !== false) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+          message: 'Alamat pengiriman wajib diisi.',
+        });
+      }
+    }
+
     const expiresAt = paymentExpiresAt();
     const dateKey = getJakartaDateKey();
-    const normalizedPhone = normalizePhone(dto.customer.phone);
-    const customer = await this.customersService.findOrCreateByPhone(
-      tenant.id,
-      dto.customer.name,
-      dto.customer.phone,
-    );
+
+    let customerRecord: { id: string; name: string; phone: string };
+    if (authenticatedCustomer) {
+      const profile = await this.prisma.customer.findFirst({
+        where: { id: authenticatedCustomer.sub, tenantId: tenant.id },
+        select: { id: true, name: true, phone: true },
+      });
+      if (!profile) {
+        throw new UnauthorizedException({
+          code: ErrorCodes.UNAUTHORIZED,
+          message: 'Akun pelanggan tidak ditemukan.',
+        });
+      }
+      customerRecord = profile;
+    } else {
+      customerRecord = await this.customersService.findOrCreateByPhone(
+        tenant.id,
+        dto.customer.name,
+        dto.customer.phone,
+      );
+    }
+
+    const normalizedPhone = customerRecord.phone;
+    const customerName = dto.customer.name.trim() || customerRecord.name;
 
     const order = await this.prisma.$transaction(async (tx) => {
       const sequenceDate = new Date(`${dateKey}T00:00:00.000Z`);
@@ -732,8 +808,8 @@ export class StorefrontService {
           clientRequestId: dto.clientRequestId,
           status: 'PENDING_PAYMENT',
           fulfillmentType: dto.fulfillmentType,
-          customerId: customer.id,
-          customerName: dto.customer.name.trim(),
+          customerId: customerRecord.id,
+          customerName,
           customerPhone: normalizedPhone,
           customerNotes: dto.customer.notes?.trim() || null,
           subtotal: idrToDecimal(subtotal),

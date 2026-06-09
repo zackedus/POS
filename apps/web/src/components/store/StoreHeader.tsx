@@ -5,12 +5,14 @@ import { useParams } from 'next/navigation';
 import { colors } from '@barokah/ui';
 import { useStoreCart } from '@/lib/store/cart-context';
 import { useStoreConfig } from '@/lib/store/store-config-context';
+import { useStoreCustomerAuth } from '@/lib/store/store-customer-auth-context';
 
 export function StoreHeader() {
   const params = useParams();
   const slug = params.slug as string;
   const { itemCount } = useStoreCart();
   const { config, accentColor } = useStoreConfig();
+  const { isLoggedIn, customer } = useStoreCustomerAuth();
   const tenantName = config?.tenant.name ?? slug;
   const logoUrl = config?.tenant.logoUrl;
 
@@ -67,8 +69,17 @@ export function StoreHeader() {
           Katalog
         </Link>
         <Link href={`/store/${slug}/register`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }}>
-          Member
+          {isLoggedIn ? 'Akun' : 'Daftar'}
         </Link>
+        {isLoggedIn ? (
+          <Link href={`/store/${slug}/account/addresses`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }} title={customer?.name}>
+            Alamat
+          </Link>
+        ) : (
+          <Link href={`/store/${slug}/login`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }}>
+            Masuk
+          </Link>
+        )}
         <Link href={`/store/${slug}/orders`} style={{ fontSize: '0.8125rem', fontWeight: 600, color: accentColor, textDecoration: 'none', padding: '0.35rem 0.5rem' }}>
           Pesanan
         </Link>

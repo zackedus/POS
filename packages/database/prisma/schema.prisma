@@ -649,6 +649,7 @@ model Customer {
   memberCode  String   @map("member_code")
   memberSince DateTime @default(now()) @map("member_since")
   notes       String?
+  passwordHash String?  @map("password_hash")
   points            Int      @default(0)
   creditLimit       Decimal? @map("credit_limit") @db.Decimal(15, 2)
   autoLimitEnabled  Boolean  @default(true) @map("auto_limit_enabled")

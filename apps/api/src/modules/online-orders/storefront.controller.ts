@@ -7,8 +7,11 @@ import {
 } from './dto/catalog-products-query.dto';
 import { OrderStatusQueryDto } from './dto/order-status-query.dto';
 import { RegisterCustomerDto } from './dto/register-customer.dto';
+import { CurrentStorefrontCustomer } from './storefront-customer-auth.decorator';
+import { OptionalStorefrontCustomerAuthGuard } from './optional-storefront-customer-auth.guard';
 import { StorefrontRateLimitGuard } from './storefront-rate-limit.guard';
 import { StorefrontService } from './storefront.service';
+import type { StorefrontCustomerJwtPayload } from './storefront-customer-auth.types';
 
 @Controller('store/:tenantSlug')
 export class StorefrontController {
@@ -50,9 +53,13 @@ export class StorefrontController {
   }
 
   @Post('orders')
-  @UseGuards(StorefrontRateLimitGuard)
-  createOrder(@Param('tenantSlug') tenantSlug: string, @Body() dto: CreateOnlineOrderDto) {
-    return this.storefrontService.createOrder(tenantSlug, dto);
+  @UseGuards(StorefrontRateLimitGuard, OptionalStorefrontCustomerAuthGuard)
+  createOrder(
+    @Param('tenantSlug') tenantSlug: string,
+    @Body() dto: CreateOnlineOrderDto,
+    @CurrentStorefrontCustomer() customer?: StorefrontCustomerJwtPayload,
+  ) {
+    return this.storefrontService.createOrder(tenantSlug, dto, customer ?? null);
   }
 
   @Post('orders/:orderNo/mock-pay')

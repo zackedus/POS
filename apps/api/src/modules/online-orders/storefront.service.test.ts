@@ -104,27 +104,57 @@ function buildCustomers() {
   } as never;
 }
 
-function buildService(prisma: ReturnType<typeof buildPrisma>) {
-  return new StorefrontService(prisma as never, buildMidtrans(), buildOnlineOrders(), buildCustomers());
+function buildStorefrontCustomerAuth() {
+  return {
+    resolveCustomerAddress: async () => ({
+      id: 'addr-1',
+      addressLine1: 'Jl. Test 1',
+      addressLine2: 'Catatan',
+      province: 'Menteng',
+      city: 'Jakarta Pusat',
+      postalCode: '10110',
+    }),
+  } as never;
 }
 
-test('Storefront: createOrder DELIVERY applies flat shipping fee', async () => {
-  const prisma = buildPrisma();
-  const service = buildService(prisma);
+function buildService(prisma: ReturnType<typeof buildPrisma>) {
+  return new StorefrontService(
+    prisma as never,
+    buildMidtrans(),
+    buildOnlineOrders(),
+    buildCustomers(),
+    buildStorefrontCustomerAuth(),
+  );
+}
 
-  const result = await service.createOrder('barokah-bangunan', {
-    clientRequestId: 'req-delivery-1',
-    outletId: 'outlet-1',
-    fulfillmentType: 'DELIVERY',
-    customer: { name: 'Budi Proyek', phone: '081234567890' },
-    items: [{ productId: 'prod-1', quantity: 2 }],
-    deliveryAddress: {
-      street: 'Jl. Merdeka No. 10',
-      district: 'Coblong',
-      city: 'Bandung',
-      postalCode: '40123',
+const MOCK_CUSTOMER_JWT = {
+  sub: 'cust-1',
+  tenantId: 'tenant-1',
+  tenantSlug: 'barokah-bangunan',
+  phone: '081234567890',
+  kind: 'storefront_customer' as const,
+};
+
+test('Storefront: createOrder DELIVERY applies flat shipping fee', async () => {
+  const prisma = buildPrisma({
+    customer: {
+      findFirst: async () => ({ id: 'cust-1', name: 'Budi Proyek', phone: '081234567890' }),
     },
   });
+  const service = buildService(prisma);
+
+  const result = await service.createOrder(
+    'barokah-bangunan',
+    {
+      clientRequestId: 'req-delivery-1',
+      outletId: 'outlet-1',
+      fulfillmentType: 'DELIVERY',
+      customer: { name: 'Budi Proyek', phone: '081234567890' },
+      items: [{ productId: 'prod-1', quantity: 2 }],
+      customerAddressId: 'addr-1',
+    },
+    MOCK_CUSTOMER_JWT,
+  );
 
   assert.equal(result.order.fulfillmentType, 'DELIVERY');
   assert.equal(result.order.subtotal, 130000);
@@ -133,24 +163,32 @@ test('Storefront: createOrder DELIVERY applies flat shipping fee', async () => {
   assert.equal(result.order.total, 130000 + 14300 + ONLINE_DELIVERY_FLAT_FEE);
   assert.equal(Number(prisma.createdOrders[0]?.shippingFee), ONLINE_DELIVERY_FLAT_FEE);
   assert.deepEqual(prisma.createdOrders[0]?.deliveryAddress, {
-    street: 'Jl. Merdeka No. 10',
-    district: 'Coblong',
-    city: 'Bandung',
-    postalCode: '40123',
+    street: 'Jl. Test 1',
+    district: 'Menteng',
+    city: 'Jakarta Pusat',
+    postalCode: '10110',
   });
 });
 
 test('Storefront: createOrder PICKUP has zero shipping fee', async () => {
-  const prisma = buildPrisma();
+  const prisma = buildPrisma({
+    customer: {
+      findFirst: async () => ({ id: 'cust-1', name: 'Ani', phone: '081298765432' }),
+    },
+  });
   const service = buildService(prisma);
 
-  const result = await service.createOrder('barokah-bangunan', {
-    clientRequestId: 'req-pickup-1',
-    outletId: 'outlet-1',
-    fulfillmentType: 'PICKUP',
-    customer: { name: 'Ani', phone: '081298765432' },
-    items: [{ productId: 'prod-1', quantity: 1 }],
-  });
+  const result = await service.createOrder(
+    'barokah-bangunan',
+    {
+      clientRequestId: 'req-pickup-1',
+      outletId: 'outlet-1',
+      fulfillmentType: 'PICKUP',
+      customer: { name: 'Ani', phone: '081298765432' },
+      items: [{ productId: 'prod-1', quantity: 1 }],
+    },
+    MOCK_CUSTOMER_JWT,
+  );
 
   assert.equal(result.order.fulfillmentType, 'PICKUP');
   assert.equal(result.order.shippingFee, 0);

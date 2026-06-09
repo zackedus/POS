@@ -122,9 +122,12 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 | # | Langkah | Expected |
 |---|---------|----------|
 | H1 | Buka `/store/barokah-bangunan` | Home storefront: hero, picker cabang, CTA katalog |
+| H1a | Guest klik checkout dari keranjang | Redirect ke login/daftar jika **Wajib login pelanggan** ON |
+| H1b | Daftar → tambah alamat → login ulang | Akun pelanggan + minimal 1 alamat tersimpan |
 | H1b | Buka `/store/barokah-bangunan/products` | Grid katalog + filter kategori + sort |
 | H2 | Pilih cabang + produk → keranjang | Item masuk cart |
-| H3 | Checkout: isi nama + HP wajib | Form validasi HP |
+| H3 | Checkout (login): pilih alamat tersimpan (delivery) | Nama/HP terisi dari profil; alamat dari daftar CRM |
+| H3b | Checkout pickup (login) | Tetap wajib login; order terhubung `customerId` |
 | H4 | Mock pay / bayar online | Order status PAID |
 | H5 | Kasir → tab **Order Web** `/pos/online-orders` | Order muncul di antrian (channel WEB) |
 | H6 | Fulfill → COMPLETED | Stok **tidak** double-deduct |

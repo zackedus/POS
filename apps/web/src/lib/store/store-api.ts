@@ -2,11 +2,17 @@ import { ApiRequestError } from '@/lib/api';
 import { publicApiJson } from '@/lib/api-client';
 import { apiConfig } from '@/lib/api';
 import type { StorefrontPublicConfig, StorefrontSortOption } from '@barokah/shared';
+import type { StoreCustomerAddress, StoreCustomerProfile } from './store-customer-auth-context';
 import type { CartLine, CheckoutCustomer, StoreCategory, StoreOutlet, StoreProduct } from './types';
 
 const STORE_BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/store`;
 
-async function storeFetch<T>(path: string, init?: RequestInit, fallback = 'Permintaan gagal.'): Promise<T> {
+async function storeFetch<T>(
+  path: string,
+  init?: RequestInit,
+  fallback = 'Permintaan gagal.',
+  accessToken?: string | null,
+): Promise<T> {
   try {
     return await publicApiJson<T>(
       `${STORE_BASE}${path}`,
@@ -14,6 +20,7 @@ async function storeFetch<T>(path: string, init?: RequestInit, fallback = 'Permi
         ...init,
         headers: {
           'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           ...(init?.headers ?? {}),
         },
       },
@@ -204,26 +211,36 @@ export async function createOrder(input: {
   clientRequestId: string;
   fulfillmentType?: StoreFulfillmentType;
   deliveryAddress?: DeliveryAddressInput;
+  customerAddressId?: string;
+  accessToken?: string | null;
   website?: string;
 }): Promise<CreateOrderResult> {
   const fulfillmentType = input.fulfillmentType ?? 'PICKUP';
-  return storeFetch<CreateOrderResult>(`/${input.slug}/orders`, {
-    method: 'POST',
-    body: JSON.stringify({
-      clientRequestId: input.clientRequestId,
-      outletId: input.outletId,
-      fulfillmentType,
-      customer: input.customer,
-      items: input.items.map((line) => ({
-        productId: line.productId,
-        quantity: line.quantity,
-      })),
-      ...(fulfillmentType === 'DELIVERY' && input.deliveryAddress
-        ? { deliveryAddress: input.deliveryAddress }
-        : {}),
-      ...(input.website ? { website: input.website } : {}),
-    }),
-  });
+  return storeFetch<CreateOrderResult>(
+    `/${input.slug}/orders`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        clientRequestId: input.clientRequestId,
+        outletId: input.outletId,
+        fulfillmentType,
+        customer: input.customer,
+        items: input.items.map((line) => ({
+          productId: line.productId,
+          quantity: line.quantity,
+        })),
+        ...(fulfillmentType === 'DELIVERY' && input.customerAddressId
+          ? { customerAddressId: input.customerAddressId }
+          : {}),
+        ...(fulfillmentType === 'DELIVERY' && !input.customerAddressId && input.deliveryAddress
+          ? { deliveryAddress: input.deliveryAddress }
+          : {}),
+        ...(input.website ? { website: input.website } : {}),
+      }),
+    },
+    'Gagal membuat pesanan.',
+    input.accessToken,
+  );
 }
 
 export async function fetchOrderStatus(slug: string, orderNo: string, phone: string) {
@@ -253,18 +270,107 @@ export async function confirmMockPayment(slug: string, orderNo: string, phone: s
 
 export async function registerStoreMember(
   slug: string,
-  input: { name: string; phone: string; email?: string; website?: string },
+  input: { name: string; phone: string; email?: string; password: string; website?: string },
 ) {
   return storeFetch<{
-    customer: { id: string; name: string; phone: string; points: number };
+    customer: StoreCustomerProfile;
+    tokens: { accessToken: string; refreshToken: string; expiresIn: string };
     tenantName: string;
     message: string;
   }>(
-    `/${slug}/register`,
+    `/${slug}/customers/register`,
     {
       method: 'POST',
       body: JSON.stringify(input),
     },
-    'Pendaftaran member gagal.',
+    'Pendaftaran gagal.',
+  );
+}
+
+export async function loginStoreCustomer(
+  slug: string,
+  input: { identifier: string; password: string },
+) {
+  return storeFetch<{
+    customer: StoreCustomerProfile;
+    tokens: { accessToken: string; refreshToken: string; expiresIn: string };
+  }>(
+    `/${slug}/customers/login`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+    'Login gagal.',
+  );
+}
+
+export async function fetchStoreCustomerMe(slug: string, accessToken: string) {
+  return storeFetch<StoreCustomerProfile>(
+    `/${slug}/customers/me`,
+    undefined,
+    'Gagal memuat profil.',
+    accessToken,
+  );
+}
+
+export async function fetchStoreCustomerAddresses(slug: string, accessToken: string) {
+  const data = await storeFetch<{ addresses: StoreCustomerAddress[] }>(
+    `/${slug}/customers/me/addresses`,
+    undefined,
+    'Gagal memuat alamat.',
+    accessToken,
+  );
+  return data.addresses;
+}
+
+export async function createStoreCustomerAddress(
+  slug: string,
+  accessToken: string,
+  input: {
+    label: string;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    province?: string;
+    postalCode?: string;
+    isDefault?: boolean;
+  },
+) {
+  return storeFetch<StoreCustomerAddress>(
+    `/${slug}/customers/me/addresses`,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Gagal menambah alamat.',
+    accessToken,
+  );
+}
+
+export async function updateStoreCustomerAddress(
+  slug: string,
+  accessToken: string,
+  addressId: string,
+  input: Partial<{
+    label: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    isDefault: boolean;
+  }>,
+) {
+  return storeFetch<StoreCustomerAddress>(
+    `/${slug}/customers/me/addresses/${addressId}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+    'Gagal memperbarui alamat.',
+    accessToken,
+  );
+}
+
+export async function deleteStoreCustomerAddress(slug: string, accessToken: string, addressId: string) {
+  return storeFetch<{ deleted: boolean }>(
+    `/${slug}/customers/me/addresses/${addressId}`,
+    { method: 'DELETE' },
+    'Gagal menghapus alamat.',
+    accessToken,
   );
 }

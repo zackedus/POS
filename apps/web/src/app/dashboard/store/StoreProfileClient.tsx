@@ -270,6 +270,7 @@ export default function StoreProfileClient() {
                   <>
                     <Field label="Minimum order (Rp)" value={String(draft.checkout.minOrderAmount)} onChange={(v) => patchNested('checkout', { minOrderAmount: Number(v.replace(/\D/g, '')) || 0 })} />
                     <Field label="Instruksi pembayaran" value={draft.checkout.paymentInstructions} onChange={(v) => patchNested('checkout', { paymentInstructions: v })} multiline />
+                    <Toggle label="Wajib login pelanggan" checked={draft.checkout.requireCustomerLogin} onChange={(v) => patchNested('checkout', { requireCustomerLogin: v })} />
                     <Toggle label="Wajib isi nama" checked={draft.checkout.requireName} onChange={(v) => patchNested('checkout', { requireName: v })} />
                     <Toggle label="Wajib isi HP" checked={draft.checkout.requirePhone} onChange={(v) => patchNested('checkout', { requirePhone: v })} />
                     <Toggle label="Wajib isi alamat (delivery)" checked={draft.checkout.requireAddress} onChange={(v) => patchNested('checkout', { requireAddress: v })} />

@@ -35,6 +35,7 @@ export function defaultStorefrontSettings(tenantName = 'Toko Kami'): StorefrontS
       requireName: true,
       requirePhone: true,
       requireAddress: true,
+      requireCustomerLogin: true,
     },
     payment: {
       manualTransferEnabled: false,
@@ -141,6 +142,9 @@ export function mergeStorefrontSettings(
         : {}),
       ...(typeof checkoutPatch.requireAddress === 'boolean'
         ? { requireAddress: checkoutPatch.requireAddress }
+        : {}),
+      ...(typeof checkoutPatch.requireCustomerLogin === 'boolean'
+        ? { requireCustomerLogin: checkoutPatch.requireCustomerLogin }
         : {}),
     },
     payment: {

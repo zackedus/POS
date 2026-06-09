@@ -6,6 +6,7 @@ import { StoreFooter } from '@/components/store/StoreFooter';
 import { StoreHeader } from '@/components/store/StoreHeader';
 import { CartProvider } from '@/lib/store/cart-context';
 import { StoreConfigProvider } from '@/lib/store/store-config-context';
+import { StoreCustomerAuthProvider } from '@/lib/store/store-customer-auth-context';
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
@@ -13,7 +14,8 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
 
   return (
     <StoreConfigProvider slug={slug}>
-      <CartProvider slug={slug}>
+      <StoreCustomerAuthProvider slug={slug}>
+        <CartProvider slug={slug}>
         <div
           style={{
             minHeight: '100vh',
@@ -29,7 +31,8 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
           <main style={{ flex: 1 }}>{children}</main>
           <StoreFooter />
         </div>
-      </CartProvider>
+        </CartProvider>
+      </StoreCustomerAuthProvider>
     </StoreConfigProvider>
   );
 }

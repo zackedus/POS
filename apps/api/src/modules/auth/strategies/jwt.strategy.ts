@@ -15,7 +15,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: AuthJwtPayload): AuthJwtPayload {
+  validate(payload: AuthJwtPayload & { kind?: string }): AuthJwtPayload {
+    if (payload?.kind === 'storefront_customer') {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Token tidak valid.',
+      });
+    }
     if (!payload?.sub || !payload?.tenantId) {
       throw new UnauthorizedException({
         code: ErrorCodes.UNAUTHORIZED,

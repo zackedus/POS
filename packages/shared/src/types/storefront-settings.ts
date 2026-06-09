@@ -30,6 +30,8 @@ export interface StorefrontCheckoutSettings {
   requireName: boolean;
   requirePhone: boolean;
   requireAddress: boolean;
+  /** When true, guest must register/login before checkout (default ON). */
+  requireCustomerLogin: boolean;
 }
 
 export interface StorefrontPaymentSettings {

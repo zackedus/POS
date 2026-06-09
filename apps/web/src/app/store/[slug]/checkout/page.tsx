@@ -1,14 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { formatCurrency } from '@barokah/shared';
 import { Button, Input, colors } from '@barokah/ui';
 import { OrderSummary } from '@/components/store/OrderSummary';
 import { AlertBanner } from '@/components/dashboard/dashboard-ui';
 import { mapApiError } from '@/lib/api-client';
-import { createOrder, type StoreFulfillmentType } from '@/lib/store/store-api';
+import {
+  createOrder,
+  fetchStoreCustomerAddresses,
+  type StoreFulfillmentType,
+} from '@/lib/store/store-api';
+import type { StoreCustomerAddress } from '@/lib/store/store-customer-auth-context';
+import { useStoreCustomerAuth } from '@/lib/store/store-customer-auth-context';
 import { calculateOrderTotals, calculateSubtotal, DELIVERY_FLAT_FEE } from '@/lib/store/pricing';
 import { useStoreCart } from '@/lib/store/cart-context';
 import { useStoreConfig } from '@/lib/store/store-config-context';
@@ -33,7 +38,9 @@ export default function StoreCheckoutPage() {
   const { lines, clearCart } = useStoreCart();
   const { config } = useStoreConfig();
   const { outlets, outletId, setOutletId } = useStoreOutlet(slug);
+  const { customer, accessToken, isLoggedIn, loading: authLoading } = useStoreCustomerAuth();
   const settings = config?.settings;
+  const requireLogin = settings?.checkout.requireCustomerLogin !== false;
 
   const [fulfillmentType, setFulfillmentType] = useState<StoreFulfillmentType>(
     settings?.branches.pickupEnabled === false ? 'DELIVERY' : 'PICKUP',
@@ -41,20 +48,40 @@ export default function StoreCheckoutPage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
-  const [street, setStreet] = useState('');
-  const [district, setDistrict] = useState('');
-  const [city, setCity] = useState('');
-  const [postalCode, setPostalCode] = useState('');
+  const [addresses, setAddresses] = useState<StoreCustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  /** Honeypot — hidden from users; bots that fill this are rejected server-side. */
   const [website, setWebsite] = useState('');
+
+  useEffect(() => {
+    if (customer) {
+      setName(customer.name);
+      setPhone(customer.phone);
+    }
+  }, [customer]);
+
+  useEffect(() => {
+    if (!authLoading && requireLogin && !isLoggedIn) {
+      router.replace(`/store/${slug}/login?returnUrl=${encodeURIComponent(`/store/${slug}/checkout`)}`);
+    }
+  }, [authLoading, requireLogin, isLoggedIn, router, slug]);
+
+  useEffect(() => {
+    if (!accessToken || !isLoggedIn) return;
+    void fetchStoreCustomerAddresses(slug, accessToken)
+      .then((rows) => {
+        setAddresses(rows);
+        const defaultAddr = rows.find((a) => a.isDefault) ?? rows[0];
+        if (defaultAddr) setSelectedAddressId(defaultAddr.id);
+      })
+      .catch(() => setAddresses([]));
+  }, [accessToken, isLoggedIn, slug]);
 
   const subtotal = calculateSubtotal(lines);
   const shippingFee = fulfillmentType === 'DELIVERY' ? DELIVERY_FLAT_FEE : 0;
   const { tax, total } = calculateOrderTotals(subtotal, shippingFee);
-  const selectedOutlet = outlets.find((o) => o.id === outletId);
 
   if (lines.length === 0) {
     return (
@@ -63,6 +90,10 @@ export default function StoreCheckoutPage() {
         <Link href={`/store/${slug}/cart`}>Kembali ke keranjang</Link>
       </div>
     );
+  }
+
+  if (authLoading || (requireLogin && !isLoggedIn)) {
+    return <div style={{ padding: '1rem' }}>Memuat checkout…</div>;
   }
 
   async function handleSubmit() {
@@ -79,17 +110,13 @@ export default function StoreCheckoutPage() {
       setFormError('Pilih cabang toko.');
       return;
     }
-    if (fulfillmentType === 'DELIVERY' && settings?.checkout.requireAddress !== false) {
-      if (!street.trim() || street.trim().length < 5) {
-        setFormError('Alamat jalan wajib diisi (min. 5 karakter).');
+    if (fulfillmentType === 'DELIVERY' && requireLogin) {
+      if (addresses.length === 0) {
+        setFormError('Tambahkan alamat pengiriman terlebih dahulu.');
         return;
       }
-      if (!district.trim()) {
-        setFormError('Kecamatan wajib diisi.');
-        return;
-      }
-      if (!city.trim()) {
-        setFormError('Kota/kabupaten wajib diisi.');
+      if (!selectedAddressId) {
+        setFormError('Pilih alamat pengiriman.');
         return;
       }
     }
@@ -106,15 +133,8 @@ export default function StoreCheckoutPage() {
         items: lines,
         clientRequestId,
         fulfillmentType,
-        deliveryAddress:
-          fulfillmentType === 'DELIVERY'
-            ? {
-                street: street.trim(),
-                district: district.trim(),
-                city: city.trim(),
-                postalCode: postalCode.trim() || undefined,
-              }
-            : undefined,
+        customerAddressId: fulfillmentType === 'DELIVERY' && requireLogin ? selectedAddressId ?? undefined : undefined,
+        accessToken,
         website: website.trim() || undefined,
       });
       sessionStorage.setItem(`barokah-order-phone:${slug}:${result.order.orderNo}`, phone.trim());
@@ -143,6 +163,12 @@ export default function StoreCheckoutPage() {
         ← Checkout
       </Link>
 
+      {requireLogin && customer ? (
+        <p style={{ margin: 0, fontSize: '0.8125rem', color: colors.light.text.secondary }}>
+          Checkout sebagai <strong>{customer.name}</strong> · {customer.memberCode}
+        </p>
+      ) : null}
+
       <section>
         <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Metode pengambilan</h2>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -157,16 +183,6 @@ export default function StoreCheckoutPage() {
             </button>
           ) : null}
         </div>
-        {settings?.branches.deliveryNotes ? (
-          <p style={{ margin: '0.75rem 0 0', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
-            {settings.branches.deliveryNotes}
-          </p>
-        ) : null}
-        {fulfillmentType === 'DELIVERY' ? (
-          <p style={{ margin: '0.75rem 0 0', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
-            Ongkir flat {formatCurrency(DELIVERY_FLAT_FEE)} (estimasi). Biaya final mengikuti kebijakan toko.
-          </p>
-        ) : null}
       </section>
 
       <section>
@@ -174,137 +190,57 @@ export default function StoreCheckoutPage() {
           {fulfillmentType === 'PICKUP' ? 'Pilih cabang pickup *' : 'Cabang pengiriman *'}
         </p>
         {outlets.map((outlet) => (
-          <label
-            key={outlet.id}
-            style={{
-              display: 'block',
-              padding: '0.75rem',
-              marginBottom: '0.5rem',
-              borderRadius: 8,
-              border: `2px solid ${outletId === outlet.id ? colors.primary[600] : colors.light.border.default}`,
-              cursor: 'pointer',
-            }}
-          >
-            <input
-              type="radio"
-              name="outlet"
-              value={outlet.id}
-              checked={outletId === outlet.id}
-              onChange={() => {
-                setOutletId(outlet.id);
-                setStockError(null);
-              }}
-              style={{ marginRight: '0.5rem' }}
-            />
+          <label key={outlet.id} style={{ display: 'block', padding: '0.75rem', marginBottom: '0.5rem', borderRadius: 8, border: `2px solid ${outletId === outlet.id ? colors.primary[600] : colors.light.border.default}`, cursor: 'pointer' }}>
+            <input type="radio" name="outlet" value={outlet.id} checked={outletId === outlet.id} onChange={() => { setOutletId(outlet.id); setStockError(null); }} style={{ marginRight: '0.5rem' }} />
             {outlet.name} — {outlet.address}
           </label>
         ))}
       </section>
 
-      {fulfillmentType === 'DELIVERY' ? (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1rem' }}>Alamat pengiriman</h2>
-          <Input
-            label="Alamat jalan *"
-            value={street}
-            onChange={(e) => setStreet(e.target.value)}
-            placeholder="Jl. … No. …"
-            fullWidth
-          />
-          <Input label="Kecamatan *" value={district} onChange={(e) => setDistrict(e.target.value)} fullWidth />
-          <Input label="Kota/Kabupaten *" value={city} onChange={(e) => setCity(e.target.value)} fullWidth />
-          <Input
-            label="Kode pos (opsional)"
-            value={postalCode}
-            onChange={(e) => setPostalCode(e.target.value)}
-            placeholder="40123"
-            fullWidth
-          />
+      {fulfillmentType === 'DELIVERY' && requireLogin ? (
+        <section>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1rem' }}>Alamat pengiriman</h2>
+            <Link href={`/store/${slug}/account/addresses?returnUrl=${encodeURIComponent(`/store/${slug}/checkout`)}`} style={{ fontSize: '0.8125rem', color: colors.primary[600] }}>
+              Kelola alamat
+            </Link>
+          </div>
+          {addresses.length === 0 ? (
+            <AlertBanner variant="warning">
+              Belum ada alamat —{' '}
+              <Link href={`/store/${slug}/account/addresses?returnUrl=${encodeURIComponent(`/store/${slug}/checkout`)}`}>tambah alamat pengiriman</Link>
+            </AlertBanner>
+          ) : (
+            addresses.map((addr) => (
+              <label key={addr.id} style={{ display: 'block', padding: '0.75rem', marginBottom: '0.5rem', borderRadius: 8, border: `2px solid ${selectedAddressId === addr.id ? colors.primary[600] : colors.light.border.default}`, cursor: 'pointer' }}>
+                <input type="radio" name="address" checked={selectedAddressId === addr.id} onChange={() => setSelectedAddressId(addr.id)} style={{ marginRight: '0.5rem' }} />
+                <strong>{addr.label}</strong>
+                {addr.isDefault ? <span style={{ marginLeft: 6, fontSize: '0.6875rem', color: colors.primary[700] }}>Utama</span> : null}
+                <div style={{ fontSize: '0.8125rem', color: colors.light.text.secondary, marginTop: 4 }}>
+                  {addr.addressLine1}, Kec. {addr.province ?? '-'}, {addr.city}
+                </div>
+              </label>
+            ))
+          )}
         </section>
       ) : null}
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Data kontak</h2>
-        <input
-          type="text"
-          name="website"
-          value={website}
-          onChange={(e) => setWebsite(e.target.value)}
-          tabIndex={-1}
-          autoComplete="off"
-          aria-hidden="true"
-          style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
-        />
-        <Input label="Nama lengkap *" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
-        <Input
-          label="No. HP (WhatsApp) *"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="0812xxxxxxxx"
-          fullWidth
-        />
-        <Input
-          label="Catatan order (opsional)"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          fullWidth
-        />
+        <input type="text" name="website" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
+        <Input label="Nama lengkap *" value={name} onChange={(e) => setName(e.target.value)} fullWidth readOnly={requireLogin} />
+        <Input label="No. HP (WhatsApp) *" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth readOnly={requireLogin} />
+        <Input label="Catatan order (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth />
       </section>
 
       {formError ? <AlertBanner variant="error">{formError}</AlertBanner> : null}
-
       {stockError ? <AlertBanner variant="warning">⚠ {stockError}</AlertBanner> : null}
 
       <section>
-        <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Ringkasan pesanan</h2>
-        {lines.map((line) => (
-          <div key={line.productId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.375rem' }}>
-            <span>
-              {line.quantity}× {line.name}
-            </span>
-            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(line.price * line.quantity)}</span>
-          </div>
-        ))}
-        <div style={{ marginTop: '0.75rem' }}>
-          <OrderSummary subtotal={subtotal} tax={tax} total={total} shippingFee={shippingFee} />
-        </div>
-        {settings?.checkout.paymentInstructions ? (
-          <p style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
-            {settings.checkout.paymentInstructions}
-          </p>
-        ) : null}
-        {settings?.checkout.minOrderAmount ? (
-          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
-            Minimum order: {formatCurrency(settings.checkout.minOrderAmount)}
-          </p>
-        ) : null}
-        {fulfillmentType === 'PICKUP' && selectedOutlet ? (
-          <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: colors.light.text.secondary }}>
-            📍 Ambil di: {selectedOutlet.name}
-            <br />
-            {selectedOutlet.address}
-          </p>
-        ) : null}
-        {fulfillmentType === 'DELIVERY' ? (
-          <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: colors.light.text.secondary }}>
-            🚚 Estimasi pengiriman: 1–2 hari kerja setelah order siap
-          </p>
-        ) : null}
+        <OrderSummary subtotal={subtotal} tax={tax} total={total} shippingFee={shippingFee} />
       </section>
 
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '100%',
-          maxWidth: 480,
-          padding: '1rem',
-          background: colors.light.bg.base,
-          borderTop: `1px solid ${colors.light.border.default}`,
-        }}
-      >
+      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '1rem', background: colors.light.bg.base, borderTop: `1px solid ${colors.light.border.default}` }}>
         <Button fullWidth disabled={submitting} onClick={() => void handleSubmit()}>
           {submitting ? 'Mengalihkan ke pembayaran…' : 'Lanjut pembayaran'}
         </Button>
