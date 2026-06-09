@@ -1,11 +1,12 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ErrorCodes } from '@barokah/shared';
+import { ErrorCodes, mergeStorefrontSettings, type StorefrontSettings } from '@barokah/shared';
 import { UserRole } from '@barokah/database';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { MidtransService } from '../online-orders/midtrans.service';
 import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
+import { UpdateStorefrontSettingsDto } from './dto/update-storefront-settings.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 
 export type MidtransMode = 'mock' | 'sandbox' | 'live';
@@ -42,9 +43,17 @@ export interface TenantProfileView {
   name: string;
   slug: string;
   contactPhone: string | null;
+  whatsapp: string | null;
+  description: string | null;
   logoUrl: string | null;
   isActive: boolean;
   updatedAt: string;
+}
+
+export interface StorefrontSettingsView {
+  settings: StorefrontSettings;
+  storefrontUrl: string;
+  midtrans: MidtransConfigView;
 }
 
 @Injectable()
@@ -70,6 +79,8 @@ export class SettingsService {
         name: true,
         slug: true,
         contactPhone: true,
+        whatsapp: true,
+        description: true,
         logoUrl: true,
         isActive: true,
         updatedAt: true,
@@ -88,6 +99,8 @@ export class SettingsService {
       name: tenant.name,
       slug: tenant.slug,
       contactPhone: tenant.contactPhone,
+      whatsapp: tenant.whatsapp,
+      description: tenant.description,
       logoUrl: tenant.logoUrl,
       isActive: tenant.isActive,
       updatedAt: tenant.updatedAt.toISOString(),
@@ -105,11 +118,15 @@ export class SettingsService {
     const data: {
       name?: string;
       contactPhone?: string | null;
+      whatsapp?: string | null;
+      description?: string | null;
       logoUrl?: string | null;
     } = {};
 
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.contactPhone !== undefined) data.contactPhone = dto.contactPhone?.trim() || null;
+    if (dto.whatsapp !== undefined) data.whatsapp = dto.whatsapp?.trim() || null;
+    if (dto.description !== undefined) data.description = dto.description?.trim() || null;
     if (dto.logoUrl !== undefined) data.logoUrl = dto.logoUrl?.trim() || null;
 
     const tenant = await this.prisma.tenant.update({
@@ -120,6 +137,8 @@ export class SettingsService {
         name: true,
         slug: true,
         contactPhone: true,
+        whatsapp: true,
+        description: true,
         logoUrl: true,
         isActive: true,
         updatedAt: true,
@@ -131,6 +150,8 @@ export class SettingsService {
       name: tenant.name,
       slug: tenant.slug,
       contactPhone: tenant.contactPhone,
+      whatsapp: tenant.whatsapp,
+      description: tenant.description,
       logoUrl: tenant.logoUrl,
       isActive: tenant.isActive,
       updatedAt: tenant.updatedAt.toISOString(),
@@ -253,6 +274,62 @@ export class SettingsService {
 
   getMidtransWebhookHealth(): ReturnType<MidtransService['getWebhookHealth']> {
     return this.midtrans.getWebhookHealth();
+  }
+
+  async getStorefrontSettings(user: AuthJwtPayload): Promise<StorefrontSettingsView> {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: user.tenantId },
+      select: { name: true, slug: true },
+    });
+    if (!tenant) {
+      throw new ForbiddenException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Profil toko tidak ditemukan.',
+      });
+    }
+
+    const row = await this.prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } });
+    const settings = mergeStorefrontSettings(row?.storefrontSettings, tenant.name);
+    const midtrans = (await this.getTenantSettings(user)).midtrans;
+
+    return {
+      settings,
+      storefrontUrl: `/store/${tenant.slug}`,
+      midtrans,
+    };
+  }
+
+  async updateStorefrontSettings(
+    user: AuthJwtPayload,
+    dto: UpdateStorefrontSettingsDto,
+  ): Promise<StorefrontSettingsView> {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: user.tenantId },
+      select: { name: true, slug: true },
+    });
+    if (!tenant) {
+      throw new ForbiddenException({
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Profil toko tidak ditemukan.',
+      });
+    }
+
+    const existing = await this.prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } });
+    const current = mergeStorefrontSettings(existing?.storefrontSettings, tenant.name);
+    const merged = mergeStorefrontSettings({ ...current, ...dto }, tenant.name);
+
+    await this.prisma.tenantSettings.upsert({
+      where: { tenantId: user.tenantId },
+      create: {
+        tenantId: user.tenantId,
+        storefrontSettings: merged as object,
+      },
+      update: {
+        storefrontSettings: merged as object,
+      },
+    });
+
+    return this.getStorefrontSettings(user);
   }
 
   private buildView(

@@ -223,3 +223,47 @@ test('SettingsService: manager cannot change tenant name', async () => {
     ForbiddenException,
   );
 });
+
+test('SettingsService: getStorefrontSettings merges defaults', async () => {
+  const prisma = {
+    tenant: {
+      findFirst: async () => ({ name: 'Barokah Toko Bangunan', slug: 'barokah-bangunan' }),
+    },
+    tenantSettings: {
+      findUnique: async () => null,
+    },
+  };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const view = await service.getStorefrontSettings({
+    sub: 'u1',
+    email: 'owner@barokah.local',
+    tenantId: 't1',
+    role: 'OWNER',
+    outletIds: ['o1'],
+  });
+  assert.equal(view.storefrontUrl, '/store/barokah-bangunan');
+  assert.equal(view.settings.enabled, true);
+  assert.equal(view.settings.appearance.heroTitle, 'Barokah Toko Bangunan');
+});
+
+test('SettingsService: getStorefrontSettings merges defaults', async () => {
+  const prisma = {
+    tenant: {
+      findFirst: async () => ({ name: 'Barokah Toko Bangunan', slug: 'barokah-bangunan' }),
+    },
+    tenantSettings: {
+      findUnique: async () => null,
+    },
+  };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const view = await service.getStorefrontSettings({
+    sub: 'u1',
+    email: 'owner@barokah.local',
+    tenantId: 't1',
+    role: 'OWNER',
+    outletIds: ['o1'],
+  });
+  assert.equal(view.storefrontUrl, '/store/barokah-bangunan');
+  assert.equal(view.settings.enabled, true);
+  assert.equal(view.settings.appearance.heroTitle, 'Barokah Toko Bangunan');
+});

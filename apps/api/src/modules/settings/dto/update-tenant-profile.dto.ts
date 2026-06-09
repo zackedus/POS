@@ -18,4 +18,15 @@ export class UpdateTenantProfileDto {
   @MaxLength(500, { message: 'URL logo maksimal 500 karakter' })
   @IsUrl({ require_protocol: true }, { message: 'URL logo harus valid (https://…)' })
   logoUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000, { message: 'Deskripsi maksimal 1000 karakter' })
+  description?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20, { message: 'Nomor WhatsApp maksimal 20 karakter' })
+  @Matches(/^[0-9+\-\s()]*$/, { message: 'Format WhatsApp tidak valid' })
+  whatsapp?: string | null;
 }

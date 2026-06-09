@@ -121,7 +121,7 @@ test.describe('Smoke — critical paths', () => {
   });
 
   test('storefront catalog load', async ({ page }) => {
-    await page.goto(`/store/${STOREFRONT_SLUG}`);
+    await page.goto(`/store/${STOREFRONT_SLUG}/products`);
     await expect(page.getByRole('heading', { name: 'Katalog Produk' })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByPlaceholder('Cari semen, pipa, SKU...')).toBeVisible();
     await expect(page.getByRole('tablist', { name: 'Filter kategori' })).toBeVisible({ timeout: 30_000 });

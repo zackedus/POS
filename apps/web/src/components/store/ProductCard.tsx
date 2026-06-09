@@ -12,6 +12,7 @@ interface ProductCardProps {
   price: number;
   unitSymbol: string;
   stockStatus: StockStatus;
+  accentColor?: string;
 }
 
 export function ProductCard({
@@ -21,12 +22,13 @@ export function ProductCard({
   price,
   unitSymbol,
   stockStatus,
+  accentColor = colors.primary[700],
 }: ProductCardProps) {
   const outOfStock = stockStatus === 'OUT_OF_STOCK';
 
   return (
     <Link
-      href={`/store/${slug}/p/${productId}`}
+      href={`/store/${slug}/products/${productId}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -73,7 +75,7 @@ export function ProductCard({
             fontSize: '0.9375rem',
             fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
-            color: colors.primary[700],
+            color: accentColor,
           }}
         >
           {formatCurrency(price)}

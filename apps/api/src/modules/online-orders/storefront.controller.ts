@@ -14,6 +14,11 @@ import { StorefrontService } from './storefront.service';
 export class StorefrontController {
   constructor(private readonly storefrontService: StorefrontService) {}
 
+  @Get('config')
+  getConfig(@Param('tenantSlug') tenantSlug: string) {
+    return this.storefrontService.getConfig(tenantSlug);
+  }
+
   @Get('outlets')
   listOutlets(@Param('tenantSlug') tenantSlug: string) {
     return this.storefrontService.listOutlets(tenantSlug);

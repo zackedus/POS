@@ -11,6 +11,7 @@ import { mapApiError } from '@/lib/api-client';
 import { createOrder, type StoreFulfillmentType } from '@/lib/store/store-api';
 import { calculateOrderTotals, calculateSubtotal, DELIVERY_FLAT_FEE } from '@/lib/store/pricing';
 import { useStoreCart } from '@/lib/store/cart-context';
+import { useStoreConfig } from '@/lib/store/store-config-context';
 import { useStoreOutlet } from '@/lib/store/use-store-outlet';
 
 const tabStyle = (active: boolean) => ({
@@ -30,9 +31,13 @@ export default function StoreCheckoutPage() {
   const router = useRouter();
   const slug = params.slug as string;
   const { lines, clearCart } = useStoreCart();
+  const { config } = useStoreConfig();
   const { outlets, outletId, setOutletId } = useStoreOutlet(slug);
+  const settings = config?.settings;
 
-  const [fulfillmentType, setFulfillmentType] = useState<StoreFulfillmentType>('PICKUP');
+  const [fulfillmentType, setFulfillmentType] = useState<StoreFulfillmentType>(
+    settings?.branches.pickupEnabled === false ? 'DELIVERY' : 'PICKUP',
+  );
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -62,11 +67,11 @@ export default function StoreCheckoutPage() {
 
   async function handleSubmit() {
     setFormError(null);
-    if (!name.trim() || name.trim().length < 2) {
+    if (settings?.checkout.requireName !== false && (!name.trim() || name.trim().length < 2)) {
       setFormError('Nama lengkap wajib diisi (min. 2 karakter).');
       return;
     }
-    if (!/^08\d{8,11}$/.test(phone.trim())) {
+    if (settings?.checkout.requirePhone !== false && !/^08\d{8,11}$/.test(phone.trim())) {
       setFormError('No. HP tidak valid. Gunakan format Indonesia (08…).');
       return;
     }
@@ -74,7 +79,7 @@ export default function StoreCheckoutPage() {
       setFormError('Pilih cabang toko.');
       return;
     }
-    if (fulfillmentType === 'DELIVERY') {
+    if (fulfillmentType === 'DELIVERY' && settings?.checkout.requireAddress !== false) {
       if (!street.trim() || street.trim().length < 5) {
         setFormError('Alamat jalan wajib diisi (min. 5 karakter).');
         return;
@@ -141,21 +146,22 @@ export default function StoreCheckoutPage() {
       <section>
         <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Metode pengambilan</h2>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            type="button"
-            style={tabStyle(fulfillmentType === 'PICKUP')}
-            onClick={() => setFulfillmentType('PICKUP')}
-          >
-            Pickup di toko
-          </button>
-          <button
-            type="button"
-            style={tabStyle(fulfillmentType === 'DELIVERY')}
-            onClick={() => setFulfillmentType('DELIVERY')}
-          >
-            Antar ke alamat
-          </button>
+          {settings?.branches.pickupEnabled !== false ? (
+            <button type="button" style={tabStyle(fulfillmentType === 'PICKUP')} onClick={() => setFulfillmentType('PICKUP')}>
+              Pickup di toko
+            </button>
+          ) : null}
+          {settings?.branches.deliveryEnabled !== false ? (
+            <button type="button" style={tabStyle(fulfillmentType === 'DELIVERY')} onClick={() => setFulfillmentType('DELIVERY')}>
+              Antar ke alamat
+            </button>
+          ) : null}
         </div>
+        {settings?.branches.deliveryNotes ? (
+          <p style={{ margin: '0.75rem 0 0', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
+            {settings.branches.deliveryNotes}
+          </p>
+        ) : null}
         {fulfillmentType === 'DELIVERY' ? (
           <p style={{ margin: '0.75rem 0 0', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
             Ongkir flat {formatCurrency(DELIVERY_FLAT_FEE)} (estimasi). Biaya final mengikuti kebijakan toko.
@@ -262,13 +268,21 @@ export default function StoreCheckoutPage() {
         <div style={{ marginTop: '0.75rem' }}>
           <OrderSummary subtotal={subtotal} tax={tax} total={total} shippingFee={shippingFee} />
         </div>
+        {settings?.checkout.paymentInstructions ? (
+          <p style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
+            {settings.checkout.paymentInstructions}
+          </p>
+        ) : null}
+        {settings?.checkout.minOrderAmount ? (
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
+            Minimum order: {formatCurrency(settings.checkout.minOrderAmount)}
+          </p>
+        ) : null}
         {fulfillmentType === 'PICKUP' && selectedOutlet ? (
           <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: colors.light.text.secondary }}>
             📍 Ambil di: {selectedOutlet.name}
             <br />
             {selectedOutlet.address}
-            <br />
-            ⏱ Estimasi siap: 2–4 jam kerja
           </p>
         ) : null}
         {fulfillmentType === 'DELIVERY' ? (

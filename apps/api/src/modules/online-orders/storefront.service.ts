@@ -7,7 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
-import { ErrorCodes, ONLINE_DELIVERY_FLAT_FEE, TAX_RATE } from '@barokah/shared';
+import { ErrorCodes, ONLINE_DELIVERY_FLAT_FEE, TAX_RATE, isWithinOnlineOrderHours, mergeStorefrontSettings, type StorefrontPublicConfig, type StorefrontSettings } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import type { CreateOnlineOrderDto } from './dto/create-online-order.dto';
@@ -57,25 +57,127 @@ export class StorefrontService {
     };
   }
 
+  private async resolveStorefrontSettings(tenantId: string, tenantName: string): Promise<StorefrontSettings> {
+    const settings = await this.prisma.tenantSettings.findUnique({ where: { tenantId } });
+    return mergeStorefrontSettings(settings?.storefrontSettings, tenantName);
+  }
+
+  private async resolveMidtransMode(tenantId: string): Promise<'mock' | 'sandbox' | 'live'> {
+    const settings = await this.prisma.tenantSettings.findUnique({ where: { tenantId } });
+    const config = await this.resolveTenantMidtransConfig(tenantId);
+    const envKey = process.env.MIDTRANS_SERVER_KEY?.trim();
+    const tenantKey = settings?.midtransServerKey?.trim();
+    const effectiveKey = tenantKey || envKey || config.serverKey?.trim() || null;
+    if (!effectiveKey) return 'mock';
+    const isProduction = settings?.midtransIsProduction ?? config.isProduction ?? false;
+    return isProduction ? 'live' : 'sandbox';
+  }
+
+  private filterEnabledOutlets<T extends { id: string }>(outlets: T[], settings: StorefrontSettings): T[] {
+    if (settings.branches.enabledOutletIds.length === 0) return outlets;
+    const allowed = new Set(settings.branches.enabledOutletIds);
+    return outlets.filter((outlet) => allowed.has(outlet.id));
+  }
+
+  async getConfig(tenantSlug: string): Promise<StorefrontPublicConfig> {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { slug: tenantSlug, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        contactPhone: true,
+        whatsapp: true,
+        logoUrl: true,
+      },
+    });
+    if (!tenant) {
+      throw new NotFoundException({
+        code: ErrorCodes.ONLINE_STORE_NOT_FOUND,
+        message: 'Toko tidak ditemukan.',
+      });
+    }
+
+    const settings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
+    const featuredIds = settings.catalog.featuredCategoryIds;
+    const categories = featuredIds.length
+      ? await this.prisma.category.findMany({
+          where: { tenantId: tenant.id, id: { in: featuredIds } },
+          select: { id: true, name: true },
+          orderBy: { sortOrder: 'asc' },
+        })
+      : await this.prisma.category.findMany({
+          where: {
+            tenantId: tenant.id,
+            products: { some: { sellOnline: true, isActive: true } },
+          },
+          select: { id: true, name: true },
+          orderBy: { sortOrder: 'asc' },
+          take: 6,
+        });
+
+    return {
+      tenant: {
+        name: tenant.name,
+        slug: tenant.slug,
+        description: tenant.description ?? '',
+        contactPhone: tenant.contactPhone,
+        whatsapp: tenant.whatsapp,
+        logoUrl: tenant.logoUrl,
+      },
+      settings,
+      storefrontUrl: `/store/${tenant.slug}`,
+      midtransMode: await this.resolveMidtransMode(tenant.id),
+      featuredCategories: categories,
+    };
+  }
+
+  private async assertStorefrontAcceptingOrders(settings: StorefrontSettings) {
+    if (!settings.enabled) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_STORE_NOT_FOUND,
+        message: 'Toko online sedang tidak aktif.',
+      });
+    }
+    if (settings.operations.temporarilyClosed) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+        message: settings.operations.closedMessage || 'Toko online sedang tutup sementara.',
+      });
+    }
+    if (!isWithinOnlineOrderHours(settings)) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+        message: settings.operations.closedMessage || 'Di luar jam order online.',
+      });
+    }
+  }
+
   async listOutlets(tenantSlug: string) {
     const tenant = await this.resolveTenant(tenantSlug);
+    const settings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
     const outlets = await this.prisma.outlet.findMany({
       where: { tenantId: tenant.id, isActive: true },
-      select: { id: true, name: true, code: true, address: true },
+      select: { id: true, name: true, code: true, address: true, operatingHours: true },
       orderBy: { name: 'asc' },
     });
+    const filtered = this.filterEnabledOutlets(outlets, settings);
     return {
-      outlets: outlets.map((outlet) => ({
-        ...outlet,
+      outlets: filtered.map((outlet) => ({
+        id: outlet.id,
+        name: outlet.name,
+        code: outlet.code,
         address: outlet.address ?? '',
-        pickupHoursLabel: 'Senin–Sabtu 08:00–17:00',
+        pickupHoursLabel: outlet.operatingHours ?? 'Senin–Sabtu 08:00–17:00',
       })),
     };
   }
 
   async listCategories(tenantSlug: string, outletId: string) {
     const tenant = await this.resolveTenant(tenantSlug);
-    await this.assertOutletBelongsToTenant(tenant.id, outletId);
+    const settings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
+    await this.assertOutletBelongsToTenant(tenant.id, outletId, settings);
 
     const categories = await this.prisma.category.findMany({
       where: {
@@ -99,11 +201,13 @@ export class StorefrontService {
 
   async listProducts(tenantSlug: string, query: CatalogProductsQueryDto) {
     const tenant = await this.resolveTenant(tenantSlug);
-    await this.assertOutletBelongsToTenant(tenant.id, query.outletId);
+    const settings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
+    await this.assertOutletBelongsToTenant(tenant.id, query.outletId, settings);
 
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
+    const sort = query.sort ?? settings.catalog.defaultSort;
 
     const where = {
       tenantId: tenant.id,
@@ -121,12 +225,21 @@ export class StorefrontService {
         : {}),
     };
 
+    const orderBy =
+      sort === 'price_desc'
+        ? { price: 'desc' as const }
+        : sort === 'price_asc'
+          ? { price: 'asc' as const }
+          : sort === 'name_desc'
+            ? { name: 'desc' as const }
+            : { name: 'asc' as const };
+
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { name: 'asc' },
+        orderBy,
         select: {
           id: true,
           name: true,
@@ -161,7 +274,8 @@ export class StorefrontService {
     const asOf = new Date().toISOString();
 
     return {
-      items: products.map((product) => {
+      items: products
+        .map((product) => {
         const displayPrice =
           product.hasVariants && product.variants[0]
             ? toIdrInteger(product.variants[0].price)
@@ -185,7 +299,8 @@ export class StorefrontService {
           ...(product.hasVariants ? { fromPrice: displayPrice } : {}),
           cacheHint: { asOf, ttlSeconds: CACHE_TTL_SECONDS },
         };
-      }),
+      })
+        .filter((item) => settings.catalog.showOutOfStock || item.stockStatus === 'AVAILABLE'),
       meta: {
         page,
         limit,
@@ -197,7 +312,8 @@ export class StorefrontService {
 
   async getProduct(tenantSlug: string, productId: string, outletId: string) {
     const tenant = await this.resolveTenant(tenantSlug);
-    await this.assertOutletBelongsToTenant(tenant.id, outletId);
+    const settings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
+    await this.assertOutletBelongsToTenant(tenant.id, outletId, settings);
 
     const product = await this.prisma.product.findFirst({
       where: {
@@ -216,6 +332,7 @@ export class StorefrontService {
         moq: true,
         orderStep: true,
         hasVariants: true,
+        categoryId: true,
         unit: { select: { symbol: true } },
         variants: {
           where: { isActive: true, sellOnline: true },
@@ -240,6 +357,38 @@ export class StorefrontService {
     }
 
     const asOf = new Date().toISOString();
+
+    const relatedProducts = product.categoryId
+      ? await this.prisma.product.findMany({
+          where: {
+            tenantId: tenant.id,
+            sellOnline: true,
+            isActive: true,
+            categoryId: product.categoryId,
+            id: { not: product.id },
+            hasVariants: false,
+          },
+          take: 4,
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            unit: { select: { symbol: true } },
+            imageUrl: true,
+            webPlaceholderKey: true,
+          },
+        })
+      : [];
+
+    const related = relatedProducts.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: toIdrInteger(item.price),
+      unitSymbol: item.unit?.symbol ?? 'pcs',
+      imageUrl: item.imageUrl,
+      placeholderKey: item.webPlaceholderKey ?? 'generic-building',
+    }));
 
     if (product.hasVariants) {
       const variantIds = product.variants.map((variant) => variant.id);
@@ -279,6 +428,7 @@ export class StorefrontService {
         orderStep: product.orderStep,
         hasVariants: true,
         variants,
+        relatedProducts: related,
         cacheHint: { asOf, ttlSeconds: CACHE_TTL_SECONDS },
       };
     }
@@ -310,6 +460,7 @@ export class StorefrontService {
         moq: variant.moq,
         orderStep: variant.orderStep,
       })),
+      relatedProducts: related,
       cacheHint: { asOf, ttlSeconds: CACHE_TTL_SECONDS },
     };
   }
@@ -323,6 +474,28 @@ export class StorefrontService {
     }
 
     const tenant = await this.resolveTenant(tenantSlug);
+    const storefrontSettings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
+    await this.assertStorefrontAcceptingOrders(storefrontSettings);
+
+    if (dto.fulfillmentType === 'DELIVERY' && !storefrontSettings.branches.deliveryEnabled) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+        message: 'Pengiriman ke alamat tidak tersedia saat ini.',
+      });
+    }
+    if (dto.fulfillmentType === 'PICKUP' && !storefrontSettings.branches.pickupEnabled) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+        message: 'Pickup di toko tidak tersedia saat ini.',
+      });
+    }
+    if (!storefrontSettings.payment.onlinePaymentEnabled) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+        message: 'Pembayaran online sedang dinonaktifkan.',
+      });
+    }
+
     const existing = await this.prisma.onlineOrder.findUnique({
       where: {
         tenantId_clientRequestId: {
@@ -454,6 +627,14 @@ export class StorefrontService {
     const tax = Math.round(subtotal * TAX_RATE);
     const shippingFee = dto.fulfillmentType === 'DELIVERY' ? ONLINE_DELIVERY_FLAT_FEE : 0;
     const total = subtotal + tax + shippingFee;
+
+    if (subtotal < storefrontSettings.checkout.minOrderAmount) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+        message: `Minimum order ${storefrontSettings.checkout.minOrderAmount.toLocaleString('id-ID')} rupiah.`,
+      });
+    }
+
     const deliveryAddress =
       dto.fulfillmentType === 'DELIVERY' && dto.deliveryAddress
         ? {
@@ -735,7 +916,11 @@ export class StorefrontService {
     };
   }
 
-  private async assertOutletBelongsToTenant(tenantId: string, outletId: string) {
+  private async assertOutletBelongsToTenant(
+    tenantId: string,
+    outletId: string,
+    settings?: StorefrontSettings,
+  ) {
     const outlet = await this.prisma.outlet.findFirst({
       where: { id: outletId, tenantId, isActive: true },
       select: { id: true },
@@ -745,6 +930,14 @@ export class StorefrontService {
         code: ErrorCodes.ONLINE_STORE_NOT_FOUND,
         message: 'Toko tidak ditemukan.',
       });
+    }
+    if (settings && settings.branches.enabledOutletIds.length > 0) {
+      if (!settings.branches.enabledOutletIds.includes(outletId)) {
+        throw new NotFoundException({
+          code: ErrorCodes.ONLINE_STORE_NOT_FOUND,
+          message: 'Cabang tidak tersedia di storefront.',
+        });
+      }
     }
   }
 

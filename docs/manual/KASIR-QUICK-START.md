@@ -68,7 +68,7 @@ Kasir punya **3 mode** lewat tab header (`PosShiftBar`):
 | Tab | Route | Badge | Workflow |
 |-----|-------|-------|----------|
 | **🏪 Toko** | `/pos` | Penjualan Toko | Scan/manual checkout, pelanggan walk-in/terdaftar, pembayaran tunai/transfer/QRIS/tempo/deposit |
-| **🌐 Order Web** | `/pos/online-orders` | Order Web | Antrian order storefront web (`/store/*`) setelah pembayaran Midtrans |
+| **🌐 Order Web** | `/pos/online-orders` | Order Web | Antrian order storefront web (`/store/*`) setelah pembayaran Midtrans — pengaturan storefront di **Profil Toko** (`/dashboard/store`) |
 | **🛒 Marketplace** | `/pos/marketplace-orders` | Marketplace | Entri manual order Tokopedia/Shopee (scaffold Fase 2 — bukan integrasi API otomatis) |
 | **🚚 Pengiriman** | `/pos/deliveries` | Pengiriman | Antrian baca saja — lihat status DLV hari ini (ubah status: Manager di Dashboard) |
 

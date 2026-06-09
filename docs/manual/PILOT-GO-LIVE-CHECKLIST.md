@@ -121,7 +121,8 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 
 | # | Langkah | Expected |
 |---|---------|----------|
-| H1 | Buka `/store/barokah-bangunan` | Katalog produk tampil |
+| H1 | Buka `/store/barokah-bangunan` | Home storefront: hero, picker cabang, CTA katalog |
+| H1b | Buka `/store/barokah-bangunan/products` | Grid katalog + filter kategori + sort |
 | H2 | Pilih cabang + produk → keranjang | Item masuk cart |
 | H3 | Checkout: isi nama + HP wajib | Form validasi HP |
 | H4 | Mock pay / bayar online | Order status PAID |
@@ -238,10 +239,11 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 ## 3. Pengaturan Tenant (Owner)
 
 > **Halaman:** [`/dashboard/settings`](http://localhost:3001/dashboard/settings) — hub pengaturan aplikasi (tab: Toko, Kasir, Loyalty, Promo, Pembayaran, Online, Outlet, **Integrasi**).  
-> **Profil toko:** [`/dashboard/store`](http://localhost:3001/dashboard/store) — nama, telepon kontak, URL logo (stub).
+> **Profil toko:** [`/dashboard/store`](http://localhost:3001/dashboard/store) — **hub tunggal** semua pengaturan storefront (identitas, tampilan, katalog, cabang, checkout, pembayaran, SEO, operasional).
 
 - [ ] Dashboard → **Pengaturan Aplikasi** (`/dashboard/settings`): PPN aktif/nonaktif sesuai kebutuhan PKP
-- [ ] **Profil Toko** (`/dashboard/store`): nama bisnis, telepon kontak, slug storefront (`/store/{slug}`)
+- [ ] **Profil Toko** (`/dashboard/store`): 8 tab — identitas, tampilan web, katalog online, cabang & pengiriman, checkout, pembayaran, SEO, operasional
+- [ ] Preview storefront dari Profil Toko → `/store/{slug}` (home) dan `/store/{slug}/products` (katalog)
 - [ ] Tab **Outlet** di settings → link **Kelola cabang** ke `/dashboard/outlets`
 - [ ] Tab **Loyalty**: earn 1 poin / Rp 10.000 (default OK)
 - [ ] Tab **Loyalty**: redeem 1 poin = Rp 1.000, maks 50% total (default OK)

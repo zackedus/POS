@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class CatalogProductsQueryDto {
   @IsUUID('4', { message: 'outletId harus UUID valid' })
@@ -25,6 +25,11 @@ export class CatalogProductsQueryDto {
   @Min(1)
   @Max(50)
   limit?: number = 20;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['name_asc', 'name_desc', 'price_asc', 'price_desc'])
+  sort?: 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc';
 }
 
 export class CatalogProductDetailQueryDto {

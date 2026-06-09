@@ -158,6 +158,31 @@ test('Storefront: createOrder PICKUP has zero shipping fee', async () => {
   assert.equal(prisma.createdOrders[0]?.deliveryAddress, undefined);
 });
 
+test('Storefront: getConfig returns tenant and merged settings', async () => {
+  const prisma = buildPrisma({
+    tenant: {
+      findFirst: async () => ({
+        id: 'tenant-1',
+        name: 'Barokah Toko Bangunan',
+        slug: 'barokah-bangunan',
+        description: 'Material bangunan',
+        contactPhone: '021-5551234',
+        whatsapp: '081234567890',
+        logoUrl: null,
+      }),
+    },
+    category: {
+      findMany: async () => [{ id: 'cat-1', name: 'Semen & Mortar' }],
+    },
+  });
+  const service = buildService(prisma);
+  const config = await service.getConfig('barokah-bangunan');
+  assert.equal(config.tenant.slug, 'barokah-bangunan');
+  assert.equal(config.settings.enabled, true);
+  assert.equal(config.featuredCategories[0]?.name, 'Semen & Mortar');
+  assert.equal(config.storefrontUrl, '/store/barokah-bangunan');
+});
+
 test('Storefront: createOrder rejects honeypot website field', async () => {
   const prisma = buildPrisma();
   const service = buildService(prisma);

@@ -132,7 +132,7 @@ export default function StoreRegisterPage() {
 
       <p style={{ marginTop: '1.25rem', fontSize: '0.8125rem', color: colors.light.text.secondary }}>
         Sudah punya nomor terdaftar? Langsung checkout — poin otomatis terkumpul.{' '}
-        <Link href={`/store/${slug}`} style={{ color: colors.primary[600] }}>
+        <Link href={`/store/${slug}/products`} style={{ color: colors.primary[600] }}>
           Kembali ke katalog
         </Link>
       </p>

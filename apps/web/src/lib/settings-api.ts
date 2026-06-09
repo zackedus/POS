@@ -1,5 +1,6 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import type { StorefrontSettings } from '@barokah/shared';
 
 export type MidtransMode = 'mock' | 'sandbox' | 'live';
 
@@ -120,9 +121,17 @@ export interface TenantProfileView {
   name: string;
   slug: string;
   contactPhone: string | null;
+  whatsapp: string | null;
+  description: string | null;
   logoUrl: string | null;
   isActive: boolean;
   updatedAt: string;
+}
+
+export interface StorefrontSettingsView {
+  settings: StorefrontSettings;
+  storefrontUrl: string;
+  midtrans: MidtransConfigView;
 }
 
 export async function fetchTenantProfile(): Promise<TenantProfileView> {
@@ -137,6 +146,8 @@ export async function fetchTenantProfile(): Promise<TenantProfileView> {
 export async function updateTenantProfile(input: {
   name?: string;
   contactPhone?: string | null;
+  whatsapp?: string | null;
+  description?: string | null;
   logoUrl?: string | null;
 }): Promise<TenantProfileView> {
   const res = await authFetch(`${SETTINGS_BASE}/tenant/profile`, {
@@ -147,6 +158,30 @@ export async function updateTenantProfile(input: {
   const json = (await res.json()) as ApiEnvelope<TenantProfileView>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal menyimpan profil toko.');
+  }
+  return json.data;
+}
+
+export async function fetchStorefrontSettings(): Promise<StorefrontSettingsView> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant/storefront`);
+  const json = (await res.json()) as ApiEnvelope<StorefrontSettingsView>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal memuat pengaturan storefront.');
+  }
+  return json.data;
+}
+
+export async function updateStorefrontSettings(
+  input: Partial<StorefrontSettings>,
+): Promise<StorefrontSettingsView> {
+  const res = await authFetch(`${SETTINGS_BASE}/tenant/storefront`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json()) as ApiEnvelope<StorefrontSettingsView>;
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error?.message ?? 'Gagal menyimpan pengaturan storefront.');
   }
   return json.data;
 }

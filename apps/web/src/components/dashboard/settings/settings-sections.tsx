@@ -596,20 +596,16 @@ export function OnlineStorefrontSection({ user }: { user: AuthUser | null }) {
   const storefrontUrl = storefrontSlug ? `/store/${storefrontSlug}` : null;
 
   return (
-    <SectionCard title="Online / Storefront" description="Toko web publik dan opsi fulfillment pesanan online.">
+    <SectionCard title="Online / Storefront" description="Semua pengaturan storefront web dikelola di Profil Toko.">
       <SettingsFieldGrid>
-        <SettingsFieldRow label="Storefront" hint="Toggle on/off storefront per tenant — defer Fase 2.">
-          <StatusBadge label="Aktif (tenant aktif)" variant="success" />{' '}
-          <ReadOnlyBadge defer />
+        <SettingsFieldRow label="Pengaturan storefront" hint="Identitas, tampilan, katalog, cabang, checkout, pembayaran, SEO, operasional.">
+          <Link href="/dashboard/store" style={{ color: '#2563eb', fontWeight: 600 }}>
+            Buka Profil Toko →
+          </Link>
         </SettingsFieldRow>
-        <SettingsFieldRow label="Pickup">
-          <StatusBadge label="Aktif" variant="success" />
-        </SettingsFieldRow>
-        <SettingsFieldRow label="Delivery">
-          <StatusBadge label="Aktif" variant="success" />
-          <span style={{ marginLeft: 8, fontSize: '0.8125rem', color: '#64748b' }}>
-            Ongkir flat {formatIdr(ONLINE_DELIVERY_FLAT_FEE)}
-          </span>
+        <SettingsFieldRow label="Ongkir delivery (flat)">
+          {formatIdr(ONLINE_DELIVERY_FLAT_FEE)}
+          <ReadOnlyBadge />
         </SettingsFieldRow>
         <SettingsFieldRow label="Batas bayar order">
           {ONLINE_PAYMENT_TTL_MINUTES} menit
@@ -647,6 +643,21 @@ export function OnlineStorefrontSection({ user }: { user: AuthUser | null }) {
             Preview Storefront
           </Link>
         ) : null}
+        <Link
+          href="/dashboard/store"
+          style={{
+            display: 'inline-block',
+            padding: '0.5rem 1rem',
+            borderRadius: 8,
+            background: '#2563eb',
+            color: '#fff',
+            textDecoration: 'none',
+            fontWeight: 600,
+            fontSize: '0.875rem',
+          }}
+        >
+          Kelola Profil Toko
+        </Link>
         <Link
           href="/dashboard/online-orders"
           style={{

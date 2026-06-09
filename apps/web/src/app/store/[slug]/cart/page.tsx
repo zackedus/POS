@@ -31,7 +31,7 @@ export default function StoreCartPage() {
         <p style={{ fontSize: '1.125rem' }}>🛒 Keranjang masih kosong</p>
         <p style={{ color: colors.light.text.secondary }}>Yuk, pilih material untuk proyekmu</p>
         <div style={{ marginTop: '1.5rem' }}>
-          <Link href={`/store/${slug}`}>
+          <Link href={`/store/${slug}/products`}>
             <Button>Lihat katalog</Button>
           </Link>
         </div>
@@ -132,7 +132,7 @@ export default function StoreCartPage() {
           Lanjut checkout
         </Button>
         <Link
-          href={`/store/${slug}`}
+          href={`/store/${slug}/products`}
           style={{
             textAlign: 'center',
             color: colors.primary[600],

@@ -23,11 +23,15 @@ async function main() {
     update: {
       name: 'Barokah Toko Bangunan',
       contactPhone: '021-5551234',
+      description: 'Toko material bangunan terpercaya — semen, pipa, cat, dan kebutuhan proyek Anda.',
+      whatsapp: '081234567890',
     },
     create: {
       name: 'Barokah Toko Bangunan',
       slug: 'barokah-bangunan',
       contactPhone: '021-5551234',
+      description: 'Toko material bangunan terpercaya — semen, pipa, cat, dan kebutuhan proyek Anda.',
+      whatsapp: '081234567890',
     },
   });
 

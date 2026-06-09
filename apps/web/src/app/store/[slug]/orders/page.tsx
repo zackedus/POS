@@ -92,7 +92,7 @@ export default function StoreOrdersPage() {
       ) : null}
 
       <p style={{ marginTop: '1.25rem', fontSize: '0.875rem' }}>
-        <Link href={`/store/${slug}`} style={{ color: colors.primary[600], textDecoration: 'none' }}>
+        <Link href={`/store/${slug}/products`} style={{ color: colors.primary[600], textDecoration: 'none' }}>
           ← Kembali ke katalog
         </Link>
       </p>
