@@ -122,6 +122,105 @@ test('StorefrontCustomerAuth: login validates password', async () => {
   );
 });
 
+test('StorefrontCustomerAuth: updateMe updates profile fields', async () => {
+  const hash = bcrypt.hashSync('oldpassword', 4);
+  let updatedData: Record<string, unknown> | undefined;
+  const customerRow = {
+    id: 'cust-1',
+    tenantId: 'tenant-1',
+    name: 'Budi',
+    phone: '6281234567890',
+    email: 'budi@example.com',
+    memberCode: 'MBR-ABC',
+    points: 10,
+    memberSince: new Date(),
+    passwordHash: hash,
+    _count: { addresses: 1 },
+  };
+  const prisma = {
+    customer: {
+      findFirst: async (args?: { where?: Record<string, unknown>; select?: Record<string, boolean> }) => {
+        if (args?.select?.passwordHash) return { passwordHash: hash };
+        if (args?.where && 'email' in args.where) return null;
+        return customerRow;
+      },
+      findUnique: async () => null,
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        updatedData = data;
+        Object.assign(customerRow, data);
+        return customerRow;
+      },
+    },
+  };
+
+  const service = buildService(prisma);
+  const customer = {
+    sub: 'cust-1',
+    tenantId: 'tenant-1',
+    tenantSlug: 'toko-a',
+    phone: '6281234567890',
+    kind: 'storefront_customer' as const,
+  };
+
+  const result = await service.updateMe(customer, 'toko-a', {
+    name: 'Budi Baru',
+    email: 'baru@example.com',
+    phone: '081112223344',
+  });
+
+  assert.equal(result.name, 'Budi Baru');
+  assert.equal(updatedData?.name, 'Budi Baru');
+  assert.equal(updatedData?.email, 'baru@example.com');
+  assert.equal(updatedData?.phone, '6281112223344');
+});
+
+test('StorefrontCustomerAuth: updateMe changes password when current password valid', async () => {
+  const hash = bcrypt.hashSync('oldpassword', 4);
+  let updatedData: Record<string, unknown> | undefined;
+  const customerRow = {
+    id: 'cust-1',
+    tenantId: 'tenant-1',
+    name: 'Budi',
+    phone: '6281234567890',
+    email: null,
+    memberCode: 'MBR-ABC',
+    points: 0,
+    memberSince: new Date(),
+    passwordHash: hash,
+    _count: { addresses: 0 },
+  };
+  const prisma = {
+    customer: {
+      findFirst: async (args?: { select?: Record<string, boolean> }) => {
+        if (args?.select?.passwordHash) return { passwordHash: hash };
+        return customerRow;
+      },
+      findUnique: async () => null,
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        updatedData = data;
+        return customerRow;
+      },
+    },
+  };
+
+  const service = buildService(prisma);
+  const customer = {
+    sub: 'cust-1',
+    tenantId: 'tenant-1',
+    tenantSlug: 'toko-a',
+    phone: '6281234567890',
+    kind: 'storefront_customer' as const,
+  };
+
+  await service.updateMe(customer, 'toko-a', {
+    currentPassword: 'oldpassword',
+    newPassword: 'newpassword1',
+  });
+
+  assert.ok(updatedData?.passwordHash);
+  assert.notEqual(updatedData?.passwordHash, hash);
+});
+
 test('StorefrontCustomerAuth: address CRUD for authenticated customer', async () => {
   const rows: Array<Record<string, unknown>> = [];
   const prisma = {

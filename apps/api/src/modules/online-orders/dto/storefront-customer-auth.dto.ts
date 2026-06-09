@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 export class StorefrontCustomerRegisterDto {
   @IsString()
@@ -48,4 +48,21 @@ export class StorefrontCustomerUpdateProfileDto {
   @IsOptional()
   @IsEmail({}, { message: 'Email tidak valid' })
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^(08\d{8,11}|628\d{8,11})$/, { message: 'No. HP harus format Indonesia (08… atau 62…)' })
+  phone?: string;
+
+  @ValidateIf((dto: StorefrontCustomerUpdateProfileDto) => Boolean(dto.newPassword))
+  @IsString()
+  @MinLength(8, { message: 'Password saat ini minimal 8 karakter' })
+  @MaxLength(72)
+  currentPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8, { message: 'Password baru minimal 8 karakter' })
+  @MaxLength(72)
+  newPassword?: string;
 }

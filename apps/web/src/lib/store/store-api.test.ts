@@ -74,4 +74,42 @@ describe('store-api payload mapping', () => {
       }),
     );
   });
+
+  it('patches storefront customer profile with JSON body and bearer token', async () => {
+    const { updateStoreCustomerMe } = await import('./store-api');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          id: 'cust-1',
+          name: 'Budi Baru',
+          phone: '6281234567890',
+          email: 'baru@example.com',
+          memberCode: 'MBR-ABC123',
+          points: 0,
+          memberSince: '2026-06-01T00:00:00.000Z',
+          addressCount: 2,
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const profile = await updateStoreCustomerMe('toko-a', 'token-xyz', {
+      name: 'Budi Baru',
+      email: 'baru@example.com',
+    });
+    expect(profile.name).toBe('Budi Baru');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/api/v1/store/toko-a/customers/me',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Budi Baru', email: 'baru@example.com' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer token-xyz',
+          'Content-Type': 'application/json',
+        }),
+      }),
+    );
+  });
 });

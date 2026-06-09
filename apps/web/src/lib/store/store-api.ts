@@ -313,6 +313,25 @@ export async function fetchStoreCustomerMe(slug: string, accessToken: string) {
   );
 }
 
+export async function updateStoreCustomerMe(
+  slug: string,
+  accessToken: string,
+  input: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    currentPassword?: string;
+    newPassword?: string;
+  },
+) {
+  return storeFetch<StoreCustomerProfile>(
+    `/${slug}/customers/me`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+    'Gagal memperbarui profil.',
+    accessToken,
+  );
+}
+
 export async function fetchStoreCustomerAddresses(slug: string, accessToken: string) {
   const data = await storeFetch<{ addresses: StoreCustomerAddress[] }>(
     `/${slug}/customers/me/addresses`,

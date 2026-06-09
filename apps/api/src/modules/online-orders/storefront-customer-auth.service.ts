@@ -181,12 +181,61 @@ export class StorefrontCustomerAuthService {
       }
     }
 
+    let normalizedPhone: string | undefined;
+    if (dto.phone !== undefined) {
+      normalizedPhone = normalizePhone(dto.phone.trim());
+      const taken = await this.prisma.customer.findUnique({
+        where: { tenantId_phone: { tenantId: customer.tenantId, phone: normalizedPhone } },
+      });
+      if (taken && taken.id !== customer.sub) {
+        throw new ConflictException({
+          code: ErrorCodes.DUPLICATE_ENTRY,
+          message: 'Nomor HP sudah digunakan pelanggan lain.',
+        });
+      }
+    }
+
+    const updateData: {
+      name?: string;
+      email?: string | null;
+      phone?: string;
+      passwordHash?: string;
+    } = {
+      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.email !== undefined ? { email: dto.email.trim().toLowerCase() || null } : {}),
+      ...(normalizedPhone !== undefined ? { phone: normalizedPhone } : {}),
+    };
+
+    if (dto.newPassword) {
+      if (!dto.currentPassword) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: 'Password saat ini wajib diisi untuk mengubah password.',
+        });
+      }
+      const row = await this.prisma.customer.findFirst({
+        where: { id: customer.sub },
+        select: { passwordHash: true },
+      });
+      if (!row?.passwordHash) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: 'Akun belum memiliki password. Hubungi toko.',
+        });
+      }
+      const passwordValid = await bcrypt.compare(dto.currentPassword, row.passwordHash);
+      if (!passwordValid) {
+        throw new UnauthorizedException({
+          code: ErrorCodes.INVALID_CREDENTIALS,
+          message: 'Password saat ini salah.',
+        });
+      }
+      updateData.passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    }
+
     await this.prisma.customer.update({
       where: { id: customer.sub },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-        ...(dto.email !== undefined ? { email: dto.email.trim().toLowerCase() || null } : {}),
-      },
+      data: updateData,
     });
 
     return this.buildProfile(customer.sub, customer.tenantId);
