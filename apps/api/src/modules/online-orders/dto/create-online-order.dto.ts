@@ -87,7 +87,10 @@ export class CreateOnlineOrderDto {
   @ArrayMinSize(1, { message: 'Keranjang tidak boleh kosong' })
   items!: OnlineOrderItemDto[];
 
-  @ValidateIf((dto: CreateOnlineOrderDto) => dto.fulfillmentType === 'DELIVERY')
+  /** Inline address — required for delivery when customerAddressId is not provided. */
+  @ValidateIf(
+    (dto: CreateOnlineOrderDto) => dto.fulfillmentType === 'DELIVERY' && !dto.customerAddressId,
+  )
   @IsDefined({ message: 'Alamat pengiriman wajib untuk delivery' })
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
