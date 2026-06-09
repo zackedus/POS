@@ -1,3 +1,5 @@
+import type { OnlineCodPaymentSummary } from '../utils/online-cod';
+
 /** Sales channel for purchase / transaction list (dashboard Daftar Pembelian). */
 export type SaleSourceType = 'TOKO' | 'WEB' | 'MARKETPLACE';
 
@@ -30,4 +32,5 @@ export interface SalePurchaseListItem {
   receivableId: string | null;
   canVoid: boolean;
   canReprint: boolean;
+  codPayment?: OnlineCodPaymentSummary | null;
 }

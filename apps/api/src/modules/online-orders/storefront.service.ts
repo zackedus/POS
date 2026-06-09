@@ -8,7 +8,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
-import { ErrorCodes, ONLINE_DELIVERY_FLAT_FEE, TAX_RATE, isWithinOnlineOrderHours, mergeStorefrontSettings, type StorefrontPublicConfig, type StorefrontSettings } from '@barokah/shared';
+import { ErrorCodes, ONLINE_DELIVERY_FLAT_FEE, TAX_RATE, calculateOnlineCodSplit, isWithinOnlineOrderHours, mergeStorefrontSettings, resolveOnlineOrderChargeAmount, type StorefrontPublicConfig, type StorefrontSettings } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import type { CreateOnlineOrderDto } from './dto/create-online-order.dto';
@@ -566,10 +566,31 @@ export class StorefrontService {
         message: 'Pickup di toko tidak tersedia saat ini.',
       });
     }
-    if (!storefrontSettings.payment.onlinePaymentEnabled) {
+    if (!storefrontSettings.payment.onlinePaymentEnabled && !storefrontSettings.payment.codEnabled) {
       throw new UnprocessableEntityException({
         code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
         message: 'Pembayaran online sedang dinonaktifkan.',
+      });
+    }
+
+    const paymentMode = dto.paymentMode ?? 'FULL_ONLINE';
+    if (paymentMode === 'COD') {
+      if (dto.fulfillmentType !== 'DELIVERY') {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+          message: 'COD hanya tersedia untuk pesanan antar ke alamat.',
+        });
+      }
+      if (!storefrontSettings.payment.codEnabled) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+          message: 'Pembayaran COD sedang dinonaktifkan.',
+        });
+      }
+    } else if (!storefrontSettings.payment.onlinePaymentEnabled) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.ONLINE_CHECKOUT_INVALID,
+        message: 'Pembayaran online penuh sedang dinonaktifkan. Pilih COD jika tersedia.',
       });
     }
 
@@ -584,11 +605,16 @@ export class StorefrontService {
     });
     if (existing) {
       const midtransConfig = await this.resolveTenantMidtransConfig(tenant.id);
+      const chargeAmount = resolveOnlineOrderChargeAmount(
+        (existing as { paymentMode?: 'FULL_ONLINE' | 'COD' }).paymentMode ?? 'FULL_ONLINE',
+        toIdrInteger(existing.total),
+        existing.depositAmount != null ? toIdrInteger(existing.depositAmount) : null,
+      );
       return this.buildCreateOrderResponse(existing, tenant.slug, await this.midtrans.createSnapPayment({
         orderId: existing.midtransOrderId ?? existing.orderNo,
         orderNo: existing.orderNo,
         tenantSlug: tenant.slug,
-        grossAmount: toIdrInteger(existing.total),
+        grossAmount: chargeAmount,
         customerName: existing.customerName,
         customerPhone: formatPhoneDisplay(existing.customerPhone),
       }, midtransConfig));
@@ -710,6 +736,8 @@ export class StorefrontService {
     const tax = Math.round(subtotal * TAX_RATE);
     const shippingFee = dto.fulfillmentType === 'DELIVERY' ? ONLINE_DELIVERY_FLAT_FEE : 0;
     const total = subtotal + tax + shippingFee;
+    const codSplit = paymentMode === 'COD' ? calculateOnlineCodSplit(total) : null;
+    const chargeAmount = codSplit?.depositAmount ?? total;
 
     if (subtotal < storefrontSettings.checkout.minOrderAmount) {
       throw new UnprocessableEntityException({
@@ -816,6 +844,13 @@ export class StorefrontService {
           tax: idrToDecimal(tax),
           shippingFee: idrToDecimal(shippingFee),
           total: idrToDecimal(total),
+          paymentMode,
+          ...(codSplit
+            ? {
+                depositAmount: idrToDecimal(codSplit.depositAmount),
+                balanceDue: idrToDecimal(codSplit.balanceDue),
+              }
+            : {}),
           ...(deliveryAddress ? { deliveryAddress } : {}),
           expiresAt,
           midtransOrderId,
@@ -832,7 +867,8 @@ export class StorefrontService {
           payments: {
             create: {
               status: 'PENDING',
-              amount: idrToDecimal(total),
+              amount: idrToDecimal(chargeAmount),
+              ...(paymentMode === 'COD' ? { paymentType: 'COD_DEPOSIT' } : {}),
             },
           },
         },
@@ -847,7 +883,7 @@ export class StorefrontService {
       orderId: order.midtransOrderId ?? order.orderNo,
       orderNo: order.orderNo,
       tenantSlug: tenant.slug,
-      grossAmount: total,
+      grossAmount: chargeAmount,
       customerName: order.customerName,
       customerPhone: formatPhoneDisplay(order.customerPhone),
     }, midtransConfig);
@@ -858,6 +894,7 @@ export class StorefrontService {
         orderNo: order.orderNo,
         status: order.status,
         fulfillmentType: order.fulfillmentType,
+        paymentMode,
         outlet: {
           id: outlet.id,
           name: outlet.name,
@@ -871,6 +908,8 @@ export class StorefrontService {
         tax,
         shippingFee,
         total,
+        depositAmount: codSplit?.depositAmount ?? null,
+        balanceDue: codSplit?.balanceDue ?? null,
         expiresAt: order.expiresAt?.toISOString() ?? null,
       },
       payment,
@@ -883,12 +922,15 @@ export class StorefrontService {
       orderNo: string;
       status: string;
       fulfillmentType: string;
+      paymentMode?: string;
       customerName: string;
       customerPhone: string;
       subtotal: Decimal;
       tax: Decimal;
       shippingFee: Decimal;
       total: Decimal;
+      depositAmount?: Decimal | null;
+      balanceDue?: Decimal | null;
       expiresAt: Date | null;
       midtransOrderId: string | null;
       outlet: { id: string; name: string; address: string | null };
@@ -897,12 +939,18 @@ export class StorefrontService {
     payment: { snapToken: string; redirectUrl: string },
   ) {
     const total = toIdrInteger(order.total);
+    const paymentMode = (order.paymentMode ?? 'FULL_ONLINE') as 'FULL_ONLINE' | 'COD';
+    const depositAmount =
+      order.depositAmount != null ? toIdrInteger(order.depositAmount) : paymentMode === 'COD' ? calculateOnlineCodSplit(total).depositAmount : null;
+    const balanceDue =
+      order.balanceDue != null ? toIdrInteger(order.balanceDue) : paymentMode === 'COD' ? calculateOnlineCodSplit(total).balanceDue : null;
     return {
       order: {
         id: order.id,
         orderNo: order.orderNo,
         status: order.status,
         fulfillmentType: order.fulfillmentType,
+        paymentMode,
         outlet: {
           id: order.outlet.id,
           name: order.outlet.name,
@@ -916,6 +964,8 @@ export class StorefrontService {
         tax: toIdrInteger(order.tax),
         shippingFee: toIdrInteger(order.shippingFee),
         total,
+        depositAmount,
+        balanceDue,
         expiresAt: order.expiresAt?.toISOString() ?? null,
       },
       payment,
@@ -996,11 +1046,16 @@ export class StorefrontService {
     }
 
     const midtransConfig = await this.resolveTenantMidtransConfig(tenant.id);
+    const chargeAmount = resolveOnlineOrderChargeAmount(
+      (order as { paymentMode?: 'FULL_ONLINE' | 'COD' }).paymentMode ?? 'FULL_ONLINE',
+      toIdrInteger(order.total),
+      order.depositAmount != null ? toIdrInteger(order.depositAmount) : null,
+    );
     const payment = await this.midtrans.createSnapPayment({
       orderId: order.midtransOrderId ?? order.orderNo,
       orderNo: order.orderNo,
       tenantSlug: tenant.slug,
-      grossAmount: toIdrInteger(order.total),
+      grossAmount: chargeAmount,
       customerName: order.customerName,
       customerPhone: formatPhoneDisplay(order.customerPhone),
     }, midtransConfig);

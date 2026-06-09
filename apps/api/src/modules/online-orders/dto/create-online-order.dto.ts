@@ -16,6 +16,8 @@ import {
 } from 'class-validator';
 const ONLINE_FULFILLMENT_TYPES = ['PICKUP', 'DELIVERY'] as const;
 
+const ONLINE_PAYMENT_MODES = ['FULL_ONLINE', 'COD'] as const;
+
 class DeliveryAddressDto {
   @IsString()
   @MinLength(5, { message: 'Alamat jalan minimal 5 karakter' })
@@ -102,4 +104,9 @@ export class CreateOnlineOrderDto {
   @IsString()
   @MaxLength(200)
   website?: string;
+
+  /** FULL_ONLINE = bayar penuh via gateway; COD = uang muka 20% + sisa saat terima (delivery only). */
+  @IsOptional()
+  @IsEnum(ONLINE_PAYMENT_MODES)
+  paymentMode?: (typeof ONLINE_PAYMENT_MODES)[number];
 }

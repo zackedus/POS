@@ -1,3 +1,5 @@
+import type { OnlineCodPaymentSummary } from '../utils/online-cod';
+
 /** Delivery source — store direct (POS) vs online order */
 export type DeliveryType = 'STORE_DIRECT' | 'ONLINE_ORDER';
 
@@ -44,6 +46,7 @@ export interface DeliveryOrderListItem {
     externalOrderRef?: string | null;
   } | null;
   itemCount: number;
+  codPayment?: OnlineCodPaymentSummary | null;
 }
 
 export interface DeliveryOrderDetail extends DeliveryOrderListItem {

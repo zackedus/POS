@@ -995,7 +995,7 @@ export class OnlineOrdersService {
   ) {
     const order = await this.prisma.onlineOrder.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: { items: true, payments: true },
     });
     if (!order || order.status === 'PAID') {
       return;
@@ -1038,7 +1038,10 @@ export class OnlineOrdersService {
           data: {
             status: 'PAID',
             midtransTransactionId: transactionId,
-            paymentType: notification.payment_type ?? null,
+            paymentType:
+              order.paymentMode === 'COD'
+                ? 'COD_DEPOSIT'
+                : notification.payment_type ?? pendingPayment.paymentType ?? null,
             rawNotification: notification as object,
           },
         });
@@ -1047,9 +1050,9 @@ export class OnlineOrdersService {
           data: {
             onlineOrderId: order.id,
             status: 'PAID',
-            amount: order.total,
+            amount: order.paymentMode === 'COD' ? order.depositAmount ?? order.total : order.total,
             midtransTransactionId: transactionId,
-            paymentType: notification.payment_type ?? null,
+            paymentType: order.paymentMode === 'COD' ? 'COD_DEPOSIT' : notification.payment_type ?? null,
             rawNotification: notification as object,
           },
         });

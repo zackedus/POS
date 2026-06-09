@@ -53,6 +53,7 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: PaymentMethod.CARD, label: 'Kartu' },
   { value: PaymentMethod.CREDIT, label: 'Tempo/Kredit' },
   { value: PaymentMethod.DEPOSIT, label: 'Deposit' },
+  { value: 'COD', label: 'COD (Bayar di tempat)' },
 ];
 
 const STATUS_OPTIONS = [
@@ -446,8 +447,13 @@ export default function DashboardTransactionsPage() {
                     <td style={{ padding: '0.75rem 1rem' }}>{row.customerName ?? 'Walk-in'}</td>
                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600 }}>{formatIdr(row.total)}</td>
                     <td style={{ padding: '0.75rem 1rem' }}>
-                      {row.paymentMethodLabel ??
+            {row.paymentMethodLabel ??
                         (row.paymentMethod ? PAYMENT_METHOD_LABELS[row.paymentMethod] : '—')}
+                      {row.codPayment && !row.codPayment.balanceCollectedAt ? (
+                        <div style={{ fontSize: '0.75rem', color: '#b45309', marginTop: 2 }}>
+                          Tagih saat terima: {formatIdr(row.codPayment.amountToCollect)}
+                        </div>
+                      ) : null}
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       <StatusBadge

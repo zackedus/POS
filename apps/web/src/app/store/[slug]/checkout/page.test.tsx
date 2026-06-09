@@ -47,6 +47,7 @@ vi.mock('@/lib/store/store-config-context', () => ({
       settings: {
         checkout: { requireCustomerLogin: true, requireName: true, requirePhone: true },
         branches: { pickupEnabled: true, deliveryEnabled: true },
+        payment: { onlinePaymentEnabled: true, codEnabled: true },
       },
     },
   }),

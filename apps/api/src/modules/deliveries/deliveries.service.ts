@@ -12,6 +12,8 @@ import {
   DELIVERY_TYPE_LABELS,
   ErrorCodes,
   ONLINE_ORDER_CHANNEL_LABELS,
+  buildOnlineCodPaymentSummary,
+  calculateOnlineCodSplit,
   type DeliveryAddressSnapshot,
   type DeliveryOrderDetail,
   type DeliveryOrderListItem,
@@ -24,7 +26,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { buildOutletWhere, resolveListOutletScope, resolveOutletId } from '../../common/utils/outlet.util';
 import { CustomersService } from '../customers/customers.service';
 import { RealtimeService } from '../realtime/realtime.service';
-import { toIdrInteger } from '../../common/utils/money.util';
+import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { CreateDeliveryOrderDto } from './dto/delivery.dto';
 import type { CheckoutDeliveryFields } from '../transactions/dto/checkout-delivery.dto';
@@ -99,7 +101,20 @@ export class DeliveriesService {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           outlet: { select: { id: true, name: true } },
-          onlineOrder: { select: { id: true, orderNo: true, channel: true, externalOrderRef: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
+          onlineOrder: {
+            select: {
+              id: true,
+              orderNo: true,
+              channel: true,
+              externalOrderRef: true,
+              paymentMode: true,
+              total: true,
+              depositAmount: true,
+              balanceDue: true,
+              balanceCollectedAt: true,
+              items: { select: { productName: true, quantity: true, subtotal: true } },
+            },
+          },
           transaction: {
             select: {
               id: true,
@@ -132,6 +147,12 @@ export class DeliveriesService {
             orderNo: true,
             channel: true,
             externalOrderRef: true,
+            paymentMode: true,
+            total: true,
+            depositAmount: true,
+            balanceDue: true,
+            balanceCollectedAt: true,
+            status: true,
             items: {
               select: {
                 productName: true,
@@ -348,7 +369,20 @@ export class DeliveriesService {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           outlet: { select: { id: true, name: true } },
-          onlineOrder: { select: { id: true, orderNo: true, channel: true, externalOrderRef: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
+          onlineOrder: {
+            select: {
+              id: true,
+              orderNo: true,
+              channel: true,
+              externalOrderRef: true,
+              paymentMode: true,
+              total: true,
+              depositAmount: true,
+              balanceDue: true,
+              balanceCollectedAt: true,
+              items: { select: { productName: true, quantity: true, subtotal: true } },
+            },
+          },
           transaction: {
             select: {
               id: true,
@@ -415,6 +449,10 @@ export class DeliveriesService {
       });
     }
 
+    if (nextStatus === 'SELESAI' && order.onlineOrderId) {
+      await this.collectCodBalanceForOnlineOrder(order.onlineOrderId);
+    }
+
     const updated = await this.prisma.deliveryOrder.update({
       where: { id: order.id },
       data: {
@@ -435,7 +473,20 @@ export class DeliveriesService {
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         outlet: { select: { id: true, name: true } },
-        onlineOrder: { select: { id: true, orderNo: true, channel: true, externalOrderRef: true, items: { select: { productName: true, quantity: true, subtotal: true } } } },
+        onlineOrder: {
+          select: {
+            id: true,
+            orderNo: true,
+            channel: true,
+            externalOrderRef: true,
+            paymentMode: true,
+            total: true,
+            depositAmount: true,
+            balanceDue: true,
+            balanceCollectedAt: true,
+            items: { select: { productName: true, quantity: true, subtotal: true } },
+          },
+        },
         transaction: {
           select: {
             id: true,
@@ -628,6 +679,77 @@ export class DeliveriesService {
     });
   }
 
+  private buildCodPaymentFromOnlineOrder(
+    onlineOrder:
+      | {
+          paymentMode?: string;
+          total?: { toString(): string };
+          depositAmount?: { toString(): string } | null;
+          balanceDue?: { toString(): string } | null;
+          balanceCollectedAt?: Date | null;
+        }
+      | null
+      | undefined,
+  ) {
+    if (!onlineOrder || onlineOrder.paymentMode !== 'COD' || !onlineOrder.total) {
+      return null;
+    }
+    const orderTotal = toIdrInteger(onlineOrder.total);
+    const depositAmount =
+      onlineOrder.depositAmount != null
+        ? toIdrInteger(onlineOrder.depositAmount)
+        : calculateOnlineCodSplit(orderTotal).depositAmount;
+    const balanceDue =
+      onlineOrder.balanceDue != null
+        ? toIdrInteger(onlineOrder.balanceDue)
+        : calculateOnlineCodSplit(orderTotal).balanceDue;
+    return buildOnlineCodPaymentSummary({
+      orderTotal,
+      depositAmount,
+      balanceDue,
+      balanceCollectedAt: onlineOrder.balanceCollectedAt,
+    });
+  }
+
+  private async collectCodBalanceForOnlineOrder(onlineOrderId: string) {
+    const onlineOrder = await this.prisma.onlineOrder.findUnique({
+      where: { id: onlineOrderId },
+      select: {
+        id: true,
+        paymentMode: true,
+        balanceDue: true,
+        balanceCollectedAt: true,
+        status: true,
+      },
+    });
+    if (!onlineOrder || onlineOrder.paymentMode !== 'COD' || onlineOrder.balanceCollectedAt) {
+      return;
+    }
+    const balanceDue = onlineOrder.balanceDue ?? idrToDecimal(0);
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.onlineOrderPayment.create({
+        data: {
+          onlineOrderId: onlineOrder.id,
+          status: 'PAID',
+          amount: balanceDue,
+          paymentType: 'COD_BALANCE',
+        },
+      });
+      await tx.onlineOrder.update({
+        where: { id: onlineOrder.id },
+        data: {
+          balanceCollectedAt: now,
+          ...(onlineOrder.status === 'READY'
+            ? { status: 'COMPLETED', completedAt: now }
+            : onlineOrder.status === 'CONFIRMED'
+              ? { status: 'COMPLETED', completedAt: now }
+              : {}),
+        },
+      });
+    });
+  }
+
   private toListItem(order: {
     id: string;
     deliveryNo: string;
@@ -643,7 +765,18 @@ export class DeliveriesService {
     addressProvince: string | null;
     customer: { id: string; name: string; phone: string };
     outlet: { id: string; name: string };
-    onlineOrder: { id: string; orderNo: string; channel?: string; externalOrderRef?: string | null; items: Array<{ productName: string; quantity: { toString(): string }; subtotal: { toString(): string } }> } | null;
+    onlineOrder: {
+      id: string;
+      orderNo: string;
+      channel?: string;
+      externalOrderRef?: string | null;
+      paymentMode?: string;
+      total?: { toString(): string };
+      depositAmount?: { toString(): string } | null;
+      balanceDue?: { toString(): string } | null;
+      balanceCollectedAt?: Date | null;
+      items: Array<{ productName: string; quantity: { toString(): string }; subtotal: { toString(): string } }>;
+    } | null;
     transaction: {
       id: string;
       receiptNo: string;
@@ -692,6 +825,7 @@ export class DeliveriesService {
           }
         : null,
       itemCount: order.transaction?.items.length ?? onlineItemCount,
+      codPayment: this.buildCodPaymentFromOnlineOrder(order.onlineOrder),
     };
   }
 

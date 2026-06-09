@@ -56,6 +56,14 @@ export function TransactionDetailPanel({
             {row.customerName ? ` · ${row.customerName}` : ' · Walk-in'}
             {row.paymentMethodLabel ? ` · ${row.paymentMethodLabel}` : ''}
           </p>
+          {row.codPayment ? (
+            <p style={{ margin: '0.35rem 0 0', color: '#475569', fontSize: '0.875rem' }}>
+              Uang muka: {formatCurrencyIDR(row.codPayment.depositAmount)}
+              {' · '}
+              Sisa COD: {formatCurrencyIDR(row.codPayment.balanceDue)}
+              {row.codPayment.balanceCollectedAt ? ' · Pelunasan tercatat' : ' · Menunggu penagihan saat terima'}
+            </p>
+          ) : null}
           <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.8125rem' }}>
             {row.outletName}
             {row.cashierName ? ` · Kasir: ${row.cashierName}` : ''}

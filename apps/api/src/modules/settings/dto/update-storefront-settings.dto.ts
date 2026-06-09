@@ -125,6 +125,10 @@ class StorefrontPaymentDto {
   @IsOptional()
   @IsBoolean()
   onlinePaymentEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  codEnabled?: boolean;
 }
 
 class StorefrontSeoDto {

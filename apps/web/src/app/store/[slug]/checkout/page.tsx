@@ -20,6 +20,8 @@ import { useStoreCart } from '@/lib/store/cart-context';
 import { useStoreConfig } from '@/lib/store/store-config-context';
 import { useStoreOutlet } from '@/lib/store/use-store-outlet';
 
+type StorePaymentMode = 'FULL_ONLINE' | 'COD';
+
 const tabStyle = (active: boolean) => ({
   flex: 1,
   minHeight: 44,
@@ -46,6 +48,7 @@ export default function StoreCheckoutPage() {
   const [fulfillmentType, setFulfillmentType] = useState<StoreFulfillmentType>(
     settings?.branches.pickupEnabled === false ? 'DELIVERY' : 'PICKUP',
   );
+  const [paymentMode, setPaymentMode] = useState<StorePaymentMode>('FULL_ONLINE');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -88,6 +91,23 @@ export default function StoreCheckoutPage() {
   const subtotal = calculateSubtotal(lines);
   const shippingFee = fulfillmentType === 'DELIVERY' ? DELIVERY_FLAT_FEE : 0;
   const { tax, total } = calculateOrderTotals(subtotal, shippingFee);
+  const codAvailable =
+    fulfillmentType === 'DELIVERY' &&
+    settings?.branches.deliveryEnabled !== false &&
+    settings?.payment.codEnabled !== false;
+  const onlinePaymentEnabled = settings?.payment.onlinePaymentEnabled !== false;
+
+  useEffect(() => {
+    if (fulfillmentType !== 'DELIVERY' && paymentMode === 'COD') {
+      setPaymentMode('FULL_ONLINE');
+    }
+  }, [fulfillmentType, paymentMode]);
+
+  useEffect(() => {
+    if (!codAvailable && paymentMode === 'COD') {
+      setPaymentMode('FULL_ONLINE');
+    }
+  }, [codAvailable, paymentMode]);
 
   if (lines.length === 0) {
     return (
@@ -140,6 +160,7 @@ export default function StoreCheckoutPage() {
         items: lines,
         clientRequestId,
         fulfillmentType,
+        paymentMode: codAvailable && paymentMode === 'COD' ? 'COD' : 'FULL_ONLINE',
         customerAddressId: fulfillmentType === 'DELIVERY' && requireLogin ? selectedAddressId ?? undefined : undefined,
         accessToken,
         website: website.trim() || undefined,
@@ -232,6 +253,32 @@ export default function StoreCheckoutPage() {
         </section>
       ) : null}
 
+      {fulfillmentType === 'DELIVERY' && (onlinePaymentEnabled || codAvailable) ? (
+        <section>
+          <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Metode pembayaran</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {onlinePaymentEnabled ? (
+              <label style={{ display: 'block', padding: '0.75rem', borderRadius: 8, border: `2px solid ${paymentMode === 'FULL_ONLINE' ? colors.primary[600] : colors.light.border.default}`, cursor: 'pointer' }}>
+                <input type="radio" name="paymentMode" checked={paymentMode === 'FULL_ONLINE'} onChange={() => setPaymentMode('FULL_ONLINE')} style={{ marginRight: '0.5rem' }} />
+                <strong>Bayar penuh online</strong>
+                <div style={{ fontSize: '0.8125rem', color: colors.light.text.secondary, marginTop: 4 }}>
+                  Transfer / QRIS / e-wallet via Midtrans
+                </div>
+              </label>
+            ) : null}
+            {codAvailable ? (
+              <label style={{ display: 'block', padding: '0.75rem', borderRadius: 8, border: `2px solid ${paymentMode === 'COD' ? colors.primary[600] : colors.light.border.default}`, cursor: 'pointer' }}>
+                <input type="radio" name="paymentMode" checked={paymentMode === 'COD'} onChange={() => setPaymentMode('COD')} style={{ marginRight: '0.5rem' }} />
+                <strong>COD — Bayar di tempat</strong>
+                <div style={{ fontSize: '0.8125rem', color: colors.light.text.secondary, marginTop: 4 }}>
+                  Uang muka 20% sekarang, sisa 80% saat barang diterima
+                </div>
+              </label>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <section style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Data kontak</h2>
         <input type="text" name="website" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
@@ -244,12 +291,18 @@ export default function StoreCheckoutPage() {
       {stockError ? <AlertBanner variant="warning">⚠ {stockError}</AlertBanner> : null}
 
       <section>
-        <OrderSummary subtotal={subtotal} tax={tax} total={total} shippingFee={shippingFee} />
+        <OrderSummary subtotal={subtotal} tax={tax} total={total} shippingFee={shippingFee} paymentMode={paymentMode} />
       </section>
 
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '1rem', background: colors.light.bg.base, borderTop: `1px solid ${colors.light.border.default}` }}>
         <Button fullWidth disabled={submitting} onClick={() => void handleSubmit()}>
-          {submitting ? 'Mengalihkan ke pembayaran…' : 'Lanjut pembayaran'}
+          {submitting
+            ? paymentMode === 'COD'
+              ? 'Mengalihkan ke pembayaran uang muka…'
+              : 'Mengalihkan ke pembayaran…'
+            : paymentMode === 'COD'
+              ? 'Bayar uang muka 20%'
+              : 'Lanjut pembayaran'}
         </Button>
       </div>
     </div>

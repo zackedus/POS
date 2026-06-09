@@ -284,6 +284,7 @@ export default function StoreProfileClient() {
                       <strong>{midtransModeLabel(storefront.midtrans.mode)}</strong>
                     </SettingsFieldRow>
                     <Toggle label="Pembayaran online (Midtrans)" checked={draft.payment.onlinePaymentEnabled} onChange={(v) => patchNested('payment', { onlinePaymentEnabled: v })} />
+                    <Toggle label="COD — uang muka 20% (pengiriman)" checked={draft.payment.codEnabled} onChange={(v) => patchNested('payment', { codEnabled: v })} />
                     <Toggle label="Transfer manual (defer UI checkout)" checked={draft.payment.manualTransferEnabled} onChange={(v) => patchNested('payment', { manualTransferEnabled: v })} />
                     <p style={{ fontSize: '0.8125rem', color: '#64748b', margin: 0 }}>Konfigurasi server key Midtrans tetap di tab Pembayaran Pengaturan Aplikasi.</p>
                   </>

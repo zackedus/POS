@@ -9,7 +9,7 @@ import {
 import { UserRole } from '@barokah/database';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
-import { ErrorCodes, PaymentMethod, computeCreditDueDate, computePosTax, isValidCreditTermsDays } from '@barokah/shared';
+import { ErrorCodes, PaymentMethod, buildOnlineCodPaymentSummary, calculateOnlineCodSplit, computeCreditDueDate, computePosTax, isValidCreditTermsDays } from '@barokah/shared';
 import {
   buildInsufficientStockDetail,
   convertToBaseQuantity,
@@ -1978,7 +1978,9 @@ export class TransactionsService {
       outlet: { tenantId: user.tenantId },
       completedAt: completedAtFilter,
       ...(sourceWhere ?? {}),
-      ...(query.paymentMethod ? { payments: { some: { method: query.paymentMethod } } } : {}),
+      ...(query.paymentMethod && query.paymentMethod !== 'COD'
+        ? { payments: { some: { method: query.paymentMethod as PaymentMethod } } }
+        : {}),
       ...(search
         ? {
             OR: [
@@ -2014,11 +2016,14 @@ export class TransactionsService {
 
     const onlineChannelWhere = buildOnlineOrderChannelWhere(sourceTypeFilter);
 
-    const transactionRows = await this.prisma.transaction.findMany({
-      where: txWhere,
-      orderBy: { completedAt: 'desc' },
-      select: txSelect,
-    });
+    const transactionRows =
+      query.paymentMethod === 'COD'
+        ? []
+        : await this.prisma.transaction.findMany({
+            where: txWhere,
+            orderBy: { completedAt: 'desc' },
+            select: txSelect,
+          });
 
     const onlineOrderRows =
       onlineChannelWhere === null
@@ -2056,6 +2061,10 @@ export class TransactionsService {
               channel: true,
               status: true,
               total: true,
+              paymentMode: true,
+              depositAmount: true,
+              balanceDue: true,
+              balanceCollectedAt: true,
               paidAt: true,
               completedAt: true,
               customerName: true,
@@ -2121,8 +2130,29 @@ export class TransactionsService {
       const { displayStatus, displayStatusLabel } = deriveOnlineOrderDisplayStatus(row.status);
       if (!matchesDisplayStatusFilter(displayStatus, query.status)) continue;
 
-      if (query.paymentMethod && query.paymentMethod !== PaymentMethod.TRANSFER && query.paymentMethod !== PaymentMethod.QRIS) {
-        continue;
+      const orderTotal = toIdrInteger(row.total);
+      const isCod = row.paymentMode === 'COD';
+      const depositAmount =
+        row.depositAmount != null ? toIdrInteger(row.depositAmount) : isCod ? calculateOnlineCodSplit(orderTotal).depositAmount : 0;
+      const balanceDue =
+        row.balanceDue != null ? toIdrInteger(row.balanceDue) : isCod ? calculateOnlineCodSplit(orderTotal).balanceDue : 0;
+      const codPayment = isCod
+        ? buildOnlineCodPaymentSummary({
+            orderTotal,
+            depositAmount,
+            balanceDue,
+            balanceCollectedAt: row.balanceCollectedAt,
+          })
+        : null;
+
+      if (query.paymentMethod) {
+        if (query.paymentMethod === 'COD') {
+          if (!isCod) continue;
+        } else if (isCod) {
+          continue;
+        } else if (query.paymentMethod !== PaymentMethod.TRANSFER && query.paymentMethod !== PaymentMethod.QRIS) {
+          continue;
+        }
       }
 
       const paidAt = row.paidAt ?? row.completedAt;
@@ -2135,9 +2165,9 @@ export class TransactionsService {
           sourceType,
           sourceLabel: saleSourceLabel(sourceType),
           customerName: row.customerName,
-          total: toIdrInteger(row.total),
-          paymentMethod: 'ONLINE',
-          paymentMethodLabel: onlineOrderPaymentLabel(row.payments[0]?.paymentType),
+          total: orderTotal,
+          paymentMethod: isCod ? 'COD' : 'ONLINE',
+          paymentMethodLabel: onlineOrderPaymentLabel(row.payments[0]?.paymentType, isCod ? codPayment : null),
           status: row.status,
           displayStatus,
           displayStatusLabel,
@@ -2151,6 +2181,7 @@ export class TransactionsService {
           receivableId: null,
           canVoid: false,
           canReprint: false,
+          codPayment,
         },
       });
     }

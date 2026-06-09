@@ -1030,6 +1030,10 @@ model OnlineOrder {
   tax               Decimal                 @default(0) @db.Decimal(15, 2)
   shippingFee       Decimal                 @default(0) @map("shipping_fee") @db.Decimal(15, 2)
   total             Decimal                 @db.Decimal(15, 2)
+  paymentMode       OnlineOrderPaymentMode  @default(FULL_ONLINE) @map("payment_mode")
+  depositAmount     Decimal?                @map("deposit_amount") @db.Decimal(15, 2)
+  balanceDue        Decimal?                @map("balance_due") @db.Decimal(15, 2)
+  balanceCollectedAt DateTime?              @map("balance_collected_at")
   deliveryAddress   Json?                   @map("delivery_address")
   expiresAt         DateTime?               @map("expires_at")
   paidAt            DateTime?               @map("paid_at")
@@ -1106,6 +1110,11 @@ enum OnlineOrderChannel {
   TOKOPEDIA
   SHOPEE
   OTHER
+}
+
+enum OnlineOrderPaymentMode {
+  FULL_ONLINE
+  COD
 }
 
 enum OnlineOrderStatus {

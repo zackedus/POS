@@ -37,6 +37,8 @@ export interface StorefrontCheckoutSettings {
 export interface StorefrontPaymentSettings {
   manualTransferEnabled: boolean;
   onlinePaymentEnabled: boolean;
+  /** COD with 20% deposit — delivery orders only. */
+  codEnabled: boolean;
 }
 
 export interface StorefrontSeoSettings {

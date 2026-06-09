@@ -488,6 +488,17 @@ export default function DashboardDeliveriesPage() {
                       {order.itemCount > 0 ? ` · ${order.itemCount} item` : ''}
                       {order.driverName ? ` · Driver: ${order.driverName}` : ''}
                     </p>
+                    {order.codPayment ? (
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: order.codPayment.amountToCollect > 0 ? '#b45309' : '#15803d' }}>
+                        COD · Total {formatCurrencyIDR(order.codPayment.orderTotal)}
+                        {' · '}
+                        Dp {formatCurrencyIDR(order.codPayment.depositAmount)}
+                        {' · '}
+                        {order.codPayment.amountToCollect > 0
+                          ? `Tagih saat terima: ${formatCurrencyIDR(order.codPayment.amountToCollect)}`
+                          : 'Pelunasan COD sudah tercatat'}
+                      </p>
+                    ) : null}
                     {order.notes ? (
                       <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>Catatan: {order.notes}</p>
                     ) : null}
@@ -577,6 +588,32 @@ export default function DashboardDeliveriesPage() {
                         <span> (ref: {detail.onlineOrder.externalOrderRef})</span>
                       ) : null}
                     </p>
+                  ) : null}
+
+                  {detail.codPayment ? (
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        background: detail.codPayment.amountToCollect > 0 ? '#fffbeb' : '#ecfdf5',
+                        border: `1px solid ${detail.codPayment.amountToCollect > 0 ? '#fcd34d' : '#86efac'}`,
+                        fontSize: 13,
+                      }}
+                    >
+                      <strong>COD</strong> · Total order {formatCurrencyIDR(detail.codPayment.orderTotal)}
+                      <br />
+                      Uang muka sudah dibayar: {formatCurrencyIDR(detail.codPayment.depositAmount)}
+                      <br />
+                      {detail.codPayment.amountToCollect > 0 ? (
+                        <>
+                          <strong style={{ color: '#b45309' }}>
+                            Tagih tunai saat terima: {formatCurrencyIDR(detail.codPayment.amountToCollect)}
+                          </strong>
+                        </>
+                      ) : (
+                        <>Pelunasan COD sudah tercatat</>
+                      )}
+                    </div>
                   ) : null}
 
                   <Button

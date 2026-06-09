@@ -40,6 +40,7 @@ export function defaultStorefrontSettings(tenantName = 'Toko Kami'): StorefrontS
     payment: {
       manualTransferEnabled: false,
       onlinePaymentEnabled: true,
+      codEnabled: true,
     },
     seo: {
       metaTitle: tenantName,
@@ -155,6 +156,7 @@ export function mergeStorefrontSettings(
       ...(typeof paymentPatch.onlinePaymentEnabled === 'boolean'
         ? { onlinePaymentEnabled: paymentPatch.onlinePaymentEnabled }
         : {}),
+      ...(typeof paymentPatch.codEnabled === 'boolean' ? { codEnabled: paymentPatch.codEnabled } : {}),
     },
     seo: {
       ...defaults.seo,

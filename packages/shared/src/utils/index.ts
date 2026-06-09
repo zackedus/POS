@@ -21,3 +21,4 @@ export * from './credit-due-date';
 export * from './phone';
 export * from './password';
 export * from './storefront-settings';
+export * from './online-cod';

@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { formatCurrency } from '@barokah/shared';
+import { calculateOnlineCodSplit, formatCurrency } from '@barokah/shared';
 import { colors } from '@barokah/ui';
 
 interface OrderSummaryProps {
@@ -9,9 +9,12 @@ interface OrderSummaryProps {
   tax: number;
   total: number;
   shippingFee?: number;
+  paymentMode?: 'FULL_ONLINE' | 'COD';
 }
 
-export function OrderSummary({ subtotal, tax, total, shippingFee = 0 }: OrderSummaryProps) {
+export function OrderSummary({ subtotal, tax, total, shippingFee = 0, paymentMode = 'FULL_ONLINE' }: OrderSummaryProps) {
+  const codSplit = paymentMode === 'COD' ? calculateOnlineCodSplit(total) : null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       <div style={rowStyle}>
@@ -40,6 +43,18 @@ export function OrderSummary({ subtotal, tax, total, shippingFee = 0 }: OrderSum
         <span>TOTAL</span>
         <span style={numStyle}>{formatCurrency(total)}</span>
       </div>
+      {codSplit ? (
+        <>
+          <div style={{ ...rowStyle, color: colors.primary[700], fontWeight: 600 }}>
+            <span>Uang muka 20% (bayar sekarang)</span>
+            <span style={numStyle}>{formatCurrency(codSplit.depositAmount)}</span>
+          </div>
+          <div style={{ ...rowStyle, color: colors.light.text.secondary }}>
+            <span>Sisa bayar saat terima (80%)</span>
+            <span style={numStyle}>{formatCurrency(codSplit.balanceDue)}</span>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

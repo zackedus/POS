@@ -2,6 +2,7 @@ import {
   MARKETPLACE_SALE_CHANNELS,
   SALE_DISPLAY_STATUS_LABELS,
   SALE_SOURCE_TYPE_LABELS,
+  formatOnlineCodPaymentLabel,
   type SaleDisplayStatus,
   type SaleSourceType,
 } from '@barokah/shared';
@@ -154,7 +155,22 @@ export function summarizePaymentMethods(methods: string[]): {
   };
 }
 
-export function onlineOrderPaymentLabel(paymentType: string | null | undefined): string {
+export function onlineOrderPaymentLabel(
+  paymentType: string | null | undefined,
+  cod?: { depositAmount: number; balanceDue: number; balanceCollectedAt?: Date | string | null } | null,
+): string {
+  if (cod) {
+    return formatOnlineCodPaymentLabel({
+      depositAmount: cod.depositAmount,
+      balanceDue: cod.balanceDue,
+      balanceCollectedAt:
+        cod.balanceCollectedAt instanceof Date
+          ? cod.balanceCollectedAt.toISOString()
+          : cod.balanceCollectedAt ?? null,
+    });
+  }
+  if (paymentType === 'COD_DEPOSIT') return 'COD · Uang muka';
+  if (paymentType === 'COD_BALANCE') return 'COD · Pelunasan';
   if (!paymentType) return 'Pembayaran Online';
   const normalized = paymentType.toUpperCase();
   if (normalized.includes('QRIS')) return 'QRIS';

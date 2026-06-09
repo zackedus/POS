@@ -88,12 +88,15 @@ export interface CreateOrderResult {
     orderNo: string;
     status: string;
     fulfillmentType: StoreFulfillmentType;
+    paymentMode?: 'FULL_ONLINE' | 'COD';
     outlet: StoreOutlet;
     customer: CheckoutCustomer;
     subtotal: number;
     tax: number;
     shippingFee: number;
     total: number;
+    depositAmount?: number | null;
+    balanceDue?: number | null;
     expiresAt: string | null;
   };
   payment: {
@@ -210,6 +213,7 @@ export async function createOrder(input: {
   items: CartLine[];
   clientRequestId: string;
   fulfillmentType?: StoreFulfillmentType;
+  paymentMode?: 'FULL_ONLINE' | 'COD';
   deliveryAddress?: DeliveryAddressInput;
   customerAddressId?: string;
   accessToken?: string | null;
@@ -224,6 +228,7 @@ export async function createOrder(input: {
         clientRequestId: input.clientRequestId,
         outletId: input.outletId,
         fulfillmentType,
+        paymentMode: input.paymentMode ?? 'FULL_ONLINE',
         customer: input.customer,
         items: input.items.map((line) => ({
           productId: line.productId,

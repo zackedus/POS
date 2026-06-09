@@ -1,5 +1,5 @@
 import { PaymentMethod, SALE_SOURCE_TYPE_FILTER_VALUES } from '@barokah/shared';
-import { IsEnum, IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class ListRecentTransactionsDto extends PaginationQueryDto {
@@ -31,6 +31,6 @@ export class ListRecentTransactionsDto extends PaginationQueryDto {
   search?: string;
 
   @IsOptional()
-  @IsEnum(PaymentMethod, { message: 'paymentMethod tidak valid.' })
-  paymentMethod?: PaymentMethod;
+  @IsIn([...Object.values(PaymentMethod), 'COD'], { message: 'paymentMethod tidak valid.' })
+  paymentMethod?: PaymentMethod | 'COD';
 }

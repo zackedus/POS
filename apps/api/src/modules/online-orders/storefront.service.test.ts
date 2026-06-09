@@ -77,12 +77,17 @@ function buildPrisma(overrides: Record<string, unknown> = {}) {
 }
 
 function buildMidtrans() {
+  let lastGrossAmount = 0;
   return {
     isMockMode: () => true,
-    createSnapPayment: async () => ({
-      snapToken: 'snap-token',
-      redirectUrl: 'https://app.midtrans.com/snap/v2/vtweb/test',
-    }),
+    createSnapPayment: async (_input: { grossAmount: number }) => {
+      lastGrossAmount = _input.grossAmount;
+      return {
+        snapToken: 'snap-token',
+        redirectUrl: 'https://app.midtrans.com/snap/v2/vtweb/test',
+      };
+    },
+    getLastGrossAmount: () => lastGrossAmount,
   } as never;
 }
 
@@ -389,6 +394,44 @@ test('Storefront: createOrder authenticated customer stores normalized 628 phone
 
   assert.equal(prisma.createdOrders[0]?.customerPhone, '6281234567890');
   assert.equal(result.order.customer.phone, '081234567890');
+});
+
+test('Storefront: createOrder COD charges 20% deposit via Midtrans', async () => {
+  const prisma = buildPrisma({
+    customer: {
+      findFirst: async () => ({ id: 'cust-1', name: 'Budi Proyek', phone: '081234567890' }),
+    },
+  });
+  const midtrans = buildMidtrans();
+  const service = new StorefrontService(
+    prisma as never,
+    midtrans,
+    buildOnlineOrders(),
+    buildCustomers(),
+    buildStorefrontCustomerAuth(),
+  );
+
+  const result = await service.createOrder(
+    'barokah-bangunan',
+    {
+      clientRequestId: 'req-cod-1',
+      outletId: 'outlet-1',
+      fulfillmentType: 'DELIVERY',
+      paymentMode: 'COD',
+      customer: { name: 'Budi Proyek', phone: '081234567890' },
+      items: [{ productId: 'prod-1', quantity: 2 }],
+      customerAddressId: 'addr-1',
+    },
+    MOCK_CUSTOMER_JWT,
+  );
+
+  const expectedTotal = 130000 + 14300 + ONLINE_DELIVERY_FLAT_FEE;
+  const expectedDeposit = Math.round(expectedTotal * 0.2);
+  assert.equal(result.order.paymentMode, 'COD');
+  assert.equal(result.order.depositAmount, expectedDeposit);
+  assert.equal(result.order.balanceDue, expectedTotal - expectedDeposit);
+  assert.equal((midtrans as { getLastGrossAmount: () => number }).getLastGrossAmount(), expectedDeposit);
+  assert.equal(prisma.createdOrders[0]?.paymentMode, 'COD');
 });
 
 test('Storefront: createOrder rejects honeypot website field', async () => {
