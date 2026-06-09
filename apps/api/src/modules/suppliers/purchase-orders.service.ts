@@ -16,6 +16,7 @@ import {
 } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { assertOutletAccess, resolveOutletId } from '../../common/utils/outlet.util';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { PayablesService } from '../finance/payables.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
@@ -163,22 +164,49 @@ export class PurchaseOrdersService {
   async listPurchaseOrders(user: AuthJwtPayload, query: ListPurchaseOrdersQueryDto) {
     const outletId = resolveOutletId(user, query.outletId);
     await this.ensureOutletBelongsToTenant(user.tenantId, outletId);
+    const { page, limit, skip } = resolvePagination(query, 25);
 
-    const rows = await this.prisma.purchaseOrder.findMany({
-      where: {
-        tenantId: user.tenantId,
-        outletId,
-        ...(query.status ? { status: query.status } : {}),
-      },
-      include: {
-        supplier: { select: { id: true, name: true } },
-        items: { select: { id: true, lineTotal: true } },
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      take: query.limit ?? 50,
-    });
+    const where = {
+      tenantId: user.tenantId,
+      outletId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.supplierId ? { supplierId: query.supplierId } : {}),
+      ...(query.search?.trim()
+        ? {
+            OR: [
+              { orderNo: { contains: query.search.trim(), mode: 'insensitive' as const } },
+              { supplier: { name: { contains: query.search.trim(), mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+      ...(query.dateFrom || query.dateTo
+        ? {
+            createdAt: {
+              ...(query.dateFrom ? { gte: new Date(`${query.dateFrom.slice(0, 10)}T00:00:00.000Z`) } : {}),
+              ...(query.dateTo ? { lte: new Date(`${query.dateTo.slice(0, 10)}T23:59:59.999Z`) } : {}),
+            },
+          }
+        : {}),
+    };
 
-    return rows.map((row) => this.mapPurchaseOrderSummary(row));
+    const [rows, total] = await Promise.all([
+      this.prisma.purchaseOrder.findMany({
+        where,
+        include: {
+          supplier: { select: { id: true, name: true } },
+          items: { select: { id: true, lineTotal: true } },
+        },
+        orderBy: [{ createdAt: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.purchaseOrder.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((row) => this.mapPurchaseOrderSummary(row)),
+      meta: buildPaginationMeta(page, limit, total),
+    };
   }
 
   async getPurchaseOrder(user: AuthJwtPayload, purchaseOrderId: string) {

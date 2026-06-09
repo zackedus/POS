@@ -24,6 +24,7 @@ import { UpsertProductBundleOutletPolicyDto } from './dto/upsert-product-bundle-
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { ImportProductsQueryDto } from './dto/import-products-query.dto';
+import { ListCategoriesQueryDto } from './dto/list-categories-query.dto';
 
 type CsvUploadFile = { buffer: Buffer; mimetype?: string; originalname?: string };
 
@@ -56,8 +57,8 @@ export class CatalogController {
   }
 
   @Get('categories')
-  listCategories(@CurrentUser() user: AuthJwtPayload) {
-    return this.catalogService.listCategories(user);
+  listCategories(@CurrentUser() user: AuthJwtPayload, @Query() query: ListCategoriesQueryDto) {
+    return this.catalogService.listCategories(user, query);
   }
 
   @Get('categories/summary')

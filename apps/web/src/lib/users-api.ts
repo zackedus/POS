@@ -1,6 +1,7 @@
-import { RBAC_ROLE_LABELS } from '@barokah/shared';
+import { RBAC_ROLE_LABELS, type PaginationMeta } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 const BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/users`;
 
@@ -32,9 +33,24 @@ async function parseEnvelope<T>(res: Response): Promise<ApiEnvelope<T>> {
   return (await res.json()) as ApiEnvelope<T>;
 }
 
-export async function fetchUsers(): Promise<UserSummary[]> {
-  const res = await authFetch(BASE);
-  const json = await parseEnvelope<UserSummary[]>(res);
+export async function fetchUsers(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+  isActive?: boolean;
+}): Promise<PaginatedResult<UserSummary>> {
+  const qs = buildPaginationQuery({
+    page: params?.page,
+    limit: params?.limit,
+    extra: {
+      search: params?.search?.trim(),
+      role: params?.role,
+      isActive: params?.isActive,
+    },
+  });
+  const res = await authFetch(`${BASE}${qs}`);
+  const json = await parseEnvelope<{ items: UserSummary[]; meta: PaginationMeta }>(res);
 
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat daftar pengguna.');

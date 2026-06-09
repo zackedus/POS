@@ -1,8 +1,8 @@
 import { PurchaseOrderStatus } from '@barokah/database';
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
-export class ListPurchaseOrdersQueryDto {
+export class ListPurchaseOrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID('4', { message: 'outletId harus UUID valid' })
   outletId?: string;
@@ -12,9 +12,19 @@ export class ListPurchaseOrdersQueryDto {
   status?: PurchaseOrderStatus;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'limit harus bilangan bulat' })
-  @Min(1)
-  @Max(100, { message: 'limit maksimal 100' })
-  limit?: number = 50;
+  @IsUUID('4', { message: 'supplierId harus UUID valid' })
+  supplierId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  search?: string;
 }

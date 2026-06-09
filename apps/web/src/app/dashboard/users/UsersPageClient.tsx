@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@barokah/ui';
+import { DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
 import {
   AlertBanner,
   cardStyle,
@@ -12,7 +13,6 @@ import {
   StatusBadge,
   TablePagination,
   tableStyles,
-  useClientPagination,
 } from '@/components/dashboard/dashboard-ui';
 import { RolesPanel } from '@/components/dashboard/users/RolesPanel';
 import { UsersTabs, parseUsersTab, type UsersTabId } from '@/components/dashboard/users/users-ui';
@@ -111,15 +111,22 @@ function UsersManagementPanel({
   const canCreate = currentUser ? canCreateUser(currentUser.role) : false;
   const actorRole = currentUser?.role ?? '';
   const assignableRoles = ASSIGNABLE_ROLES.filter((role) => canAssignRole(actorRole, role));
-  const { page, totalPages, pageItems, setPage, totalItems, pageSize } = useClientPagination(users, 8);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [me, rows, outletsRes] = await Promise.all([fetchMe(), fetchUsers(), fetchOutlets()]);
+      const [me, rows, outletsRes] = await Promise.all([
+        fetchMe(),
+        fetchUsers({ page, limit: pageSize }),
+        fetchOutlets(),
+      ]);
       setCurrentUser(me);
-      setUsers(rows);
+      setUsers(rows.items);
+      setMeta(rows.meta);
       const outlets = outletsRes?.outlets ?? [];
       setOutletOptions(outlets.map((o) => ({ id: o.id, label: `${o.name} (${o.code})` })));
       if (outlets.length === 1) {
@@ -130,7 +137,7 @@ function UsersManagementPanel({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void loadData();
@@ -297,7 +304,7 @@ function UsersManagementPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {pageItems.map((user) => {
+                  {users.map((user) => {
                     const rowCanEdit = currentUser ? canEditUser(currentUser.role, user.role) : false;
                     return editingId === user.id ? (
                       <tr key={user.id} style={tableStyles.row}>
@@ -394,7 +401,17 @@ function UsersManagementPanel({
                 </tbody>
               </table>
             </div>
-            <TablePagination page={page} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={setPage} />
+            <TablePagination
+              page={meta.page}
+              totalPages={meta.totalPages ?? 1}
+              totalItems={meta.total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(next) => {
+                setPageSize(next);
+                setPage(1);
+              }}
+            />
           </>
         )}
       </section>

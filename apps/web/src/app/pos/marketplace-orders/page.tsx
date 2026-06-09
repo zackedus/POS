@@ -95,8 +95,11 @@ export default function MarketplaceOrdersPage() {
         setLoading(true);
       }
       try {
-        const items = await fetchFulfillmentQueue(selectedOutletId ?? undefined, MARKETPLACE_ORDER_CHANNELS);
-        setOrders(items);
+        const result = await fetchFulfillmentQueue({
+          outletId: selectedOutletId ?? undefined,
+          channel: MARKETPLACE_ORDER_CHANNELS,
+        });
+        setOrders(result.items);
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {

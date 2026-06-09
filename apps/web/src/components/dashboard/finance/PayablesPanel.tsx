@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, parseCurrencyInput, type PaymentReceiptView } from '@barokah/shared';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { formatCurrencyIDR, parseCurrencyInput, type PaymentReceiptView, DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
 import { Button, CurrencyInput } from '@barokah/ui';
 import {
   AlertBanner,
@@ -12,10 +12,13 @@ import {
   PageHeader,
   SectionCard,
   StatusBadge,
+  TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { PaymentSuccessModal } from '@/components/finance/PaymentSuccessModal';
 import { mapApiError } from '@/lib/api-client';
+import { buildFilterChips } from '@/lib/list-filters';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   fetchPayables,
@@ -23,6 +26,20 @@ import {
   recordPayablePayment,
   type PayableRow,
 } from '@/lib/payables-api';
+
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'Semua status' },
+  { value: 'OPEN', label: 'Belum bayar' },
+  { value: 'PARTIAL', label: 'Sebagian' },
+  { value: 'OVERDUE', label: 'Jatuh tempo' },
+  { value: 'PAID', label: 'Lunas' },
+];
+
+type PayableFilters = {
+  status: string;
+  search: string;
+  overdueOnly: boolean;
+};
 
 export function PayablesPanel({
   embedded = false,
@@ -37,13 +54,43 @@ export function PayablesPanel({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [successReceipt, setSuccessReceipt] = useState<PaymentReceiptView | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>(initialStatus ?? '');
+  const [draftFilters, setDraftFilters] = useState<PayableFilters>({
+    status: initialStatus ?? '',
+    search: '',
+    overdueOnly: false,
+  });
+  const [appliedFilters, setAppliedFilters] = useState<PayableFilters>({
+    status: initialStatus ?? '',
+    search: '',
+    overdueOnly: false,
+  });
   const [payForm, setPayForm] = useState<{ payableId: string; amount: string; method: string }>({
     payableId: '',
     amount: '',
     method: 'TRANSFER',
   });
   const [paying, setPaying] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'status',
+          label: `Status: ${STATUS_FILTER_OPTIONS.find((o) => o.value === appliedFilters.status)?.label ?? appliedFilters.status}`,
+          active: Boolean(appliedFilters.status),
+        },
+        {
+          key: 'search',
+          label: `Supplier: ${appliedFilters.search}`,
+          active: Boolean(appliedFilters.search.trim()),
+        },
+        { key: 'overdue', label: 'Hanya jatuh tempo', active: appliedFilters.overdueOnly },
+      ]),
+    [appliedFilters],
+  );
 
   const loadData = useCallback(async () => {
     if (needsOutletPick) {
@@ -54,16 +101,37 @@ export function PayablesPanel({
     setError(null);
     try {
       const data = await fetchPayables({
-        status: statusFilter || undefined,
+        status: appliedFilters.status || undefined,
+        search: appliedFilters.search || undefined,
+        overdueOnly: appliedFilters.overdueOnly || undefined,
         outletId: selectedOutletId ?? undefined,
+        page,
+        limit: pageSize,
       });
-      setRows(data);
+      setRows(data.items);
+      setMeta(data.meta);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat utang.'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, needsOutletPick, selectedOutletId]);
+  }, [appliedFilters, needsOutletPick, selectedOutletId, page, pageSize]);
+
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
+  }
+
+  function resetFilters() {
+    const defaults: PayableFilters = { status: '', search: '', overdueOnly: false };
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedOutletId]);
 
   useEffect(() => {
     void loadData();
@@ -133,19 +201,32 @@ export function PayablesPanel({
         <strong style={{ fontSize: '1.35rem' }}>{formatCurrencyIDR(totalOutstanding)}</strong>
       </SectionCard>
 
-      <SectionCard title="Filter">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
-        >
-          <option value="">Semua status</option>
-          <option value="OPEN">Belum bayar</option>
-          <option value="PARTIAL">Sebagian</option>
-          <option value="OVERDUE">Jatuh tempo</option>
-          <option value="PAID">Lunas</option>
-        </select>
-      </SectionCard>
+      <ListFilterBar
+        selects={[
+          {
+            id: 'status',
+            label: 'Status',
+            value: draftFilters.status,
+            options: STATUS_FILTER_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, status: value })),
+          },
+        ]}
+        showDateRange={false}
+        search={draftFilters.search}
+        searchPlaceholder="Cari nama supplier…"
+        onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+        toggles={[
+          {
+            id: 'overdueOnly',
+            label: 'Hanya jatuh tempo',
+            checked: draftFilters.overdueOnly,
+            onChange: (checked) => setDraftFilters((prev) => ({ ...prev, overdueOnly: checked })),
+          },
+        ]}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
 
       <SectionCard title="Catat Pembayaran ke Supplier">
         <form onSubmit={(e) => void handlePay(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
@@ -187,8 +268,16 @@ export function PayablesPanel({
         {loading ? (
           <LoadingSkeleton rows={5} />
         ) : rows.length === 0 ? (
-          <EmptyState title="Belum ada utang" description="Buat utang dari halaman detail PO setelah penerimaan barang." />
+          <EmptyState
+            title="Belum ada utang"
+            description={
+              activeChips.length > 0
+                ? FILTER_EMPTY_DESCRIPTION
+                : 'Buat utang dari halaman detail PO setelah penerimaan barang.'
+            }
+          />
         ) : (
+          <>
           <DataTable>
             <table style={tableStyles.table}>
               <thead>
@@ -239,6 +328,18 @@ export function PayablesPanel({
               </tbody>
             </table>
           </DataTable>
+          <TablePagination
+            page={meta.page}
+            totalPages={meta.totalPages ?? 1}
+            totalItems={meta.total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
+          />
+          </>
         )}
       </SectionCard>
     </div>

@@ -15,8 +15,10 @@ vi.mock('@/lib/socket-client', () => ({
 import { fetchFulfillmentQueue } from '@/lib/online-orders-api';
 
 describe('useOnlineOrderBadge', () => {
+  const emptyQueue = { items: [], meta: { page: 1, limit: 20, total: 0, totalPages: 1 } };
+
   beforeEach(() => {
-    vi.mocked(fetchFulfillmentQueue).mockResolvedValue([]);
+    vi.mocked(fetchFulfillmentQueue).mockResolvedValue(emptyQueue);
   });
 
   afterEach(() => {
@@ -33,7 +35,10 @@ describe('useOnlineOrderBadge', () => {
   });
 
   it('polls fulfillment queue when enabled', async () => {
-    vi.mocked(fetchFulfillmentQueue).mockResolvedValue([{ id: '1' }, { id: '2' }] as never);
+    vi.mocked(fetchFulfillmentQueue).mockResolvedValue({
+      items: [{ id: '1' }, { id: '2' }] as never,
+      meta: { page: 1, limit: 20, total: 2, totalPages: 1 },
+    });
     const { result } = renderHook(() => useOnlineOrderBadge(true));
 
     await waitFor(() => {

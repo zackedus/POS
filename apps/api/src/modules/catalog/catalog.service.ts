@@ -23,6 +23,7 @@ import { resolveOutletId } from '../../common/utils/outlet.util';
 import { canViewCostPrice } from '../../common/utils/rbac.util';
 import { computeBundleEffectiveCost } from '../../common/utils/margin.util';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
+import { ListCategoriesQueryDto } from './dto/list-categories-query.dto';
 import { ProductGridQueryDto } from './dto/product-grid-query.dto';
 
 @Injectable()
@@ -103,9 +104,13 @@ export class CatalogService {
     }
   }
 
-  async listCategories(user: AuthJwtPayload) {
+  async listCategories(user: AuthJwtPayload, query: ListCategoriesQueryDto = {}) {
+    const search = query.search?.trim();
     return this.prisma.category.findMany({
-      where: { tenantId: user.tenantId },
+      where: {
+        tenantId: user.tenantId,
+        ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+      },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
   }

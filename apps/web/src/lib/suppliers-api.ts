@@ -1,5 +1,7 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import type { PaginationMeta } from '@barokah/shared';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 const API = `${apiConfig.baseUrl}/${apiConfig.prefix}`;
 
@@ -268,10 +270,30 @@ export async function updateSupplier(
   return json.data;
 }
 
-export async function fetchPurchaseOrders(outletId?: string): Promise<PurchaseOrderSummary[]> {
-  const qs = outletId ? `?outletId=${encodeURIComponent(outletId)}` : '';
+export async function fetchPurchaseOrders(params?: {
+  outletId?: string;
+  status?: PurchaseOrderStatus;
+  supplierId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<PurchaseOrderSummary>> {
+  const qs = buildPaginationQuery({
+    page: params?.page,
+    limit: params?.limit,
+    extra: {
+      outletId: params?.outletId,
+      status: params?.status,
+      supplierId: params?.supplierId,
+      dateFrom: params?.dateFrom,
+      dateTo: params?.dateTo,
+      search: params?.search?.trim(),
+    },
+  });
   const res = await authFetch(`${API}/purchase-orders${qs}`);
-  const json = await parseEnvelope<PurchaseOrderSummary[]>(res);
+  const json = await parseEnvelope<{ items: PurchaseOrderSummary[]; meta: PaginationMeta }>(res);
 
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat order distributor.');

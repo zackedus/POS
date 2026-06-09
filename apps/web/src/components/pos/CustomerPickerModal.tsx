@@ -28,7 +28,7 @@ export function CustomerPickerModal({ onSelect, onClose, purpose = null }: Custo
     setLoading(true);
     setError(null);
     try {
-      setCustomers(await fetchCustomers(query));
+      setCustomers((await fetchCustomers(query, { page: 1, limit: 50 })).items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat daftar pelanggan.');
     } finally {

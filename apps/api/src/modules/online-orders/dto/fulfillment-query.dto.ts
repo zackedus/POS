@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class FulfillmentQueryDto {
   @IsOptional()
@@ -14,6 +14,18 @@ export class FulfillmentQueryDto {
   @IsOptional()
   @IsString()
   channel?: string;
+
+  @IsOptional()
+  @IsISO8601({}, { message: 'dateFrom harus ISO8601' })
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsISO8601({}, { message: 'dateTo harus ISO8601' })
+  dateTo?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @IsOptional()
   @Type(() => Number)

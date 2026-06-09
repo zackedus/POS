@@ -34,17 +34,20 @@ describe('UsersPageClient', () => {
       role: 'OWNER',
       fullName: 'Owner Demo',
     });
-    fetchUsersMock.mockResolvedValue([
-      {
-        id: 'user-1',
-        email: 'kasir@barokah.local',
-        fullName: 'Kasir Demo',
-        role: 'CASHIER',
-        isActive: true,
-        createdAt: '2026-06-01T00:00:00.000Z',
-        outlets: [{ id: 'out-1', name: 'Cabang Utama', code: 'MAIN' }],
-      },
-    ]);
+    fetchUsersMock.mockResolvedValue({
+      items: [
+        {
+          id: 'user-1',
+          email: 'kasir@barokah.local',
+          fullName: 'Kasir Demo',
+          role: 'CASHIER',
+          isActive: true,
+          createdAt: '2026-06-01T00:00:00.000Z',
+          outlets: [{ id: 'out-1', name: 'Cabang Utama', code: 'MAIN' }],
+        },
+      ],
+      meta: { page: 1, limit: 25, total: 1, totalPages: 1 },
+    });
     fetchOutletsMock.mockResolvedValue({
       outlets: [{ id: 'out-1', name: 'Cabang Utama', code: 'MAIN' }],
     });

@@ -9,26 +9,51 @@ import * as bcrypt from 'bcrypt';
 import { UserRole } from '@barokah/database';
 import { ErrorCodes } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listUsers(user: AuthJwtPayload) {
-    const rows = await this.prisma.user.findMany({
-      where: { tenantId: user.tenantId },
-      include: {
-        userOutlets: {
-          include: { outlet: { select: { id: true, name: true, code: true } } },
+  async listUsers(user: AuthJwtPayload, query: ListUsersQueryDto = {}) {
+    const { page, limit, skip } = resolvePagination(query);
+    const search = query.search?.trim();
+    const where = {
+      tenantId: user.tenantId,
+      ...(query.role ? { role: query.role } : {}),
+      ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+      ...(search
+        ? {
+            OR: [
+              { fullName: { contains: search, mode: 'insensitive' as const } },
+              { email: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        include: {
+          userOutlets: {
+            include: { outlet: { select: { id: true, name: true, code: true } } },
+          },
         },
-      },
-      orderBy: [{ fullName: 'asc' }],
-    });
+        orderBy: [{ fullName: 'asc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
 
-    return rows.map((row) => this.toUserSummary(row));
+    return {
+      items: rows.map((row) => this.toUserSummary(row)),
+      meta: buildPaginationMeta(page, limit, total),
+    };
   }
 
   async getUser(user: AuthJwtPayload, userId: string) {

@@ -1,6 +1,7 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
-import type { PaymentReceiptView } from '@barokah/shared';
+import type { PaymentReceiptView, PaginationMeta } from '@barokah/shared';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 export type PayableStatus = 'OPEN' | 'PARTIAL' | 'PAID' | 'VOID';
 
@@ -30,14 +31,24 @@ export async function fetchPayables(params?: {
   supplierId?: string;
   outletId?: string;
   status?: string;
-}): Promise<PayableRow[]> {
-  const search = new URLSearchParams();
-  if (params?.supplierId) search.set('supplierId', params.supplierId);
-  if (params?.outletId) search.set('outletId', params.outletId);
-  if (params?.status) search.set('status', params.status);
-  const qs = search.toString();
-  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/payables${qs ? `?${qs}` : ''}`);
-  const json = (await res.json()) as ApiEnvelope<PayableRow[]>;
+  search?: string;
+  overdueOnly?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<PayableRow>> {
+  const qs = buildPaginationQuery({
+    page: params?.page,
+    limit: params?.limit,
+    extra: {
+      supplierId: params?.supplierId,
+      outletId: params?.outletId,
+      status: params?.status,
+      search: params?.search?.trim(),
+      overdueOnly: params?.overdueOnly ? true : undefined,
+    },
+  });
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/payables${qs}`);
+  const json = (await res.json()) as ApiEnvelope<{ items: PayableRow[]; meta: PaginationMeta }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat utang.');
   }

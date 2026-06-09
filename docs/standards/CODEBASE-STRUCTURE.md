@@ -80,6 +80,12 @@ barokah-pos/
 
 ## C. Aturan Import (@barokah/*)
 
+### Pagination (list tables)
+
+- **Backend:** extend `PaginationQueryDto` (`apps/api/src/common/dto/pagination-query.dto.ts`); gunakan `resolvePagination` + `buildPaginationMeta` dari `apps/api/src/common/utils/pagination.util.ts`. Response shape: `{ items, meta: { page, limit, total, totalPages } }`.
+- **Frontend:** `TablePagination` + `DEFAULT_PAGE_SIZE` (25) dari `@barokah/shared`; page sizes 10/25/50/100. Helper query: `apps/web/src/lib/pagination.ts`.
+- **Default page size:** 25 baris (kecuali halaman legacy yang sudah punya default berbeda, mis. deliveries dashboard 20).
+
 ### Package Aliases
 
 | Alias | Path | Dipakai di |

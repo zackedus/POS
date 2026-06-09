@@ -1,6 +1,7 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
-import type { PaymentReceiptView } from '@barokah/shared';
+import type { PaymentReceiptView, PaginationMeta } from '@barokah/shared';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 export interface DepositSummaryRow {
   id: string;
@@ -40,10 +41,26 @@ interface ApiEnvelope<T> {
   error?: { message?: string };
 }
 
-export async function fetchDeposits(customerId?: string): Promise<DepositSummaryRow[]> {
-  const qs = customerId ? `?customerId=${encodeURIComponent(customerId)}` : '';
+export async function fetchDeposits(params?: {
+  customerId?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<DepositSummaryRow>> {
+  const qs = buildPaginationQuery({
+    page: params?.page,
+    limit: params?.limit,
+    extra: {
+      customerId: params?.customerId,
+      search: params?.search?.trim(),
+      dateFrom: params?.dateFrom,
+      dateTo: params?.dateTo,
+    },
+  });
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/deposits${qs}`);
-  const json = (await res.json()) as ApiEnvelope<DepositSummaryRow[]>;
+  const json = (await res.json()) as ApiEnvelope<{ items: DepositSummaryRow[]; meta: PaginationMeta }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat deposit.');
   }

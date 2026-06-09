@@ -74,7 +74,11 @@ export class ShiftsService {
       closedAt: closedAtFilter,
       outlet: { tenantId: user.tenantId },
       ...(outletFilter ? { outletId: { in: outletFilter } } : {}),
-      ...(user.role === UserRole.CASHIER ? { cashierId: user.sub } : {}),
+      ...(user.role === UserRole.CASHIER
+        ? { cashierId: user.sub }
+        : query.cashierId
+          ? { cashierId: query.cashierId }
+          : {}),
     };
 
     const [items, total] = await Promise.all([

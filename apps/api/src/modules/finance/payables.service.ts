@@ -9,6 +9,7 @@ import { ErrorCodes } from '@barokah/shared';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import { resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { computeOutstanding, computePayableStatus } from './finance.util';
@@ -41,22 +42,43 @@ export class PayablesService {
       where.AND = [{ status: { in: ['OPEN', 'PARTIAL'] }, dueDate: { lt: today } }];
     } else if (query.status) {
       where.status = query.status;
+    } else if (query.overdueOnly) {
+      where.AND = [{ status: { in: ['OPEN', 'PARTIAL'] }, dueDate: { lt: today } }];
     }
 
-    const rows = await this.prisma.payable.findMany({
-      where,
-      include: {
-        supplier: { select: { id: true, name: true, phone: true } },
-        purchaseOrder: { select: { id: true, orderNo: true, status: true } },
-        payments: {
-          orderBy: { createdAt: 'desc' },
-          take: 3,
-          include: { recordedBy: { select: { id: true, fullName: true } } },
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.supplier = {
+        OR: [
+          { name: { contains: term, mode: 'insensitive' } },
+          { phone: { contains: term } },
+        ],
+      };
+    }
+
+    const { page, limit, skip } = resolvePagination(query);
+    const [rows, total] = await Promise.all([
+      this.prisma.payable.findMany({
+        where,
+        include: {
+          supplier: { select: { id: true, name: true, phone: true } },
+          purchaseOrder: { select: { id: true, orderNo: true, status: true } },
+          payments: {
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            include: { recordedBy: { select: { id: true, fullName: true } } },
+          },
         },
-      },
-      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
-    });
-    return rows.map((row) => this.mapPayable(row));
+        orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.payable.count({ where }),
+    ]);
+    return {
+      items: rows.map((row) => this.mapPayable(row)),
+      meta: buildPaginationMeta(page, limit, total),
+    };
   }
 
   async getById(user: AuthJwtPayload, payableId: string) {

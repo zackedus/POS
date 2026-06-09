@@ -113,6 +113,7 @@ export async function fetchClosePreview(shiftId: string, outletId?: string): Pro
 
 export interface ShiftHistoryQuery {
   outletId?: string;
+  cashierId?: string;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -122,6 +123,7 @@ export interface ShiftHistoryQuery {
 export async function fetchShiftHistory(query: ShiftHistoryQuery = {}): Promise<ShiftHistoryResult> {
   const params = new URLSearchParams();
   if (query.outletId) params.set('outletId', query.outletId);
+  if (query.cashierId) params.set('cashierId', query.cashierId);
   if (query.dateFrom) params.set('dateFrom', query.dateFrom);
   if (query.dateTo) params.set('dateTo', query.dateTo);
   if (query.page) params.set('page', String(query.page));

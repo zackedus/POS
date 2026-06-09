@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import React, { useState, type CSSProperties } from 'react';
+import { DEFAULT_PAGE_SIZE, PAGINATION_PAGE_SIZES } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 
 /** Shared admin dashboard tokens aligned with DESIGN-SYSTEM.md */
@@ -326,14 +327,18 @@ export function TablePagination({
   totalItems,
   pageSize,
   onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [...PAGINATION_PAGE_SIZES],
 }: {
   page: number;
   totalPages: number;
   totalItems: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  pageSizeOptions?: number[];
 }) {
-  if (totalPages <= 1) return null;
+  if (totalItems === 0) return null;
 
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, totalItems);
@@ -355,36 +360,78 @@ export function TablePagination({
     >
       <span>
         Menampilkan {from}–{to} dari {totalItems}
+        {totalPages > 1 ? ` · Halaman ${page} dari ${totalPages}` : ''}
       </span>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <Button type="button" variant="secondary" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
-          Sebelumnya
-        </Button>
-        <span style={{ alignSelf: 'center', fontVariantNumeric: 'tabular-nums' }}>
-          {page} / {totalPages}
-        </span>
-        <Button type="button" variant="secondary" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
-          Berikutnya
-        </Button>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
+        {onPageSizeChange ? (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.875rem' }}>
+            <span>Baris per halaman</span>
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              style={{
+                padding: '0.4rem 0.5rem',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                fontSize: '0.875rem',
+                minHeight: '36px',
+              }}
+              aria-label="Baris per halaman"
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+            style={{ minHeight: '36px', minWidth: '44px' }}
+          >
+            Sebelumnya
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={page >= totalPages}
+            onClick={() => onPageChange(page + 1)}
+            style={{ minHeight: '36px', minWidth: '44px' }}
+          >
+            Berikutnya
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
-export function useClientPagination<T>(items: T[], pageSize = 10) {
+export function useClientPagination<T>(items: T[], pageSize: number = DEFAULT_PAGE_SIZE) {
   const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const [size, setSize] = useState(pageSize);
+  const totalPages = Math.max(1, Math.ceil(items.length / size));
   const safePage = Math.min(page, totalPages);
-  const start = (safePage - 1) * pageSize;
-  const pageItems = items.slice(start, start + pageSize);
+  const start = (safePage - 1) * size;
+  const pageItems = items.slice(start, start + size);
+
+  const setPageSize = (nextSize: number) => {
+    setSize(nextSize);
+    setPage(1);
+  };
 
   return {
     page: safePage,
     totalPages,
     pageItems,
     setPage,
+    setPageSize,
     totalItems: items.length,
-    pageSize,
+    pageSize: size,
   };
 }
 

@@ -1,15 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR } from '@barokah/shared';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { formatCurrencyIDR, DEFAULT_CUSTOMER_CREDIT_LIMIT_IDR, DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
   cardStyle,
+  EmptyState,
   LoadingSkeleton,
   PageHeader,
+  TablePagination,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { useAdminTheme } from '@/hooks/useAdminTheme';
 import { fetchMe, type AuthUser } from '@/lib/auth';
 import {
@@ -19,12 +22,17 @@ import {
 } from '@/lib/customers-api';
 import { canManageCustomers } from '@/lib/rbac';
 import { mapApiError } from '@/lib/api-client';
+import { buildFilterChips } from '@/lib/list-filters';
 
 export default function CustomersPage() {
   const { tokens } = useAdminTheme();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
-  const [search, setSearch] = useState('');
+  const [draftSearch, setDraftSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -34,17 +42,38 @@ export default function CustomersPage() {
 
   const canEdit = currentUser ? canManageCustomers(currentUser.role) : false;
 
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        { key: 'search', label: `Cari: ${appliedSearch}`, active: Boolean(appliedSearch.trim()) },
+      ]),
+    [appliedSearch],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setCustomers(await fetchCustomers(search));
+      const result = await fetchCustomers(appliedSearch || undefined, { page, limit: pageSize });
+      setCustomers(result.items);
+      setMeta(result.meta);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat pelanggan.'));
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [appliedSearch, page, pageSize]);
+
+  function applyFilters() {
+    setAppliedSearch(draftSearch);
+    setPage(1);
+  }
+
+  function resetFilters() {
+    setDraftSearch('');
+    setAppliedSearch('');
+    setPage(1);
+  }
 
   useEffect(() => {
     void fetchMe()
@@ -53,10 +82,7 @@ export default function CustomersPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void load();
-    }, 300);
-    return () => clearTimeout(timer);
+    void load();
   }, [load]);
 
   async function handleCreate(e: FormEvent) {
@@ -88,24 +114,33 @@ export default function CustomersPage() {
       {error ? <AlertBanner variant="error" onRetry={() => void load()}>{error}</AlertBanner> : null}
       {success ? <AlertBanner variant="success">{success}</AlertBanner> : null}
 
-      <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
-        <label style={{ display: 'grid', gap: 4, fontSize: '0.875rem', maxWidth: 360 }}>
-          Cari nama / no. HP / kode member
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ketik nama, 08…, atau MBR-…"
-            style={{ padding: '0.5rem', borderRadius: 8, border: `1px solid ${tokens.cardBorder}` }}
-          />
-        </label>
-      </section>
+      <ListFilterBar
+        selects={[
+          {
+            id: 'status',
+            label: 'Status',
+            value: '',
+            options: [{ value: '', label: 'Semua pelanggan' }],
+            onChange: () => undefined,
+          },
+        ]}
+        showDateRange={false}
+        search={draftSearch}
+        searchPlaceholder="Ketik nama, 08…, atau MBR-…"
+        onSearchChange={setDraftSearch}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
 
       <section style={cardStyle({ background: tokens.cardBg, border: `1px solid ${tokens.cardBorder}` })}>
         {loading ? (
           <LoadingSkeleton rows={5} />
         ) : customers.length === 0 ? (
-          <p style={{ margin: 0, color: tokens.muted }}>Belum ada pelanggan terdaftar.</p>
+          <EmptyState
+            title="Belum ada pelanggan"
+            description={activeChips.length > 0 ? FILTER_EMPTY_DESCRIPTION : 'Belum ada pelanggan terdaftar.'}
+          />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
@@ -165,6 +200,17 @@ export default function CustomersPage() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              page={meta.page}
+              totalPages={meta.totalPages ?? 1}
+              totalItems={meta.total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(next) => {
+                setPageSize(next);
+                setPage(1);
+              }}
+            />
           </div>
         )}
       </section>

@@ -4,10 +4,12 @@ import type {
   ReceivableAgingReport,
   PaymentReceiptView,
   ReceivablePaymentView,
+  PaginationMeta,
 } from '@barokah/shared';
 export type { ReceivableAgingReport } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 export type ReceivableStatus = 'OPEN' | 'PARTIAL' | 'PAID' | 'VOID';
 
@@ -66,12 +68,16 @@ interface ApiEnvelope<T> {
 
 export async function fetchOverdueReceivables(params?: {
   outletId?: string;
-}): Promise<ReceivableRow[]> {
-  const search = new URLSearchParams();
-  if (params?.outletId) search.set('outletId', params.outletId);
-  const qs = search.toString();
-  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/overdue${qs ? `?${qs}` : ''}`);
-  const json = (await res.json()) as ApiEnvelope<ReceivableRow[]>;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<ReceivableRow>> {
+  const qs = buildPaginationQuery({
+    page: params?.page,
+    limit: params?.limit,
+    extra: { outletId: params?.outletId },
+  });
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/overdue${qs}`);
+  const json = (await res.json()) as ApiEnvelope<{ items: ReceivableRow[]; meta: PaginationMeta }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat piutang jatuh tempo.');
   }
@@ -81,10 +87,14 @@ export async function fetchOverdueReceivables(params?: {
 export async function fetchReceivableAging(params?: {
   outletId?: string;
   groupByCustomer?: boolean;
+  bucket?: string;
+  customerSearch?: string;
 }): Promise<ReceivableAgingReport> {
   const search = new URLSearchParams();
   if (params?.outletId) search.set('outletId', params.outletId);
   if (params?.groupByCustomer) search.set('groupByCustomer', 'true');
+  if (params?.bucket) search.set('bucket', params.bucket);
+  if (params?.customerSearch?.trim()) search.set('customerSearch', params.customerSearch.trim());
   const qs = search.toString();
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables/aging${qs ? `?${qs}` : ''}`);
   const json = (await res.json()) as ApiEnvelope<ReceivableAgingReport>;
@@ -158,14 +168,28 @@ export async function fetchReceivables(params?: {
   customerId?: string;
   outletId?: string;
   status?: string;
-}): Promise<ReceivableRow[]> {
-  const search = new URLSearchParams();
-  if (params?.customerId) search.set('customerId', params.customerId);
-  if (params?.outletId) search.set('outletId', params.outletId);
-  if (params?.status) search.set('status', params.status);
-  const qs = search.toString();
-  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables${qs ? `?${qs}` : ''}`);
-  const json = (await res.json()) as ApiEnvelope<ReceivableRow[]>;
+  search?: string;
+  agingBucket?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<ReceivableRow>> {
+  const qs = buildPaginationQuery({
+    page: params?.page,
+    limit: params?.limit,
+    extra: {
+      customerId: params?.customerId,
+      outletId: params?.outletId,
+      status: params?.status,
+      search: params?.search?.trim(),
+      agingBucket: params?.agingBucket,
+      dueDateFrom: params?.dueDateFrom,
+      dueDateTo: params?.dueDateTo,
+    },
+  });
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/receivables${qs}`);
+  const json = (await res.json()) as ApiEnvelope<{ items: ReceivableRow[]; meta: PaginationMeta }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat piutang.');
   }

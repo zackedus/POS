@@ -126,8 +126,8 @@ export default function DashboardHomePage() {
         }
 
         try {
-          const orders = await fetchFulfillmentQueue(selectedOutletId ?? undefined);
-          setOnlineOrderCount(orders.length);
+          const orders = await fetchFulfillmentQueue({ outletId: selectedOutletId ?? undefined });
+          setOnlineOrderCount(orders.meta.total);
         } catch {
           setOnlineOrderCount(null);
         }

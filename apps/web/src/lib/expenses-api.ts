@@ -1,5 +1,7 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import type { PaginationMeta } from '@barokah/shared';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 export type ExpenseCategory = 'OPERATIONAL' | 'LOADING_UNLOADING' | 'SHIPPING' | 'OTHER';
 
@@ -43,15 +45,21 @@ export async function fetchExpenses(params?: {
   category?: ExpenseCategory;
   dateFrom?: string;
   dateTo?: string;
-}): Promise<ExpenseRow[]> {
-  const search = new URLSearchParams();
-  if (params?.outletId) search.set('outletId', params.outletId);
-  if (params?.category) search.set('category', params.category);
-  if (params?.dateFrom) search.set('dateFrom', params.dateFrom);
-  if (params?.dateTo) search.set('dateTo', params.dateTo);
-  const qs = search.toString();
-  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/expenses${qs ? `?${qs}` : ''}`);
-  const json = (await res.json()) as ApiEnvelope<ExpenseRow[]>;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<ExpenseRow>> {
+  const qs = buildPaginationQuery({
+    page: params?.page,
+    limit: params?.limit,
+    extra: {
+      outletId: params?.outletId,
+      category: params?.category,
+      dateFrom: params?.dateFrom,
+      dateTo: params?.dateTo,
+    },
+  });
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/expenses${qs}`);
+  const json = (await res.json()) as ApiEnvelope<{ items: ExpenseRow[]; meta: PaginationMeta }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat pengeluaran.');
   }

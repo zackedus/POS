@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR } from '@barokah/shared';
+import { formatCurrencyIDR, DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -11,6 +11,7 @@ import {
   LoadingSkeleton,
   PageHeader,
   StatusBadge,
+  TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
@@ -36,6 +37,9 @@ export default function PurchaseOrdersPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: '', phone: '', email: '' });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -44,16 +48,23 @@ export default function PurchaseOrdersPage() {
       const supplierRows = await fetchSuppliers();
       setSuppliers(supplierRows);
       if (!needsOutletPick) {
-        setOrders(await fetchPurchaseOrders(selectedOutletId ?? undefined));
+        const result = await fetchPurchaseOrders({
+          outletId: selectedOutletId ?? undefined,
+          page,
+          limit: pageSize,
+        });
+        setOrders(result.items);
+        setMeta(result.meta);
       } else {
         setOrders([]);
+        setMeta({ page: 1, limit: pageSize, total: 0, totalPages: 1 });
       }
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat data order distributor.'));
     } finally {
       setLoading(false);
     }
-  }, [needsOutletPick, selectedOutletId]);
+  }, [needsOutletPick, selectedOutletId, page, pageSize]);
 
   useEffect(() => {
     void loadData();
@@ -123,6 +134,59 @@ export default function PurchaseOrdersPage() {
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
       {success ? <AlertBanner variant="success">{success}</AlertBanner> : null}
 
+      <ListFilterBar
+        selects={[
+          ...(multiOutlet
+            ? [
+                {
+                  id: 'outlet',
+                  label: 'Cabang',
+                  value: draftFilters.outletId,
+                  options: [
+                    { value: '', label: 'Semua cabang' },
+                    ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.label })),
+                  ],
+                  onChange: (value: string) => setDraftFilters((prev) => ({ ...prev, outletId: value })),
+                  minWidth: 200,
+                },
+              ]
+            : []),
+          {
+            id: 'status',
+            label: 'Status PO',
+            value: draftFilters.status,
+            options: [
+              { value: '', label: 'Semua status' },
+              ...(Object.entries(PO_STATUS_LABELS) as Array<[PurchaseOrderStatus, string]>).map(
+                ([value, label]) => ({ value, label }),
+              ),
+            ],
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, status: value })),
+          },
+          {
+            id: 'supplier',
+            label: 'Supplier',
+            value: draftFilters.supplierId,
+            options: [
+              { value: '', label: 'Semua supplier' },
+              ...suppliers.map((s) => ({ value: s.id, label: s.name })),
+            ],
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, supplierId: value })),
+            minWidth: 200,
+          },
+        ]}
+        dateFrom={draftFilters.dateFrom}
+        dateTo={draftFilters.dateTo}
+        onDateFromChange={(value) => setDraftFilters((prev) => ({ ...prev, dateFrom: value }))}
+        onDateToChange={(value) => setDraftFilters((prev) => ({ ...prev, dateTo: value }))}
+        search={draftFilters.search}
+        searchPlaceholder="Cari no. order…"
+        onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
+
       <section style={cardStyle()}>
         <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Daftar Order Distributor</h3>
         {loading ? (
@@ -130,7 +194,11 @@ export default function PurchaseOrdersPage() {
         ) : orders.length === 0 ? (
           <EmptyState
             title="Belum ada order distributor"
-            description="Buat order Senin, cetak untuk supplier, lalu terima barang saat tiba (mis. Rabu)."
+            description={
+              activeChips.length > 0
+                ? FILTER_EMPTY_DESCRIPTION
+                : 'Buat order Senin, cetak untuk supplier, lalu terima barang saat tiba (mis. Rabu).'
+            }
             actionHref="/dashboard/purchase-orders/new"
             actionLabel="Buat Order Distributor"
           />
@@ -179,6 +247,17 @@ export default function PurchaseOrdersPage() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              page={meta.page}
+              totalPages={meta.totalPages ?? 1}
+              totalItems={meta.total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(next) => {
+                setPageSize(next);
+                setPage(1);
+              }}
+            />
           </div>
         )}
       </section>

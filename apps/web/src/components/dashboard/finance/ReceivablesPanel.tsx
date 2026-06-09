@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, parseCurrencyInput } from '@barokah/shared';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { formatCurrencyIDR, parseCurrencyInput, DEFAULT_PAGE_SIZE, RECEIVABLE_AGING_BUCKET_LABELS, type PaginationMeta, type ReceivableAgingBucket } from '@barokah/shared';
 import { Button, CurrencyInput } from '@barokah/ui';
 import {
   AlertBanner,
@@ -12,10 +12,13 @@ import {
   PageHeader,
   SectionCard,
   StatusBadge,
+  TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { mapApiError } from '@/lib/api-client';
 import { fetchCustomers, type CustomerListItem } from '@/lib/customers-api';
+import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { ReceivablePaymentHistoryTable } from '@/components/dashboard/ReceivablePaymentHistoryTable';
 import { ReceivablePaymentModal } from '@/components/dashboard/ReceivablePaymentModal';
@@ -27,6 +30,40 @@ import {
   type ReceivableRow,
 } from '@/lib/receivables-api';
 import type { ReceivablePaymentView } from '@barokah/shared';
+
+const AGING_BUCKET_OPTIONS = [
+  { value: '', label: 'Semua bucket' },
+  ...(Object.entries(RECEIVABLE_AGING_BUCKET_LABELS) as Array<[ReceivableAgingBucket, string]>).map(
+    ([value, label]) => ({ value, label }),
+  ),
+];
+
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'Semua status' },
+  { value: 'OPEN', label: 'Belum bayar' },
+  { value: 'PARTIAL', label: 'Sebagian' },
+  { value: 'OVERDUE', label: 'Jatuh tempo' },
+  { value: 'PAID', label: 'Lunas' },
+];
+
+type ReceivableFilters = {
+  status: string;
+  agingBucket: string;
+  search: string;
+  dueDateFrom: string;
+  dueDateTo: string;
+};
+
+function createReceivableFilterDefaults(): ReceivableFilters {
+  const dates = defaultDateFilters();
+  return {
+    status: '',
+    agingBucket: '',
+    search: '',
+    dueDateFrom: dates.dateFrom,
+    dueDateTo: dates.dateTo,
+  };
+}
 
 export function ReceivablesPanel({
   embedded = false,
@@ -40,7 +77,12 @@ export function ReceivablesPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>(initialStatus ?? '');
+  const [draftFilters, setDraftFilters] = useState<ReceivableFilters>(() =>
+    createReceivableFilterDefaults(),
+  );
+  const [appliedFilters, setAppliedFilters] = useState<ReceivableFilters>(() =>
+    createReceivableFilterDefaults(),
+  );
   const [customerFilter, setCustomerFilter] = useState('');
   const [showPayModal, setShowPayModal] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<ReceivablePaymentView[]>([]);
@@ -54,6 +96,44 @@ export function ReceivablesPanel({
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [creating, setCreating] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
+
+  useEffect(() => {
+    if (initialStatus) {
+      const next = { ...createReceivableFilterDefaults(), status: initialStatus };
+      setDraftFilters(next);
+      setAppliedFilters(next);
+    }
+  }, [initialStatus]);
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'status',
+          label: `Status: ${STATUS_FILTER_OPTIONS.find((o) => o.value === appliedFilters.status)?.label ?? appliedFilters.status}`,
+          active: Boolean(appliedFilters.status),
+        },
+        {
+          key: 'bucket',
+          label: `Bucket: ${RECEIVABLE_AGING_BUCKET_LABELS[appliedFilters.agingBucket as ReceivableAgingBucket] ?? appliedFilters.agingBucket}`,
+          active: Boolean(appliedFilters.agingBucket),
+        },
+        {
+          key: 'search',
+          label: `Pelanggan: ${appliedFilters.search}`,
+          active: Boolean(appliedFilters.search.trim()),
+        },
+        {
+          key: 'due',
+          label: `Jatuh tempo: ${appliedFilters.dueDateFrom} – ${appliedFilters.dueDateTo}`,
+          active: Boolean(appliedFilters.dueDateFrom || appliedFilters.dueDateTo),
+        },
+      ]),
+    [appliedFilters],
+  );
 
   const loadData = useCallback(async () => {
     if (needsOutletPick) {
@@ -66,18 +146,41 @@ export function ReceivablesPanel({
       const [data, customerList] = await Promise.all([
         fetchReceivables({
           outletId: selectedOutletId ?? undefined,
-          status: statusFilter || undefined,
+          status: appliedFilters.status || undefined,
+          search: appliedFilters.search || undefined,
+          agingBucket: appliedFilters.agingBucket || undefined,
+          dueDateFrom: appliedFilters.dueDateFrom || undefined,
+          dueDateTo: appliedFilters.dueDateTo || undefined,
+          page,
+          limit: pageSize,
         }),
-        fetchCustomers(),
+        fetchCustomers(undefined, { page: 1, limit: 100 }),
       ]);
-      setRows(data);
-      setCustomers(customerList);
+      setRows(data.items);
+      setMeta(data.meta);
+      setCustomers(customerList.items);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat piutang.'));
     } finally {
       setLoading(false);
     }
-  }, [needsOutletPick, selectedOutletId, statusFilter]);
+  }, [needsOutletPick, selectedOutletId, appliedFilters, page, pageSize]);
+
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
+  }
+
+  function resetFilters() {
+    const defaults = createReceivableFilterDefaults();
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedOutletId]);
 
   useEffect(() => {
     void loadData();
@@ -168,7 +271,12 @@ export function ReceivablesPanel({
           <strong>{overdueCount} tagihan terlambat</strong> — segera tindak lanjuti pelunasan.{' '}
           <button
             type="button"
-            onClick={() => setStatusFilter('OVERDUE')}
+            onClick={() => {
+              const next = { ...appliedFilters, status: 'OVERDUE' };
+              setDraftFilters(next);
+              setAppliedFilters(next);
+              setPage(1);
+            }}
             style={{ background: 'none', border: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
           >
             Filter jatuh tempo
@@ -188,23 +296,41 @@ export function ReceivablesPanel({
         </SectionCard>
       </div>
 
-      <SectionCard title="Filter">
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
-          >
-            <option value="">Semua status</option>
-            <option value="OPEN">Belum bayar</option>
-            <option value="PARTIAL">Sebagian</option>
-            <option value="OVERDUE">Jatuh tempo</option>
-            <option value="PAID">Lunas</option>
-          </select>
+      <ListFilterBar
+        selects={[
+          {
+            id: 'status',
+            label: 'Status',
+            value: draftFilters.status,
+            options: STATUS_FILTER_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, status: value })),
+          },
+          {
+            id: 'agingBucket',
+            label: 'Bucket aging',
+            value: draftFilters.agingBucket,
+            options: AGING_BUCKET_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, agingBucket: value })),
+            minWidth: 180,
+          },
+        ]}
+        dateFrom={draftFilters.dueDateFrom}
+        dateTo={draftFilters.dueDateTo}
+        onDateFromChange={(value) => setDraftFilters((prev) => ({ ...prev, dueDateFrom: value }))}
+        onDateToChange={(value) => setDraftFilters((prev) => ({ ...prev, dueDateTo: value }))}
+        search={draftFilters.search}
+        searchPlaceholder="Cari nama / telepon pelanggan…"
+        onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      >
+        <label style={{ display: 'grid', gap: 4, maxWidth: 320 }}>
+          <span style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>Riwayat pembayaran pelanggan</span>
           <select
             value={customerFilter}
             onChange={(e) => setCustomerFilter(e.target.value)}
-            style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1', minWidth: 200 }}
+            style={{ minHeight: 44, padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
           >
             <option value="">Semua pelanggan (riwayat)</option>
             {customers.map((c) => (
@@ -213,8 +339,8 @@ export function ReceivablesPanel({
               </option>
             ))}
           </select>
-        </div>
-      </SectionCard>
+        </label>
+      </ListFilterBar>
 
       <SectionCard title="Tambah Piutang Manual">
         <form onSubmit={(e) => void handleCreate(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
@@ -313,8 +439,16 @@ export function ReceivablesPanel({
         {loading ? (
           <LoadingSkeleton rows={5} />
         ) : rows.length === 0 ? (
-          <EmptyState title="Belum ada piutang" description="Piutang otomatis tercatat saat checkout tempo di kasir." />
+          <EmptyState
+            title="Belum ada piutang"
+            description={
+              activeChips.length > 0
+                ? FILTER_EMPTY_DESCRIPTION
+                : 'Piutang otomatis tercatat saat checkout tempo di kasir.'
+            }
+          />
         ) : (
+          <>
           <DataTable>
             <table style={tableStyles.table}>
               <thead>
@@ -391,6 +525,18 @@ export function ReceivablesPanel({
               </tbody>
             </table>
           </DataTable>
+          <TablePagination
+            page={meta.page}
+            totalPages={meta.totalPages ?? 1}
+            totalItems={meta.total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
+          />
+          </>
         )}
       </SectionCard>
     </div>

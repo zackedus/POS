@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { formatCurrency, getTodayDate } from '@barokah/shared';
+import { formatCurrency, DEFAULT_PAGE_SIZE, PaymentMethod, type PaginationMeta } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
   AlertBanner,
@@ -13,11 +13,12 @@ import {
   PageHeader,
   StatusBadge,
   TablePagination,
-  useClientPagination,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { ReceiptPanel } from '@/components/pos/ReceiptPanel';
 import { VoidTransactionModal } from '@/components/pos/VoidTransactionModal';
 import { fetchMe, type AuthUser } from '@/lib/auth';
+import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   fetchRecentTransactions,
@@ -27,10 +28,49 @@ import {
 } from '@/lib/transactions';
 import { printReceiptBrowser } from '@/lib/thermal-print';
 
+const PAYMENT_METHOD_OPTIONS = [
+  { value: '', label: 'Semua metode' },
+  { value: PaymentMethod.CASH, label: 'Tunai' },
+  { value: PaymentMethod.TRANSFER, label: 'Transfer' },
+  { value: PaymentMethod.QRIS, label: 'QRIS' },
+  { value: PaymentMethod.E_WALLET, label: 'E-Wallet' },
+  { value: PaymentMethod.CARD, label: 'Kartu' },
+  { value: PaymentMethod.CREDIT, label: 'Tempo/Kredit' },
+  { value: PaymentMethod.DEPOSIT, label: 'Deposit' },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'ALL', label: 'Semua status' },
+  { value: 'COMPLETED', label: 'Selesai' },
+  { value: 'VOID', label: 'Void' },
+];
+
+type TransactionFilters = {
+  outletId: string;
+  status: 'ALL' | 'COMPLETED' | 'VOID';
+  paymentMethod: string;
+  dateFrom: string;
+  dateTo: string;
+  search: string;
+};
+
+function createDefaultFilters(outletId = ''): TransactionFilters {
+  const dates = defaultDateFilters();
+  return {
+    outletId,
+    status: 'ALL',
+    paymentMethod: '',
+    dateFrom: dates.dateFrom,
+    dateTo: dates.dateTo,
+    search: '',
+  };
+}
+
 export default function DashboardTransactionsPage() {
   const searchParams = useSearchParams();
   const linkedTransactionId = searchParams.get('id');
-  const { selectedOutletId, needsOutletPick } = useOutletSelection();
+  const { outlets, selectedOutletId, needsOutletPick } = useOutletSelection();
+  const multiOutlet = outlets.length > 1;
   const [user, setUser] = useState<AuthUser | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransactionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,14 +79,61 @@ export default function DashboardTransactionsPage() {
   const [receiptPreview, setReceiptPreview] = useState<ReceiptResponse | null>(null);
   const [loadingReceiptId, setLoadingReceiptId] = useState<string | null>(null);
   const [voidTarget, setVoidTarget] = useState<RecentTransactionSummary | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'COMPLETED' | 'VOID'>('ALL');
-  const [filterSearch, setFilterSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState(() => getTodayDate());
-  const [dateTo, setDateTo] = useState(() => getTodayDate());
+  const [draftFilters, setDraftFilters] = useState<TransactionFilters>(() =>
+    createDefaultFilters(selectedOutletId ?? ''),
+  );
+  const [appliedFilters, setAppliedFilters] = useState<TransactionFilters>(() =>
+    createDefaultFilters(selectedOutletId ?? ''),
+  );
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
+
+  const queryOutletId = useMemo(() => {
+    if (needsOutletPick) return undefined;
+    if (multiOutlet) {
+      return appliedFilters.outletId || undefined;
+    }
+    return selectedOutletId ?? undefined;
+  }, [needsOutletPick, multiOutlet, appliedFilters.outletId, selectedOutletId]);
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'outlet',
+          label: `Cabang: ${outlets.find((o) => o.id === appliedFilters.outletId)?.label ?? 'Semua'}`,
+          active: multiOutlet && Boolean(appliedFilters.outletId),
+        },
+        {
+          key: 'status',
+          label: `Status: ${STATUS_OPTIONS.find((o) => o.value === appliedFilters.status)?.label ?? appliedFilters.status}`,
+          active: appliedFilters.status !== 'ALL',
+        },
+        {
+          key: 'payment',
+          label: `Bayar: ${PAYMENT_METHOD_OPTIONS.find((o) => o.value === appliedFilters.paymentMethod)?.label ?? appliedFilters.paymentMethod}`,
+          active: Boolean(appliedFilters.paymentMethod),
+        },
+        {
+          key: 'date',
+          label: `Tanggal: ${appliedFilters.dateFrom} – ${appliedFilters.dateTo}`,
+          active:
+            appliedFilters.dateFrom !== defaultDateFilters().dateFrom ||
+            appliedFilters.dateTo !== defaultDateFilters().dateTo,
+        },
+        {
+          key: 'search',
+          label: `Cari: ${appliedFilters.search}`,
+          active: Boolean(appliedFilters.search.trim()),
+        },
+      ]),
+    [appliedFilters, multiOutlet, outlets],
+  );
 
   const loadData = useCallback(async () => {
-    if (needsOutletPick) {
+    if (needsOutletPick && !multiOutlet) {
       setLoading(false);
       setRecentTransactions([]);
       return;
@@ -57,31 +144,47 @@ export default function DashboardTransactionsPage() {
     try {
       const profile = await fetchMe();
       setUser(profile);
-      const rows = await fetchRecentTransactions({
-        limit: 100,
-        outletId: selectedOutletId ?? undefined,
-        status: filterStatus,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-        search: filterSearch || undefined,
+      const result = await fetchRecentTransactions({
+        page,
+        limit: pageSize,
+        outletId: queryOutletId,
+        status: appliedFilters.status,
+        paymentMethod: appliedFilters.paymentMethod || undefined,
+        dateFrom: appliedFilters.dateFrom || undefined,
+        dateTo: appliedFilters.dateTo || undefined,
+        search: appliedFilters.search || undefined,
       });
-      setRecentTransactions(rows);
+      setRecentTransactions(result.items);
+      setMeta(result.meta);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat transaksi.');
     } finally {
       setLoading(false);
     }
-  }, [needsOutletPick, selectedOutletId, filterStatus, dateFrom, dateTo, filterSearch]);
+  }, [needsOutletPick, multiOutlet, queryOutletId, appliedFilters, page, pageSize]);
+
+  useEffect(() => {
+    if (!multiOutlet && selectedOutletId) {
+      setDraftFilters((prev) => ({ ...prev, outletId: selectedOutletId }));
+      setAppliedFilters((prev) => ({ ...prev, outletId: selectedOutletId }));
+    }
+  }, [multiOutlet, selectedOutletId]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  const { page, totalPages, pageItems, setPage, totalItems, pageSize } = useClientPagination(recentTransactions, 10);
-
-  useEffect(() => {
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
     setPage(1);
-  }, [filterStatus, filterSearch, dateFrom, dateTo, setPage]);
+  }
+
+  function resetFilters() {
+    const defaults = createDefaultFilters(multiOutlet ? '' : (selectedOutletId ?? ''));
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
 
   async function openReceipt(transactionId: string) {
     setLoadingReceiptId(transactionId);
@@ -132,50 +235,51 @@ export default function DashboardTransactionsPage() {
         <AlertBanner variant="warning">Pilih cabang di header sebelum melihat transaksi.</AlertBanner>
       ) : null}
 
-      <section style={cardStyle()}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'end' }}>
-          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
-            Status
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as 'ALL' | 'COMPLETED' | 'VOID')}
-              style={{ padding: '0.45rem 0.6rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-            >
-              <option value="ALL">Semua</option>
-              <option value="COMPLETED">Selesai</option>
-              <option value="VOID">Void</option>
-            </select>
-          </label>
-          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
-            Dari tanggal
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              style={{ padding: '0.45rem 0.6rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
-            Sampai tanggal
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={{ padding: '0.45rem 0.6rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem', flex: '1 1 180px' }}>
-            Cari no. struk
-            <input
-              type="search"
-              value={filterSearch}
-              onChange={(e) => setFilterSearch(e.target.value)}
-              placeholder="RCP-…"
-              style={{ padding: '0.45rem 0.6rem', borderRadius: 8, border: '1px solid #e2e8f0', minWidth: 160 }}
-            />
-          </label>
-        </div>
-      </section>
+      <ListFilterBar
+        selects={[
+          ...(multiOutlet
+            ? [
+                {
+                  id: 'outlet',
+                  label: 'Cabang',
+                  value: draftFilters.outletId,
+                  options: [
+                    { value: '', label: 'Semua cabang' },
+                    ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.label })),
+                  ],
+                  onChange: (value: string) => setDraftFilters((prev) => ({ ...prev, outletId: value })),
+                  minWidth: 200,
+                },
+              ]
+            : []),
+          {
+            id: 'status',
+            label: 'Status',
+            value: draftFilters.status,
+            options: STATUS_OPTIONS,
+            onChange: (value) =>
+              setDraftFilters((prev) => ({ ...prev, status: value as TransactionFilters['status'] })),
+          },
+          {
+            id: 'paymentMethod',
+            label: 'Metode bayar',
+            value: draftFilters.paymentMethod,
+            options: PAYMENT_METHOD_OPTIONS,
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, paymentMethod: value })),
+            minWidth: 180,
+          },
+        ]}
+        dateFrom={draftFilters.dateFrom}
+        dateTo={draftFilters.dateTo}
+        onDateFromChange={(value) => setDraftFilters((prev) => ({ ...prev, dateFrom: value }))}
+        onDateToChange={(value) => setDraftFilters((prev) => ({ ...prev, dateTo: value }))}
+        search={draftFilters.search}
+        searchPlaceholder="Cari no. struk…"
+        onSearchChange={(value) => setDraftFilters((prev) => ({ ...prev, search: value }))}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
 
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
       {success ? <AlertBanner variant="success">{success}</AlertBanner> : null}
@@ -185,7 +289,11 @@ export default function DashboardTransactionsPage() {
       {!loading && recentTransactions.length === 0 ? (
         <EmptyState
           title="Belum ada transaksi"
-          description="Transaksi selesai di outlet aktif akan muncul di sini. Sesuaikan filter tanggal jika perlu."
+          description={
+            activeChips.length > 0
+              ? FILTER_EMPTY_DESCRIPTION
+              : 'Transaksi selesai di outlet aktif akan muncul di sini. Sesuaikan filter tanggal jika perlu.'
+          }
           actionHref="/pos"
           actionLabel="Buka Kasir"
         />
@@ -194,7 +302,7 @@ export default function DashboardTransactionsPage() {
       {!loading && recentTransactions.length > 0 ? (
         <>
           <div style={{ display: 'grid', gap: '0.65rem' }}>
-            {pageItems.map((trx) => (
+            {recentTransactions.map((trx) => (
               <div key={trx.id} style={cardStyle()}>
                 <div
                   style={{
@@ -256,11 +364,15 @@ export default function DashboardTransactionsPage() {
             ))}
           </div>
           <TablePagination
-            page={page}
-            totalPages={totalPages}
-            totalItems={totalItems}
+            page={meta.page}
+            totalPages={meta.totalPages ?? 1}
+            totalItems={meta.total}
             pageSize={pageSize}
             onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
           />
         </>
       ) : null}

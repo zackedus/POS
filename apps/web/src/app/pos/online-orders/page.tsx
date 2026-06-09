@@ -61,8 +61,8 @@ export default function OnlineOrdersFulfillmentPage() {
         setLoading(true);
       }
       try {
-        const items = await fetchFulfillmentQueue(selectedOutletId ?? undefined, 'WEB');
-        setOrders(items);
+        const result = await fetchFulfillmentQueue({ outletId: selectedOutletId ?? undefined, channel: 'WEB' });
+        setOrders(result.items);
         setError(null);
         setLastUpdated(new Date());
       } catch (err) {

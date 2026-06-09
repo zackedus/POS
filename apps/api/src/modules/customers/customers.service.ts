@@ -31,6 +31,8 @@ import type { LinkCustomerDto } from './dto/link-customer.dto';
 import type { LoyaltyLedgerQueryDto } from './dto/loyalty-ledger-query.dto';
 import type { UpdateCustomerDto } from './dto/update-customer.dto';
 import type { PatchCustomerCreditLimitDto } from './dto/patch-credit-limit.dto';
+import type { ListCustomersQueryDto } from './dto/list-customers-query.dto';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -837,32 +839,40 @@ export class CustomersService {
     };
   }
 
-  async list(user: AuthJwtPayload, search?: string) {
-    const rows = await this.prisma.customer.findMany({
-      where: {
-        tenantId: user.tenantId,
-        ...(search?.trim()
-          ? {
-              OR: [
-                { name: { contains: search.trim(), mode: 'insensitive' as const } },
-                { phone: { contains: search.trim() } },
-                { memberCode: { contains: search.trim().toUpperCase() } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: [{ updatedAt: 'desc' }],
-      take: 50,
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        memberCode: true,
-        points: true,
-        creditLimit: true,
-        updatedAt: true,
-      },
-    });
+  async list(user: AuthJwtPayload, query: ListCustomersQueryDto = {}) {
+    const { page, limit, skip } = resolvePagination(query);
+    const search = query.search?.trim();
+    const where = {
+      tenantId: user.tenantId,
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' as const } },
+              { phone: { contains: search } },
+              { memberCode: { contains: search.toUpperCase() } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        orderBy: [{ updatedAt: 'desc' }],
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          memberCode: true,
+          points: true,
+          creditLimit: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.customer.count({ where }),
+    ]);
 
     const customerIds = rows.map((r) => r.id);
     const [receivableAgg, deposits] = await Promise.all([
@@ -912,6 +922,7 @@ export class CustomersService {
           updatedAt: row.updatedAt.toISOString(),
         };
       }),
+      meta: buildPaginationMeta(page, limit, total),
     };
   }
 }

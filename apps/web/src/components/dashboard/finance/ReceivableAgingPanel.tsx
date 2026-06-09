@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatCurrencyIDR, RECEIVABLE_AGING_BUCKET_LABELS, type ReceivableAgingBucket } from '@barokah/shared';
 import { Button } from '@barokah/ui';
 import {
@@ -14,7 +14,9 @@ import {
   StatCard,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { mapApiError } from '@/lib/api-client';
+import { buildFilterChips } from '@/lib/list-filters';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   exportAgingCsv,
@@ -34,8 +36,36 @@ export function ReceivableAgingPanel({ embedded = false }: { embedded?: boolean 
   const { selectedOutletId, needsOutletPick } = useOutletSelection();
   const [report, setReport] = useState<ReceivableAgingReport | null>(null);
   const [groupByCustomer, setGroupByCustomer] = useState(false);
+  const [draftBucket, setDraftBucket] = useState('');
+  const [draftSearch, setDraftSearch] = useState('');
+  const [appliedBucket, setAppliedBucket] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const bucketOptions = [
+    { value: '', label: 'Semua bucket' },
+    ...(Object.entries(RECEIVABLE_AGING_BUCKET_LABELS) as Array<[ReceivableAgingBucket, string]>).map(
+      ([value, label]) => ({ value, label }),
+    ),
+  ];
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'bucket',
+          label: `Bucket: ${RECEIVABLE_AGING_BUCKET_LABELS[appliedBucket as ReceivableAgingBucket] ?? appliedBucket}`,
+          active: Boolean(appliedBucket),
+        },
+        {
+          key: 'search',
+          label: `Pelanggan: ${appliedSearch}`,
+          active: Boolean(appliedSearch.trim()),
+        },
+      ]),
+    [appliedBucket, appliedSearch],
+  );
 
   const load = useCallback(async () => {
     if (needsOutletPick) {
@@ -48,6 +78,8 @@ export function ReceivableAgingPanel({ embedded = false }: { embedded?: boolean 
       const data = await fetchReceivableAging({
         outletId: selectedOutletId ?? undefined,
         groupByCustomer,
+        bucket: appliedBucket || undefined,
+        customerSearch: appliedSearch || undefined,
       });
       setReport(data);
     } catch (err) {
@@ -56,7 +88,19 @@ export function ReceivableAgingPanel({ embedded = false }: { embedded?: boolean 
     } finally {
       setLoading(false);
     }
-  }, [needsOutletPick, selectedOutletId, groupByCustomer]);
+  }, [needsOutletPick, selectedOutletId, groupByCustomer, appliedBucket, appliedSearch]);
+
+  function applyFilters() {
+    setAppliedBucket(draftBucket);
+    setAppliedSearch(draftSearch);
+  }
+
+  function resetFilters() {
+    setDraftBucket('');
+    setDraftSearch('');
+    setAppliedBucket('');
+    setAppliedSearch('');
+  }
 
   useEffect(() => {
     void load();
@@ -110,6 +154,26 @@ export function ReceivableAgingPanel({ embedded = false }: { embedded?: boolean 
       ) : null}
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
 
+      <ListFilterBar
+        selects={[
+          {
+            id: 'bucket',
+            label: 'Bucket aging',
+            value: draftBucket,
+            options: bucketOptions,
+            onChange: setDraftBucket,
+            minWidth: 180,
+          },
+        ]}
+        showDateRange={false}
+        search={draftSearch}
+        searchPlaceholder="Cari nama / telepon pelanggan…"
+        onSearchChange={setDraftSearch}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
+
       <SectionCard title="Tampilan">
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
           <input
@@ -140,10 +204,16 @@ export function ReceivableAgingPanel({ embedded = false }: { embedded?: boolean 
 
           <SectionCard title={groupByCustomer ? 'Per Pelanggan' : 'Detail Piutang'}>
             {groupByCustomer && report.byCustomer && report.byCustomer.length === 0 ? (
-              <EmptyState title="Tidak ada piutang aktif" description="Semua tagihan sudah lunas." />
+              <EmptyState
+                title="Tidak ada piutang aktif"
+                description={activeChips.length > 0 ? FILTER_EMPTY_DESCRIPTION : 'Semua tagihan sudah lunas.'}
+              />
             ) : null}
             {!groupByCustomer && report.rows && report.rows.length === 0 ? (
-              <EmptyState title="Tidak ada piutang aktif" description="Semua tagihan sudah lunas." />
+              <EmptyState
+                title="Tidak ada piutang aktif"
+                description={activeChips.length > 0 ? FILTER_EMPTY_DESCRIPTION : 'Semua tagihan sudah lunas.'}
+              />
             ) : null}
 
             {groupByCustomer && report.byCustomer && report.byCustomer.length > 0 ? (

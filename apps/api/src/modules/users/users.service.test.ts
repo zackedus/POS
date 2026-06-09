@@ -60,12 +60,17 @@ test('Users: listUsers returns tenant scoped summaries', async () => {
           },
         ];
       },
+      count: async (args: { where: { tenantId: string } }) => {
+        assert.equal(args.where.tenantId, 'tenant-1');
+        return 1;
+      },
     },
   };
 
   const service = new UsersService(prisma as never);
-  const rows = await service.listUsers(createOwner());
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0]?.role, 'CASHIER');
-  assert.equal(rows[0]?.outlets[0]?.code, 'MAIN');
+  const result = await service.listUsers(createOwner());
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0]?.role, 'CASHIER');
+  assert.equal(result.items[0]?.outlets[0]?.code, 'MAIN');
+  assert.equal(result.meta.total, 1);
 });

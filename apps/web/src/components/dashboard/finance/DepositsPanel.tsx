@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, parseCurrencyInput, type PaymentReceiptView } from '@barokah/shared';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { formatCurrencyIDR, parseCurrencyInput, type PaymentReceiptView, DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
 import { Button, CurrencyInput, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -10,8 +10,10 @@ import {
   LoadingSkeleton,
   PageHeader,
   SectionCard,
+  TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { PaymentSuccessModal } from '@/components/finance/PaymentSuccessModal';
 import { mapApiError } from '@/lib/api-client';
 import { fetchCustomers, type CustomerListItem } from '@/lib/customers-api';
@@ -21,6 +23,18 @@ import {
   topUpDeposit,
   type DepositSummaryRow,
 } from '@/lib/deposits-api';
+import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
+
+type DepositFilters = {
+  customerId: string;
+  dateFrom: string;
+  dateTo: string;
+};
+
+function createDepositFilterDefaults(): DepositFilters {
+  const dates = defaultDateFilters();
+  return { customerId: '', dateFrom: dates.dateFrom, dateTo: dates.dateTo };
+}
 
 export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
   const [rows, setRows] = useState<DepositSummaryRow[]>([]);
@@ -30,21 +44,67 @@ export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
   const [success, setSuccess] = useState<string | null>(null);
   const [successReceipt, setSuccessReceipt] = useState<PaymentReceiptView | null>(null);
   const [form, setForm] = useState({ customerId: '', amount: '', notes: '' });
+  const [draftFilters, setDraftFilters] = useState<DepositFilters>(() => createDepositFilterDefaults());
+  const [appliedFilters, setAppliedFilters] = useState<DepositFilters>(() => createDepositFilterDefaults());
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'customer',
+          label: `Pelanggan: ${customers.find((c) => c.id === appliedFilters.customerId)?.name ?? appliedFilters.customerId}`,
+          active: Boolean(appliedFilters.customerId),
+        },
+        {
+          key: 'date',
+          label: `Tanggal: ${appliedFilters.dateFrom} – ${appliedFilters.dateTo}`,
+          active:
+            appliedFilters.dateFrom !== defaultDateFilters().dateFrom ||
+            appliedFilters.dateTo !== defaultDateFilters().dateTo,
+        },
+      ]),
+    [appliedFilters, customers],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [deposits, customerList] = await Promise.all([fetchDeposits(), fetchCustomers()]);
-      setRows(deposits);
-      setCustomers(customerList);
+      const [deposits, customerList] = await Promise.all([
+        fetchDeposits({
+          customerId: appliedFilters.customerId || undefined,
+          dateFrom: appliedFilters.dateFrom || undefined,
+          dateTo: appliedFilters.dateTo || undefined,
+          page,
+          limit: pageSize,
+        }),
+        fetchCustomers(undefined, { page: 1, limit: 100 }),
+      ]);
+      setRows(deposits.items);
+      setMeta(deposits.meta);
+      setCustomers(customerList.items);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat deposit.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [appliedFilters, page, pageSize]);
+
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
+  }
+
+  function resetFilters() {
+    const defaults = createDepositFilterDefaults();
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+    setPage(1);
+  }
 
   useEffect(() => {
     void loadData();
@@ -104,6 +164,30 @@ export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
         <strong style={{ fontSize: '1.35rem' }}>{formatCurrencyIDR(totalBalance)}</strong>
       </SectionCard>
 
+      <ListFilterBar
+        selects={[
+          {
+            id: 'customerId',
+            label: 'Pelanggan',
+            value: draftFilters.customerId,
+            options: [
+              { value: '', label: 'Semua pelanggan' },
+              ...customers.map((c) => ({ value: c.id, label: `${c.name} — ${c.phone}` })),
+            ],
+            onChange: (value) => setDraftFilters((prev) => ({ ...prev, customerId: value })),
+            minWidth: 220,
+          },
+        ]}
+        dateFrom={draftFilters.dateFrom}
+        dateTo={draftFilters.dateTo}
+        onDateFromChange={(value) => setDraftFilters((prev) => ({ ...prev, dateFrom: value }))}
+        onDateToChange={(value) => setDraftFilters((prev) => ({ ...prev, dateTo: value }))}
+        showDateRange
+        onApply={applyFilters}
+        onReset={resetFilters}
+        activeChips={activeChips}
+      />
+
       <SectionCard title="Top-up Deposit">
         <form onSubmit={(e) => void handleTopUp(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
           <label>
@@ -134,8 +218,16 @@ export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
         {loading ? (
           <LoadingSkeleton rows={5} />
         ) : rows.length === 0 ? (
-          <EmptyState title="Belum ada deposit" description="Top-up deposit pelanggan untuk pesanan khusus atau retur." />
+          <EmptyState
+            title="Belum ada deposit"
+            description={
+              activeChips.length > 0
+                ? FILTER_EMPTY_DESCRIPTION
+                : 'Top-up deposit pelanggan untuk pesanan khusus atau retur.'
+            }
+          />
         ) : (
+          <>
           <DataTable>
             <table style={tableStyles.table}>
               <thead>
@@ -161,6 +253,18 @@ export function DepositsPanel({ embedded = false }: { embedded?: boolean }) {
               </tbody>
             </table>
           </DataTable>
+          <TablePagination
+            page={meta.page}
+            totalPages={meta.totalPages ?? 1}
+            totalItems={meta.total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
+          />
+          </>
         )}
       </SectionCard>
       <p style={{ fontSize: '0.85rem', opacity: 0.65 }}>

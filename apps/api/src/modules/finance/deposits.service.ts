@@ -1,3 +1,4 @@
+import type { Prisma } from '@barokah/database';
 import {
   Injectable,
   NotFoundException,
@@ -7,6 +8,7 @@ import { ErrorCodes } from '@barokah/shared';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import type { ListDepositsQueryDto, RefundDepositDto, TopUpDepositDto } from './dto/deposit.dto';
 import { PaymentReceiptService } from './payment-receipt.service';
@@ -19,19 +21,45 @@ export class DepositsService {
   ) {}
 
   async list(user: AuthJwtPayload, query: ListDepositsQueryDto) {
-    const where: { tenantId: string; customerId?: string } = { tenantId: user.tenantId };
+    const where: Prisma.CustomerDepositWhereInput = { tenantId: user.tenantId };
     if (query.customerId) where.customerId = query.customerId;
 
-    const rows = await this.prisma.customerDeposit.findMany({
-      where,
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        ledger: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.customer = {
+        OR: [
+          { name: { contains: term, mode: 'insensitive' } },
+          { phone: { contains: term } },
+        ],
+      };
+    }
 
-    return rows.map((row) => this.mapDepositSummary(row));
+    if (query.dateFrom || query.dateTo) {
+      const updatedAt: { gte?: Date; lte?: Date } = {};
+      if (query.dateFrom) updatedAt.gte = new Date(`${query.dateFrom.slice(0, 10)}T00:00:00.000Z`);
+      if (query.dateTo) updatedAt.lte = new Date(`${query.dateTo.slice(0, 10)}T23:59:59.999Z`);
+      where.updatedAt = updatedAt;
+    }
+
+    const { page, limit, skip } = resolvePagination(query);
+    const [rows, total] = await Promise.all([
+      this.prisma.customerDeposit.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          ledger: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.customerDeposit.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((row) => this.mapDepositSummary(row)),
+      meta: buildPaginationMeta(page, limit, total),
+    };
   }
 
   async getByCustomerId(user: AuthJwtPayload, customerId: string) {

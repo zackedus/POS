@@ -11,6 +11,10 @@ export class ManagerOrdersQueryDto {
   status?: string;
 
   @IsOptional()
+  @IsString()
+  channel?: string;
+
+  @IsOptional()
   @IsISO8601({}, { message: 'dateFrom harus ISO8601' })
   dateFrom?: string;
 

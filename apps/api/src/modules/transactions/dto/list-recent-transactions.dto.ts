@@ -1,17 +1,10 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { PaymentMethod } from '@barokah/shared';
+import { IsEnum, IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
-export class ListRecentTransactionsDto {
-  @IsOptional()
+export class ListRecentTransactionsDto extends PaginationQueryDto {  @IsOptional()
   @IsUUID('4', { message: 'outletId harus UUID valid.' })
   outletId?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'limit harus bilangan bulat.' })
-  @Min(1, { message: 'limit minimal 1.' })
-  @Max(100, { message: 'limit maksimal 100.' })
-  limit?: number = 25;
 
   @IsOptional()
   @IsIn(['COMPLETED', 'VOID', 'ALL'], { message: 'status harus COMPLETED, VOID, atau ALL.' })
@@ -29,4 +22,8 @@ export class ListRecentTransactionsDto {
   @IsString()
   @MaxLength(50, { message: 'search maksimal 50 karakter.' })
   search?: string;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod, { message: 'paymentMethod tidak valid.' })
+  paymentMethod?: PaymentMethod;
 }

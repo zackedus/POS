@@ -50,8 +50,11 @@ export function useOnlineOrderBadge(enabled: boolean, options?: OnlineOrderBadge
 
   const refresh = useCallback(async () => {
     try {
-      const items = await fetchFulfillmentQueue(outletId ?? undefined, channelFilter);
-      applyCount(items.length, 'poll');
+      const result = await fetchFulfillmentQueue({
+        outletId: outletId ?? undefined,
+        channel: channelFilter,
+      });
+      applyCount(result.meta.total, 'poll');
     } catch {
       // Silent poll — badge is best-effort; errors surface on fulfillment page.
     }

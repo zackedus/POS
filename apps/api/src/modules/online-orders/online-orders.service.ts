@@ -60,11 +60,29 @@ export class OnlineOrdersService {
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const createdAt: { gte?: Date; lte?: Date } = {};
+    if (query.dateFrom) createdAt.gte = new Date(query.dateFrom);
+    if (query.dateTo) {
+      const end = new Date(query.dateTo);
+      end.setHours(23, 59, 59, 999);
+      createdAt.lte = end;
+    }
+
     const where = {
       tenantId: user.tenantId,
       outletId,
       status: { in: statusFilter as never[] },
       ...(channelFilter && channelFilter.length > 0 ? { channel: { in: channelFilter as never[] } } : {}),
+      ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
+      ...(query.search?.trim()
+        ? {
+            OR: [
+              { orderNo: { contains: query.search.trim(), mode: 'insensitive' as const } },
+              { customerName: { contains: query.search.trim(), mode: 'insensitive' as const } },
+              { customerPhone: { contains: query.search.trim() } },
+            ],
+          }
+        : {}),
     };
 
     const [orders, total] = await Promise.all([
@@ -380,6 +398,7 @@ export class OnlineOrdersService {
       outletId,
       status: { in: statusFilter as never[] },
       ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
+      ...(query.channel?.trim() ? { channel: query.channel.trim() as never } : {}),
       ...(query.search?.trim()
         ? {
             OR: [

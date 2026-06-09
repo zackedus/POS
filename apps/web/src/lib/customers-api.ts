@@ -2,10 +2,12 @@ import type {
   CustomerAddressView,
   LoyaltyPointLedgerEntry,
   MemberCardView,
+  PaginationMeta,
 } from '@barokah/shared';
 import type { CustomerFinanceSummary } from './receivables-api';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 export interface CustomerListItem {
   id: string;
@@ -52,14 +54,24 @@ interface ApiEnvelope<T> {
   error?: { message?: string };
 }
 
-export async function fetchCustomers(search?: string): Promise<CustomerListItem[]> {
-  const query = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
-  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/customers${query}`);
-  const json = (await res.json()) as ApiEnvelope<{ customers: CustomerListItem[] }>;
+export async function fetchCustomers(
+  search?: string,
+  pagination?: { page?: number; limit?: number },
+): Promise<PaginatedResult<CustomerListItem>> {
+  const qs = buildPaginationQuery({
+    page: pagination?.page,
+    limit: pagination?.limit,
+    extra: search?.trim() ? { search: search.trim() } : undefined,
+  });
+  const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/customers${qs}`);
+  const json = (await res.json()) as ApiEnvelope<{
+    customers: CustomerListItem[];
+    meta: PaginationMeta;
+  }>;
   if (!res.ok || !json.success || !json.data) {
     throw new Error(json.error?.message ?? 'Gagal memuat pelanggan.');
   }
-  return json.data.customers;
+  return { items: json.data.customers, meta: json.data.meta };
 }
 
 export async function fetchCustomerDetail(customerId: string): Promise<CustomerDetail> {

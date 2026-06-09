@@ -25,6 +25,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
 import { assertOutletAccess as enforceOutletAccess, resolveOutletId } from '../../common/utils/outlet.util';
 import { resolveReportDayRange } from '../../common/utils/report-date.util';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { PromoService } from '../promo/promo.service';
 import { CustomersService } from '../customers/customers.service';
@@ -1946,7 +1947,7 @@ export class TransactionsService {
 
   async listRecentTransactions(user: AuthJwtPayload, query: ListRecentTransactionsDto) {
     const outletId = resolveOutletId(user, query.outletId);
-    const limit = query.limit ?? 25;
+    const { page, limit, skip } = resolvePagination(query);
 
     let completedAtFilter: { not: null } | { gte: Date; lt: Date } = { not: null };
     if (query.dateFrom || query.dateTo) {
@@ -1956,34 +1957,51 @@ export class TransactionsService {
 
     const search = query.search?.trim();
 
-    const rows = await this.prisma.transaction.findMany({
-      where: {
-        outletId,
-        outlet: { tenantId: user.tenantId },
-        completedAt: completedAtFilter,
-        ...(query.status && query.status !== 'ALL' ? { status: query.status } : {}),
-        ...(search ? { receiptNo: { contains: search, mode: 'insensitive' as const } } : {}),
-      },
-      orderBy: { completedAt: 'desc' },
-      take: limit,
-      select: {
-        id: true,
-        receiptNo: true,
-        total: true,
-        status: true,
-        completedAt: true,
-        cashier: { select: { fullName: true } },
-      },
-    });
+    const where = {
+      outletId,
+      outlet: { tenantId: user.tenantId },
+      completedAt: completedAtFilter,
+      ...(query.status && query.status !== 'ALL' ? { status: query.status } : {}),
+      ...(query.paymentMethod ? { payments: { some: { method: query.paymentMethod } } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { receiptNo: { contains: search, mode: 'insensitive' as const } },
+              { cashier: { fullName: { contains: search, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+    };
 
-    return rows.map((row) => ({
-      id: row.id,
-      receiptNo: row.receiptNo,
-      total: toIdrInteger(row.total),
-      status: row.status,
-      completedAt: row.completedAt,
-      cashierName: row.cashier.fullName,
-    }));
+    const [rows, total] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        orderBy: { completedAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          receiptNo: true,
+          total: true,
+          status: true,
+          completedAt: true,
+          cashier: { select: { fullName: true } },
+        },
+      }),
+      this.prisma.transaction.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        receiptNo: row.receiptNo,
+        total: toIdrInteger(row.total),
+        status: row.status,
+        completedAt: row.completedAt,
+        cashierName: row.cashier.fullName,
+      })),
+      meta: buildPaginationMeta(page, limit, total),
+    };
   }
 
   private async resolveVoidApprover(

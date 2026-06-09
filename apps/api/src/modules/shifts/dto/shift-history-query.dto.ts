@@ -15,6 +15,10 @@ export class ShiftHistoryQueryDto {
   dateTo?: string;
 
   @IsOptional()
+  @IsUUID('4', { message: 'cashierId harus UUID valid' })
+  cashierId?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Halaman harus bilangan bulat' })
   @Min(1, { message: 'Halaman minimal 1' })

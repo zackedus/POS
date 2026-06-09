@@ -46,8 +46,8 @@ export function PosReceivablePaymentModal({
     setError(null);
     try {
       const [recv, history] = await Promise.all([
-        fetchReceivables({ customerId, status: 'OPEN' }).then((rows) =>
-          rows.filter((r) => r.status === 'OPEN' || r.status === 'PARTIAL'),
+        fetchReceivables({ customerId, status: 'OPEN', limit: 100 }).then((result) =>
+          result.items.filter((r) => r.status === 'OPEN' || r.status === 'PARTIAL'),
         ),
         fetchCustomerPaymentHistory(customerId),
       ]);

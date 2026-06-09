@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsISO8601, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export enum ExpenseCategoryCode {
   OPERATIONAL = 'OPERATIONAL',
@@ -8,7 +9,7 @@ export enum ExpenseCategoryCode {
   OTHER = 'OTHER',
 }
 
-export class ListExpensesQueryDto {
+export class ListExpensesQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID('4', { message: 'outletId harus UUID valid.' })
   outletId?: string;

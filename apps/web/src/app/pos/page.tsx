@@ -837,7 +837,7 @@ export default function PosPage() {
     setLoadingRecent(true);
     try {
       const rows = await fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined });
-      setRecentTransactions(rows);
+      setRecentTransactions(rows.items);
     } catch (err) {
       if (err instanceof TransactionApiError) {
         setError(err.message);
@@ -917,7 +917,9 @@ export default function PosPage() {
         const heldParams = activeOutletId ? `?outletId=${encodeURIComponent(activeOutletId)}` : '';
         const [heldRes, recentRows] = await Promise.all([
           authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/transactions/held${heldParams}`),
-          fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined }).catch(() => []),
+          fetchRecentTransactions({ limit: 8, outletId: activeOutletId ?? undefined })
+            .then((result) => result.items)
+            .catch(() => []),
         ]);
         const heldJson = (await heldRes.json()) as ApiEnvelope<HeldTransactionSummary[]>;
         if (!heldRes.ok || !heldJson.success || !heldJson.data) {

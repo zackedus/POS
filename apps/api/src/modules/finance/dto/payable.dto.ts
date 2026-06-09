@@ -1,5 +1,6 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -9,8 +10,9 @@ import {
   Min,
 } from 'class-validator';
 import { PaymentMethod } from '@barokah/shared';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
-export class ListPayablesQueryDto {
+export class ListPayablesQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID('4')
   supplierId?: string;
@@ -22,6 +24,15 @@ export class ListPayablesQueryDto {
   @IsOptional()
   @IsIn(['OPEN', 'PARTIAL', 'PAID', 'VOID', 'OVERDUE'])
   status?: 'OPEN' | 'PARTIAL' | 'PAID' | 'VOID' | 'OVERDUE';
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  overdueOnly?: boolean;
 }
 
 export class CreatePayableDto {

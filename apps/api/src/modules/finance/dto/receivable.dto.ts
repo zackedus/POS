@@ -9,9 +9,18 @@ import {
   Min,
   IsBoolean,
 } from 'class-validator';
-import { PaymentMethod } from '@barokah/shared';
+import { PaymentMethod, type ReceivableAgingBucket } from '@barokah/shared';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
-export class ListReceivablesQueryDto {
+const RECEIVABLE_AGING_BUCKETS = [
+  'CURRENT',
+  'DAYS_0_30',
+  'DAYS_31_60',
+  'DAYS_61_90',
+  'DAYS_90_PLUS',
+] as const satisfies readonly ReceivableAgingBucket[];
+
+export class ListReceivablesQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID('4')
   customerId?: string;
@@ -23,6 +32,22 @@ export class ListReceivablesQueryDto {
   @IsOptional()
   @IsIn(['OPEN', 'PARTIAL', 'PAID', 'VOID', 'OVERDUE'])
   status?: 'OPEN' | 'PARTIAL' | 'PAID' | 'VOID' | 'OVERDUE';
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsIn(RECEIVABLE_AGING_BUCKETS)
+  agingBucket?: ReceivableAgingBucket;
+
+  @IsOptional()
+  @IsDateString()
+  dueDateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dueDateTo?: string;
 }
 
 export class CreateReceivableDto {
@@ -111,6 +136,14 @@ export class AgingReportQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   groupByCustomer?: boolean;
+
+  @IsOptional()
+  @IsIn(RECEIVABLE_AGING_BUCKETS)
+  bucket?: ReceivableAgingBucket;
+
+  @IsOptional()
+  @IsString()
+  customerSearch?: string;
 }
 
 export class CustomerStatementQueryDto {

@@ -4,10 +4,11 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Prisma } from '@barokah/database';
-import { ErrorCodes, RECEIVABLE_AGING_BUCKET_LABELS, type ReceivableAgingReport } from '@barokah/shared';
+import { ErrorCodes, RECEIVABLE_AGING_BUCKET_LABELS, type ReceivableAgingBucket, type ReceivableAgingReport } from '@barokah/shared';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import { resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import { FinanceCheckoutService } from './finance-checkout.service';
@@ -48,22 +49,55 @@ export class ReceivablesService {
       where.status = query.status;
     }
 
-    const rows = await this.prisma.receivable.findMany({
-      where,
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        outlet: { select: { id: true, code: true, name: true } },
-        transaction: { select: { id: true, receiptNo: true } },
-        payments: {
-          orderBy: { createdAt: 'desc' },
-          take: 3,
-          include: { recordedBy: { select: { id: true, fullName: true } } },
-        },
-      },
-      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
-    });
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.customer = {
+        OR: [
+          { name: { contains: term, mode: 'insensitive' } },
+          { phone: { contains: term } },
+        ],
+      };
+    }
 
-    return rows.map((row) => this.mapReceivable(row));
+    if (query.dueDateFrom || query.dueDateTo) {
+      const dueDate: { gte?: Date; lte?: Date } = {};
+      if (query.dueDateFrom) dueDate.gte = new Date(`${query.dueDateFrom.slice(0, 10)}T00:00:00.000Z`);
+      if (query.dueDateTo) dueDate.lte = new Date(`${query.dueDateTo.slice(0, 10)}T23:59:59.999Z`);
+      where.dueDate = dueDate;
+    }
+
+    if (query.agingBucket) {
+      const bucketDueFilter = this.receivableDueDateForAgingBucket(query.agingBucket, today);
+      if (bucketDueFilter) {
+        where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), bucketDueFilter];
+      }
+    }
+
+    const { page, limit, skip } = resolvePagination(query);
+    const [rows, total] = await Promise.all([
+      this.prisma.receivable.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          outlet: { select: { id: true, code: true, name: true } },
+          transaction: { select: { id: true, receiptNo: true } },
+          payments: {
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            include: { recordedBy: { select: { id: true, fullName: true } } },
+          },
+        },
+        orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.receivable.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((row) => this.mapReceivable(row)),
+      meta: buildPaginationMeta(page, limit, total),
+    };
   }
 
   async getById(user: AuthJwtPayload, receivableId: string) {
@@ -406,6 +440,17 @@ export class ReceivablesService {
         tenantId: user.tenantId,
         status: { in: ['OPEN', 'PARTIAL'] },
         ...(outletId ? { outletId } : {}),
+        ...(query.customerSearch?.trim()
+          ? {
+              customer: {
+                OR: [
+                  { name: { contains: query.customerSearch.trim(), mode: 'insensitive' } },
+                  { phone: { contains: query.customerSearch.trim() } },
+                ],
+              },
+            }
+          : {}),
+        ...(query.bucket ? this.receivableDueDateForAgingBucket(query.bucket, asOf) ?? {} : {}),
       },
       include: {
         customer: { select: { id: true, name: true, phone: true } },
@@ -836,5 +881,39 @@ export class ReceivablesService {
           }
         : undefined,
     };
+  }
+
+  private receivableDueDateForAgingBucket(
+    bucket: ReceivableAgingBucket,
+    today: Date,
+  ): Prisma.ReceivableWhereInput | null {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const startOfToday = new Date(today);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    switch (bucket) {
+      case 'CURRENT':
+        return { OR: [{ dueDate: null }, { dueDate: { gte: startOfToday } }] };
+      case 'DAYS_0_30': {
+        const from = new Date(startOfToday.getTime() - 30 * dayMs);
+        return { dueDate: { lt: startOfToday, gte: from } };
+      }
+      case 'DAYS_31_60': {
+        const to = new Date(startOfToday.getTime() - 30 * dayMs);
+        const from = new Date(startOfToday.getTime() - 60 * dayMs);
+        return { dueDate: { lt: to, gte: from } };
+      }
+      case 'DAYS_61_90': {
+        const to = new Date(startOfToday.getTime() - 60 * dayMs);
+        const from = new Date(startOfToday.getTime() - 90 * dayMs);
+        return { dueDate: { lt: to, gte: from } };
+      }
+      case 'DAYS_90_PLUS': {
+        const before = new Date(startOfToday.getTime() - 90 * dayMs);
+        return { dueDate: { lt: before } };
+      }
+      default:
+        return null;
+    }
   }
 }

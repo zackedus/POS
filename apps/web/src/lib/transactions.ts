@@ -1,5 +1,7 @@
 import { apiConfig } from './api';
 import { authFetch } from './auth';
+import type { PaginationMeta } from '@barokah/shared';
+import { buildPaginationQuery, type PaginatedResult } from './pagination';
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -117,22 +119,29 @@ async function parseEnvelope<T>(res: Response): Promise<T> {
 const base = `${apiConfig.baseUrl}/${apiConfig.prefix}/transactions`;
 
 export async function fetchRecentTransactions(options?: {
+  page?: number;
   limit?: number;
   outletId?: string;
   status?: 'COMPLETED' | 'VOID' | 'ALL';
+  paymentMethod?: string;
   dateFrom?: string;
   dateTo?: string;
   search?: string;
-}): Promise<RecentTransactionSummary[]> {
-  const params = new URLSearchParams();
-  params.set('limit', String(options?.limit ?? 25));
-  if (options?.outletId) params.set('outletId', options.outletId);
-  if (options?.status) params.set('status', options.status);
-  if (options?.dateFrom) params.set('dateFrom', options.dateFrom);
-  if (options?.dateTo) params.set('dateTo', options.dateTo);
-  if (options?.search?.trim()) params.set('search', options.search.trim());
-  const res = await authFetch(`${base}/recent?${params.toString()}`);
-  return parseEnvelope<RecentTransactionSummary[]>(res);
+}): Promise<PaginatedResult<RecentTransactionSummary>> {
+  const qs = buildPaginationQuery({
+    page: options?.page,
+    limit: options?.limit,
+    extra: {
+      outletId: options?.outletId,
+      status: options?.status,
+      paymentMethod: options?.paymentMethod,
+      dateFrom: options?.dateFrom,
+      dateTo: options?.dateTo,
+      search: options?.search?.trim(),
+    },
+  });
+  const res = await authFetch(`${base}/recent${qs}`);
+  return parseEnvelope<{ items: RecentTransactionSummary[]; meta: PaginationMeta }>(res);
 }
 
 export async function fetchTransactionReceipt(transactionId: string): Promise<ReceiptResponse> {

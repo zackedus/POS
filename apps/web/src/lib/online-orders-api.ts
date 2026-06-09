@@ -102,20 +102,33 @@ export interface ShippingLabelData {
 
 export type FulfillmentChannelFilter = 'WEB' | typeof MARKETPLACE_ORDER_CHANNELS;
 
-export async function fetchFulfillmentQueue(
-  outletId?: string,
-  channel?: FulfillmentChannelFilter,
-): Promise<FulfillmentOrder[]> {
-  const params = new URLSearchParams();
-  if (outletId) params.set('outletId', outletId);
-  if (channel) params.set('channel', channel);
-  const qs = params.toString();
-  const data = await authApiJson<PaginatedOrders>(
+export interface FulfillmentQueueParams {
+  outletId?: string;
+  channel?: FulfillmentChannelFilter | string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function fetchFulfillmentQueue(params: FulfillmentQueueParams = {}): Promise<PaginatedOrders> {
+  const query = new URLSearchParams();
+  if (params.outletId) query.set('outletId', params.outletId);
+  if (params.channel) query.set('channel', params.channel);
+  if (params.status) query.set('status', params.status);
+  if (params.dateFrom) query.set('dateFrom', params.dateFrom);
+  if (params.dateTo) query.set('dateTo', params.dateTo);
+  if (params.search?.trim()) query.set('search', params.search.trim());
+  if (params.page != null) query.set('page', String(params.page));
+  if (params.limit != null) query.set('limit', String(params.limit));
+  const qs = query.toString();
+  return authApiJson<PaginatedOrders>(
     `${BASE}/fulfillment${qs ? `?${qs}` : ''}`,
     undefined,
     'Gagal memuat antrian order online.',
   );
-  return data.items;
 }
 
 export interface CreateMarketplaceOrderPayload {
@@ -152,6 +165,7 @@ export async function createMarketplaceOrder(
 
 export async function fetchManagerOrders(params: {
   outletId?: string;
+  channel?: string;
   status?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -161,6 +175,7 @@ export async function fetchManagerOrders(params: {
 }): Promise<PaginatedOrders> {
   const query = new URLSearchParams();
   if (params.outletId) query.set('outletId', params.outletId);
+  if (params.channel) query.set('channel', params.channel);
   if (params.status) query.set('status', params.status);
   if (params.dateFrom) query.set('dateFrom', params.dateFrom);
   if (params.dateTo) query.set('dateTo', params.dateTo);

@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { formatCurrencyIDR, generateExpenseRef, getTodayDate, nextExpenseSequence, parseCurrencyInput } from '@barokah/shared';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { formatCurrencyIDR, generateExpenseRef, getTodayDate, nextExpenseSequence, parseCurrencyInput, DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
 import { Button, CurrencyInput, Input } from '@barokah/ui';
 import {
   AlertBanner,
@@ -11,10 +11,13 @@ import {
   PageHeader,
   SectionCard,
   StatCard,
+  TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { AutoGenerateBadge, AutoGenerateHelper, autoFieldLabelStyle } from '@/components/master/AutoGenerateHints';
 import { mapApiError } from '@/lib/api-client';
+import { buildFilterChips, defaultDateFilters } from '@/lib/list-filters';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
 import {
   createExpense,
@@ -33,9 +36,13 @@ export function ExpensesPanel({ embedded = false }: { embedded?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [filterCategory, setFilterCategory] = useState<'' | ExpenseCategory>('');
-  const [filterDateFrom, setFilterDateFrom] = useState(() => getTodayDate());
-  const [filterDateTo, setFilterDateTo] = useState(() => getTodayDate());
+  const defaultDates = defaultDateFilters();
+  const [draftCategory, setDraftCategory] = useState<'' | ExpenseCategory>('');
+  const [draftDateFrom, setDraftDateFrom] = useState(defaultDates.dateFrom);
+  const [draftDateTo, setDraftDateTo] = useState(defaultDates.dateTo);
+  const [appliedCategory, setAppliedCategory] = useState<'' | ExpenseCategory>('');
+  const [appliedDateFrom, setAppliedDateFrom] = useState(defaultDates.dateFrom);
+  const [appliedDateTo, setAppliedDateTo] = useState(defaultDates.dateTo);
   const [form, setForm] = useState(() => {
     const today = getTodayDate();
     return {
@@ -46,6 +53,45 @@ export function ExpensesPanel({ embedded = false }: { embedded?: boolean }) {
       referenceNo: generateExpenseRef({ date: new Date(`${today}T00:00:00`) }),
     };
   });
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
+
+  const activeChips = useMemo(
+    () =>
+      buildFilterChips([
+        {
+          key: 'category',
+          label: `Kategori: ${appliedCategory ? EXPENSE_CATEGORY_LABELS[appliedCategory] : ''}`,
+          active: Boolean(appliedCategory),
+        },
+        {
+          key: 'date',
+          label: `Tanggal: ${appliedDateFrom} – ${appliedDateTo}`,
+          active: appliedDateFrom !== defaultDates.dateFrom || appliedDateTo !== defaultDates.dateTo,
+        },
+      ]),
+    [appliedCategory, appliedDateFrom, appliedDateTo, defaultDates.dateFrom, defaultDates.dateTo],
+  );
+
+  function applyFilters() {
+    setAppliedCategory(draftCategory);
+    setAppliedDateFrom(draftDateFrom);
+    setAppliedDateTo(draftDateTo);
+    setPage(1);
+  }
+
+  function resetFilters() {
+    const dates = defaultDateFilters();
+    setDraftCategory('');
+    setDraftDateFrom(dates.dateFrom);
+    setDraftDateTo(dates.dateTo);
+    setAppliedCategory('');
+    setAppliedDateFrom(dates.dateFrom);
+    setAppliedDateTo(dates.dateTo);
+    setPage(1);
+  }
 
   useEffect(() => {
     const date = new Date(`${form.expenseDate}T00:00:00`);
@@ -72,20 +118,27 @@ export function ExpensesPanel({ embedded = false }: { embedded?: boolean }) {
       const [expenses, summary] = await Promise.all([
         fetchExpenses({
           outletId: selectedOutletId ?? undefined,
-          category: filterCategory || undefined,
-          dateFrom: filterDateFrom || undefined,
-          dateTo: filterDateTo || undefined,
+          category: appliedCategory || undefined,
+          dateFrom: appliedDateFrom || undefined,
+          dateTo: appliedDateTo || undefined,
+          page,
+          limit: pageSize,
         }),
         fetchExpenseTodaySummary(selectedOutletId ?? undefined),
       ]);
-      setRows(expenses);
+      setRows(expenses.items);
+      setMeta(expenses.meta);
       setTodayTotal(summary.total);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat pengeluaran.'));
     } finally {
       setLoading(false);
     }
-  }, [filterCategory, filterDateFrom, filterDateTo, needsOutletPick, selectedOutletId]);
+  }, [appliedCategory, appliedDateFrom, appliedDateTo, needsOutletPick, selectedOutletId, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedOutletId]);
 
   useEffect(() => {
     void loadData();
@@ -215,51 +268,47 @@ export function ExpensesPanel({ embedded = false }: { embedded?: boolean }) {
       </SectionCard>
 
       <SectionCard title="Riwayat Pengeluaran">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-          <label style={{ display: 'grid', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Dari tanggal</span>
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
-              style={{ padding: '0.45rem 0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Sampai tanggal</span>
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
-              style={{ padding: '0.45rem 0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: '0.25rem' }}>
-            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Filter kategori</span>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value as '' | ExpenseCategory)}
-              style={{ padding: '0.45rem 0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-            >
-              <option value="">Semua kategori</option>
-              {(Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[]).map((key) => (
-                <option key={key} value={key}>
-                  {EXPENSE_CATEGORY_LABELS[key]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <ListFilterBar
+          collapsible={false}
+          selects={[
+            {
+              id: 'category',
+              label: 'Kategori',
+              value: draftCategory,
+              options: [
+                { value: '', label: 'Semua kategori' },
+                ...(Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[]).map((key) => ({
+                  value: key,
+                  label: EXPENSE_CATEGORY_LABELS[key],
+                })),
+              ],
+              onChange: (value) => setDraftCategory(value as '' | ExpenseCategory),
+            },
+          ]}
+          dateFrom={draftDateFrom}
+          dateTo={draftDateTo}
+          onDateFromChange={setDraftDateFrom}
+          onDateToChange={setDraftDateTo}
+          showDateRange
+          onApply={applyFilters}
+          onReset={resetFilters}
+          activeChips={activeChips}
+        />
 
         {loading ? <LoadingSkeleton rows={4} /> : null}
         {!loading && rows.length === 0 ? (
           <EmptyState
             title="Belum ada pengeluaran"
-            description="Catat onkos operasional pertama di formulir di atas."
+            description={
+              activeChips.length > 0
+                ? FILTER_EMPTY_DESCRIPTION
+                : 'Catat onkos operasional pertama di formulir di atas.'
+            }
             icon="◧"
           />
         ) : null}
         {!loading && rows.length > 0 ? (
+          <>
           <DataTable>
             <thead>
               <tr>
@@ -284,6 +333,18 @@ export function ExpensesPanel({ embedded = false }: { embedded?: boolean }) {
               ))}
             </tbody>
           </DataTable>
+          <TablePagination
+            page={meta.page}
+            totalPages={meta.totalPages ?? 1}
+            totalItems={meta.total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
+          />
+          </>
         ) : null}
       </SectionCard>
     </div>

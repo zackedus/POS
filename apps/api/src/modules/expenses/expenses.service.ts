@@ -4,6 +4,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { ErrorCodes } from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { idrToDecimal, toIdrInteger } from '../../common/utils/money.util';
+import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import { canAccessAnyTenantOutlet, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
 import {
@@ -19,15 +20,24 @@ export class ExpensesService {
 
   async listExpenses(user: AuthJwtPayload, query: ListExpensesQueryDto) {
     const where = this.buildListWhere(user, query);
-    const rows = await this.prisma.expense.findMany({
-      where,
-      include: {
-        outlet: { select: { id: true, code: true, name: true } },
-        createdBy: { select: { id: true, fullName: true } },
-      },
-      orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }],
-    });
-    return rows.map((row) => this.mapExpense(row));
+    const { page, limit, skip } = resolvePagination(query);
+    const [rows, total] = await Promise.all([
+      this.prisma.expense.findMany({
+        where,
+        include: {
+          outlet: { select: { id: true, code: true, name: true } },
+          createdBy: { select: { id: true, fullName: true } },
+        },
+        orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.expense.count({ where }),
+    ]);
+    return {
+      items: rows.map((row) => this.mapExpense(row)),
+      meta: buildPaginationMeta(page, limit, total),
+    };
   }
 
   async getTodaySummary(user: AuthJwtPayload, query: ExpenseSummaryQueryDto) {

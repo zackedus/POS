@@ -2,13 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  getTodayDate,
-  ONLINE_ORDER_CHANNEL_BADGE,
-  type DeliveryOrderListItem,
-  type DeliveryStatus,
-  type OnlineOrderChannel,
-} from '@barokah/shared';
+import { getTodayDate, DEFAULT_PAGE_SIZE, type PaginationMeta, ONLINE_ORDER_CHANNEL_BADGE, type DeliveryOrderListItem, type DeliveryStatus, type OnlineOrderChannel } from '@barokah/shared';
 import { Button, colors } from '@barokah/ui';
 import { PosShiftBar } from '@/components/pos/PosShiftBar';
 import { mapApiError } from '@/lib/api-client';
@@ -20,7 +14,7 @@ import { useDeliveryBadge } from '@/hooks/useDeliveryBadge';
 import { useDeliverySyncRefresh } from '@/hooks/useDeliverySyncRefresh';
 import { useOnlineOrderBadge } from '@/hooks/useOnlineOrderBadge';
 import { useOutletSelection } from '@/lib/outlet-selection-state';
-import { StatusBadge } from '@/components/dashboard/dashboard-ui';
+import { StatusBadge, TablePagination } from '@/components/dashboard/dashboard-ui';
 
 function DeliveryStatusBadge({ status, label }: { status: DeliveryStatus; label: string }) {
   const extra = deliveryStatusExtraStyle(status);
@@ -51,6 +45,9 @@ export default function PosDeliveriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
 
   const { outlets, selectedOutletId, needsOutletPick, setSelectedOutletId } = useOutletSelection();
   const shiftOutletMismatch = Boolean(
@@ -94,16 +91,22 @@ export default function PosDeliveriesPage() {
         dateFrom: today,
         dateTo: today,
         search: search || undefined,
-        limit: 50,
+        page,
+        limit: pageSize,
       });
       setOrders(result.items);
+      setMeta(result.meta);
       setError(null);
     } catch (err) {
       setError(mapApiError(err, 'Gagal memuat antrian pengiriman.'));
     } finally {
       setLoading(false);
     }
-  }, [selectedOutletId, needsOutletPick, search]);
+  }, [selectedOutletId, needsOutletPick, search, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedOutletId]);
 
   useEffect(() => {
     void load();
@@ -254,6 +257,17 @@ export default function PosDeliveriesPage() {
               </div>
             );
           })}
+          <TablePagination
+            page={meta.page}
+            totalPages={meta.totalPages ?? 1}
+            totalItems={meta.total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(next) => {
+              setPageSize(next);
+              setPage(1);
+            }}
+          />
         </div>
       </main>
     </div>

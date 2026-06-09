@@ -21,6 +21,7 @@ import { LoyaltyLedgerQueryDto } from './dto/loyalty-ledger-query.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PatchCustomerCreditLimitDto } from './dto/patch-credit-limit.dto';
 import { CreditAuditLogQueryDto } from './dto/credit-audit-log-query.dto';
+import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { CustomersService } from './customers.service';
 
 @Controller('customers')
@@ -30,8 +31,8 @@ export class CustomersController {
 
   @Get()
   @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
-  list(@CurrentUser() user: AuthJwtPayload, @Query('search') search?: string) {
-    return this.customersService.list(user, search);
+  list(@CurrentUser() user: AuthJwtPayload, @Query() query: ListCustomersQueryDto) {
+    return this.customersService.list(user, query);
   }
 
   @Get('lookup')
