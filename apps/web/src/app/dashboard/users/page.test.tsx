@@ -16,7 +16,7 @@ vi.mock('@/lib/users-api', () => ({
   createUser: vi.fn(),
   updateUser: vi.fn(),
   deactivateUser: vi.fn(),
-  USER_ROLE_LABELS: { OWNER: 'Pemilik', MANAGER: 'Manajer', CASHIER: 'Kasir' },
+  USER_ROLE_LABELS: { OWNER: 'Pemilik', MANAGER: 'Manajer', CASHIER: 'Kasir', ACCOUNTANT: 'Akuntan' },
 }));
 
 vi.mock('@/lib/reports', () => ({
@@ -40,6 +40,7 @@ describe('UsersPageClient', () => {
           id: 'user-1',
           email: 'kasir@barokah.local',
           fullName: 'Kasir Demo',
+          phone: null,
           role: 'CASHIER',
           isActive: true,
           createdAt: '2026-06-01T00:00:00.000Z',
@@ -53,11 +54,17 @@ describe('UsersPageClient', () => {
     });
   });
 
-  it('renders user list for owner', async () => {
+  it('renders user list with add button for owner', async () => {
     render(<UsersPageClient />);
     expect(await screen.findByText('Pengguna & Peran')).toBeInTheDocument();
     expect(await screen.findByText('Kasir Demo')).toBeInTheDocument();
-    expect(screen.getByText('Tambah Pengguna Baru')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '+ Tambah Pengguna' })).toHaveAttribute('href', '/dashboard/users/new');
     expect(screen.getByRole('button', { name: 'Ubah' })).toBeInTheDocument();
+  });
+
+  it('shows success banner when redirected after create', async () => {
+    render(<UsersPageClient createdUserId="user-1" toast="created" />);
+    expect(await screen.findByText(/Pengguna baru berhasil dibuat/i)).toBeInTheDocument();
+    expect(await screen.findByText('Kasir Demo')).toBeInTheDocument();
   });
 });

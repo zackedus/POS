@@ -1,36 +1,51 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
+  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { UserRole } from '@barokah/database';
 
 const ASSIGNABLE_ROLES = [UserRole.MANAGER, UserRole.CASHIER, UserRole.INVENTORY, UserRole.ACCOUNTANT] as const;
 
 export class CreateUserDto {
-  @IsEmail({}, { message: 'email tidak valid' })
+  @IsEmail({}, { message: 'Email tidak valid' })
   email!: string;
 
   @IsString()
-  @MinLength(8, { message: 'password minimal 8 karakter' })
-  @MaxLength(72, { message: 'password maksimal 72 karakter' })
+  @MinLength(8, { message: 'Password minimal 8 karakter' })
+  @MaxLength(72, { message: 'Password maksimal 72 karakter' })
   password!: string;
 
   @IsString()
-  @MinLength(2, { message: 'fullName minimal 2 karakter' })
-  @MaxLength(120, { message: 'fullName maksimal 120 karakter' })
+  @MinLength(2, { message: 'Nama lengkap minimal 2 karakter' })
+  @MaxLength(120, { message: 'Nama lengkap maksimal 120 karakter' })
   fullName!: string;
 
-  @IsEnum(ASSIGNABLE_ROLES, { message: 'role tidak valid untuk pembuatan user' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20, { message: 'Nomor HP maksimal 20 karakter' })
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
+  phone?: string;
+
+  @IsEnum(ASSIGNABLE_ROLES, { message: 'Role tidak valid untuk pembuatan pengguna' })
   role!: (typeof ASSIGNABLE_ROLES)[number];
 
-  @IsArray({ message: 'outletIds harus array' })
-  @ArrayMinSize(1, { message: 'outletIds minimal 1 outlet' })
-  @IsUUID('4', { each: true, message: 'outletIds harus UUID valid' })
+  @IsArray({ message: 'Cabang harus berupa daftar' })
+  @ArrayMinSize(1, { message: 'Pilih minimal satu cabang' })
+  @IsUUID('4', { each: true, message: 'ID cabang tidak valid' })
   outletIds!: string[];
+
+  @IsOptional()
+  @IsBoolean({ message: 'Status aktif harus ya/tidak' })
+  isActive?: boolean;
 }
+
+export { ASSIGNABLE_ROLES as CREATE_USER_ASSIGNABLE_ROLES };

@@ -254,7 +254,7 @@ Gunakan urutan berikut saat UAT pilot. Centang setiap langkah setelah **hasil ak
 - [ ] Kasir: minimal 2 akun shift bergantian
 - [ ] Uji login/logout + outlet scope (kasir = cabang assign; manager/owner = semua cabang tenant)
 - [ ] **Pusat Admin** (`/dashboard/admin`) — Owner/Manager only; Kasir redirect `/pos`
-- [ ] **Pengguna & Peran** (`/dashboard/users`, tab Peran & Izin) — Owner buat semua role; Manager buat kasir saja; matriks RBAC di tab roles
+- [ ] **Pengguna & Peran** (`/dashboard/users`, tab Peran & Izin) — Owner buat semua role via wizard `/dashboard/users/new` (3 langkah: identitas → peran/cabang → review); Manager buat kasir saja; matriks RBAC di tab roles; staff ≠ member CRM
 - [ ] **Member & Pelanggan** (`/dashboard/customers`) — list poin/piutang/deposit; detail tab profil/alamat/poin/piutang/deposit/kartu member
 - [ ] **Kartu member** — preview digital + cetak dari tab Kartu Member; scan QR di POS kasir
 - [ ] **Integrasi & API** (`/dashboard/settings?tab=integrasi`) — webhook Midtrans URL, tes koneksi sandbox

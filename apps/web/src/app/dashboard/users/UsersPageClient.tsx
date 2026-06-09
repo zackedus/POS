@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@barokah/ui';
 import { DEFAULT_PAGE_SIZE, type PaginationMeta } from '@barokah/shared';
@@ -14,14 +15,14 @@ import {
   TablePagination,
   tableStyles,
 } from '@/components/dashboard/dashboard-ui';
+import { EditUserPanel } from '@/components/dashboard/users/EditUserPanel';
 import { RolesPanel } from '@/components/dashboard/users/RolesPanel';
 import { UsersTabs, parseUsersTab, type UsersTabId } from '@/components/dashboard/users/users-ui';
 import { fetchMe, type AuthUser } from '@/lib/auth';
 import { fetchOutlets } from '@/lib/reports';
-import { canAssignRole, canCreateUser, canDeactivateUser, canEditUser } from '@/lib/rbac';
+import { canCreateUser, canDeactivateUser, canEditUser } from '@/lib/rbac';
 import { roleBadgeVariant } from '@/lib/roles-api';
 import {
-  createUser,
   deactivateUser,
   fetchUsers,
   updateUser,
@@ -30,8 +31,6 @@ import {
 } from '@/lib/users-api';
 import { ListFilterBar, FILTER_EMPTY_DESCRIPTION } from '@/components/dashboard/ListFilterBar';
 import { buildFilterChips } from '@/lib/list-filters';
-
-const ASSIGNABLE_ROLES = ['MANAGER', 'CASHIER', 'INVENTORY', 'ACCOUNTANT'] as const;
 
 const ROLE_FILTER_OPTIONS = [
   { value: '', label: 'Semua role' },
@@ -54,23 +53,15 @@ function emptyUserFilters(): UserFilters {
   return { role: '', isActive: '', search: '' };
 }
 
-type UserFormState = {
-  email: string;
-  password: string;
-  fullName: string;
-  role: string;
-  outletIds: string[];
-};
-
-const emptyCreateForm: UserFormState = {
-  email: '',
-  password: '',
-  fullName: '',
-  role: 'CASHIER',
-  outletIds: [],
-};
-
-export function UsersPageClient({ tab }: { tab?: string }) {
+export function UsersPageClient({
+  tab,
+  createdUserId,
+  toast,
+}: {
+  tab?: string;
+  createdUserId?: string;
+  toast?: string;
+}) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<UsersTabId>(() => parseUsersTab(tab));
 
@@ -79,9 +70,9 @@ export function UsersPageClient({ tab }: { tab?: string }) {
   }, [tab]);
 
   const handleTabChange = useCallback(
-    (tab: UsersTabId) => {
-      setActiveTab(tab);
-      router.push(`/dashboard/users?tab=${tab}`);
+    (nextTab: UsersTabId) => {
+      setActiveTab(nextTab);
+      router.push(`/dashboard/users?tab=${nextTab}`);
     },
     [router],
   );
@@ -104,36 +95,41 @@ export function UsersPageClient({ tab }: { tab?: string }) {
   }
 
   return (
-    <UsersManagementPanel activeTab={activeTab} onTabChange={handleTabChange} />
+    <UsersManagementPanel
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+      createdUserId={createdUserId}
+      toast={toast}
+    />
   );
 }
 
 function UsersManagementPanel({
   activeTab,
   onTabChange,
+  createdUserId,
+  toast,
 }: {
   activeTab: UsersTabId;
   onTabChange: (tab: UsersTabId) => void;
+  createdUserId?: string;
+  toast?: string;
 }) {
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [outletOptions, setOutletOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(
+    toast === 'created' ? 'Pengguna baru berhasil dibuat.' : null,
+  );
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<UserFormState>(emptyCreateForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    fullName: '',
-    role: 'CASHIER',
-    outletIds: [] as string[],
-    password: '',
-  });
+  const [highlightId, setHighlightId] = useState<string | undefined>(createdUserId);
 
   const canCreate = currentUser ? canCreateUser(currentUser.role) : false;
   const actorRole = currentUser?.role ?? '';
-  const assignableRoles = ASSIGNABLE_ROLES.filter((role) => canAssignRole(actorRole, role));
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 });
@@ -196,9 +192,6 @@ function UsersManagementPanel({
       setMeta(rows.meta);
       const outlets = outletsRes?.outlets ?? [];
       setOutletOptions(outlets.map((o) => ({ id: o.id, label: `${o.name} (${o.code})` })));
-      if (outlets.length === 1) {
-        setForm((prev) => ({ ...prev, outletIds: [outlets[0]!.id] }));
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat pengguna.');
     } finally {
@@ -210,66 +203,21 @@ function UsersManagementPanel({
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!highlightId || loading) return;
+    highlightRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    const timer = window.setTimeout(() => setHighlightId(undefined), 6000);
+    return () => window.clearTimeout(timer);
+  }, [highlightId, loading, users]);
+
   function startEdit(user: UserSummary) {
     setEditingId(user.id);
-    setEditForm({
-      fullName: user.fullName,
-      role: user.role,
-      outletIds: user.outlets.map((o) => o.id),
-      password: '',
-    });
     setError(null);
     setSuccess(null);
   }
 
   function cancelEdit() {
     setEditingId(null);
-    setEditForm({ fullName: '', role: 'CASHIER', outletIds: [], password: '' });
-  }
-
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    if (!canCreate) return;
-
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      await createUser(form);
-      setSuccess('Pengguna baru berhasil dibuat.');
-      setForm({ ...emptyCreateForm, outletIds: form.outletIds });
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal membuat pengguna.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleUpdate(userId: string, targetRole: string) {
-    if (!currentUser || !canEditUser(currentUser.role, targetRole) || !editForm.fullName.trim() || editForm.outletIds.length === 0) {
-      setError('Nama lengkap dan minimal satu outlet wajib diisi.');
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      await updateUser(userId, {
-        fullName: editForm.fullName.trim(),
-        role: editForm.role,
-        outletIds: editForm.outletIds,
-        ...(editForm.password.trim() ? { password: editForm.password.trim() } : {}),
-      });
-      setSuccess('Data pengguna berhasil diperbarui.');
-      cancelEdit();
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memperbarui pengguna.');
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function toggleActive(user: UserSummary) {
@@ -290,59 +238,42 @@ function UsersManagementPanel({
     }
   }
 
-  function renderOutletFieldset(
-    selectedIds: string[],
-    onChange: (ids: string[]) => void,
-    disabled: boolean,
-  ) {
-    return (
-      <fieldset style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem', margin: 0 }}>
-        <legend style={{ fontSize: '0.875rem', padding: '0 0.25rem' }}>Akses outlet</legend>
-        {outletOptions.length === 0 ? (
-          <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>Tidak ada outlet.</p>
-        ) : (
-          outletOptions.map((outlet) => (
-            <label key={outlet.id} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem', fontSize: '0.875rem' }}>
-              <input
-                type="checkbox"
-                disabled={disabled}
-                checked={selectedIds.includes(outlet.id)}
-                onChange={(e) => {
-                  onChange(
-                    e.target.checked
-                      ? [...selectedIds, outlet.id]
-                      : selectedIds.filter((id) => id !== outlet.id),
-                  );
-                }}
-              />
-              {outlet.label}
-            </label>
-          ))
-        )}
-      </fieldset>
-    );
-  }
-
   return (
     <div style={{ maxWidth: 1100, display: 'grid', gap: '1.25rem' }}>
       <PageHeader
         title="Pengguna & Peran"
-        description="Kelola akun staff tenant. Pemilik mengelola semua role; Manajer hanya dapat menambah/mengubah kasir."
+        description="Kelola akun staff tenant — bukan member/pelanggan CRM. Pemilik mengelola semua role; Manajer hanya kasir."
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Pengguna' },
         ]}
         actions={
-          <Button type="button" variant="secondary" onClick={() => void loadData()} disabled={loading}>
-            Muat ulang
-          </Button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {canCreate ? (
+              <Link href="/dashboard/users/new" style={{ textDecoration: 'none' }}>
+                <Button type="button" variant="primary">
+                  + Tambah Pengguna
+                </Button>
+              </Link>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={() => void loadData()} disabled={loading}>
+              Muat ulang
+            </Button>
+          </div>
         }
       />
 
       <UsersTabs activeTab={activeTab} onTabChange={onTabChange} />
 
       {error ? <AlertBanner variant="error">{error}</AlertBanner> : null}
-      {success ? <AlertBanner variant="success">{success}</AlertBanner> : null}
+      {success ? (
+        <AlertBanner variant="success">
+          {success}{' '}
+          <Link href="/dashboard/users" style={{ fontWeight: 600 }}>
+            Lihat daftar pengguna
+          </Link>
+        </AlertBanner>
+      ) : null}
 
       <ListFilterBar
         selects={[
@@ -371,7 +302,7 @@ function UsersManagementPanel({
       />
 
       <section style={cardStyle()}>
-        <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Daftar Pengguna</h3>
+        <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Daftar Pengguna Staff</h3>
 
         {loading ? (
           <LoadingSkeleton rows={5} />
@@ -383,7 +314,7 @@ function UsersManagementPanel({
                 ? FILTER_EMPTY_DESCRIPTION
                 : 'Tambahkan akun kasir atau manajer untuk mulai operasional.'
             }
-            actionHref={activeChips.length > 0 ? undefined : '#tambah-pengguna'}
+            actionHref={activeChips.length > 0 ? undefined : '/dashboard/users/new'}
             actionLabel={activeChips.length > 0 ? undefined : 'Tambah pengguna'}
           />
         ) : (
@@ -403,64 +334,44 @@ function UsersManagementPanel({
                 <tbody>
                   {users.map((user) => {
                     const rowCanEdit = currentUser ? canEditUser(currentUser.role, user.role) : false;
+                    const isHighlighted = highlightId === user.id;
                     return editingId === user.id ? (
                       <tr key={user.id} style={tableStyles.row}>
                         <td colSpan={canCreate ? 6 : 5} style={{ ...tableStyles.td, padding: '1rem' }}>
-                          <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 520 }}>
-                            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
-                              Nama lengkap
-                              <input
-                                required
-                                value={editForm.fullName}
-                                onChange={(e) => setEditForm((p) => ({ ...p, fullName: e.target.value }))}
-                                style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-                              />
-                            </label>
-                            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
-                              Role
-                              <select
-                                value={editForm.role}
-                                onChange={(e) => setEditForm((p) => ({ ...p, role: e.target.value }))}
-                                disabled={user.role === 'OWNER'}
-                                style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-                              >
-                                {user.role === 'OWNER' ? (
-                                  <option value="OWNER">{USER_ROLE_LABELS.OWNER}</option>
-                                ) : (
-                                  assignableRoles.map((role) => (
-                                    <option key={role} value={role}>
-                                      {USER_ROLE_LABELS[role]}
-                                    </option>
-                                  ))
-                                )}
-                              </select>
-                            </label>
-                            {renderOutletFieldset(editForm.outletIds, (ids) => setEditForm((p) => ({ ...p, outletIds: ids })), saving)}
-                            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
-                              Password baru (opsional)
-                              <input
-                                type="password"
-                                minLength={8}
-                                value={editForm.password}
-                                onChange={(e) => setEditForm((p) => ({ ...p, password: e.target.value }))}
-                                placeholder="Kosongkan jika tidak diubah"
-                                style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-                              />
-                            </label>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <Button type="button" variant="primary" disabled={saving} onClick={() => void handleUpdate(user.id, user.role)}>
-                                {saving ? 'Menyimpan…' : 'Simpan Perubahan'}
-                              </Button>
-                              <Button type="button" variant="secondary" disabled={saving} onClick={cancelEdit}>
-                                Batal
-                              </Button>
-                            </div>
-                          </div>
+                          <EditUserPanel
+                            user={user}
+                            actorRole={actorRole}
+                            outletOptions={outletOptions}
+                            saving={saving}
+                            onSavingChange={setSaving}
+                            onSuccess={(message) => {
+                              setSuccess(message);
+                              cancelEdit();
+                              void loadData();
+                            }}
+                            onError={setError}
+                            onCancel={cancelEdit}
+                          />
                         </td>
                       </tr>
                     ) : (
-                      <tr key={user.id} style={tableStyles.row}>
-                        <td style={tableStyles.td}>{user.fullName}</td>
+                      <tr
+                        key={user.id}
+                        ref={isHighlighted ? highlightRef : undefined}
+                        style={{
+                          ...tableStyles.row,
+                          background: isHighlighted ? '#ecfdf5' : undefined,
+                          outline: isHighlighted ? '2px solid #22c55e' : undefined,
+                        }}
+                      >
+                        <td style={tableStyles.td}>
+                          <span style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {user.fullName}
+                            {isHighlighted ? (
+                              <StatusBadge label="Baru" variant="success" />
+                            ) : null}
+                          </span>
+                        </td>
                         <td style={tableStyles.td}>{user.email}</td>
                         <td style={tableStyles.td}>
                           <StatusBadge
@@ -512,64 +423,6 @@ function UsersManagementPanel({
           </>
         )}
       </section>
-
-      {canCreate ? (
-        <section id="tambah-pengguna" style={cardStyle()}>
-          <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>
-            {actorRole === 'MANAGER' ? 'Tambah Kasir Baru' : 'Tambah Pengguna Baru'}
-          </h3>
-          <form onSubmit={(e) => void handleCreate(e)} style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
-            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
-              Nama lengkap
-              <input
-                required
-                value={form.fullName}
-                onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
-                style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
-              Email
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
-              Password sementara
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={form.password}
-                onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.875rem' }}>
-              Role
-              <select
-                value={form.role}
-                onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
-                style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #e2e8f0' }}
-              >
-                {assignableRoles.map((role) => (
-                  <option key={role} value={role}>
-                    {USER_ROLE_LABELS[role]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {renderOutletFieldset(form.outletIds, (ids) => setForm((p) => ({ ...p, outletIds: ids })), saving)}
-            <Button type="submit" variant="primary" disabled={saving || form.outletIds.length === 0}>
-              {saving ? 'Menyimpan…' : 'Buat Pengguna'}
-            </Button>
-          </form>
-        </section>
-      ) : null}
     </div>
   );
 }

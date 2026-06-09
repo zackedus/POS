@@ -7,7 +7,13 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '@barokah/database';
-import { ErrorCodes } from '@barokah/shared';
+import {
+  ErrorCodes,
+  isPasswordStrongEnough,
+  isValidIndonesianMobilePhone,
+  normalizePhone,
+  validatePasswordStrength,
+} from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { buildPaginationMeta, resolvePagination } from '../../common/utils/pagination.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
@@ -63,9 +69,20 @@ export class UsersService {
 
   async createUser(actor: AuthJwtPayload, dto: CreateUserDto) {
     this.assertActorCanAssignRole(actor, dto.role);
+    this.assertPasswordStrength(dto.password);
+    this.assertRoleOutletRules(dto.role, dto.outletIds);
     await this.ensureOutletsBelongToTenant(actor.tenantId, dto.outletIds);
 
     const email = dto.email.trim().toLowerCase();
+    const phone = this.normalizeOptionalPhone(dto.phone);
+    if (phone && !isValidIndonesianMobilePhone(phone)) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: 'Nomor HP tidak valid. Gunakan format 08…',
+        details: [{ field: 'phone', message: 'Nomor HP tidak valid. Gunakan format 08…' }],
+      });
+    }
+
     const existing = await this.prisma.user.findFirst({
       where: { tenantId: actor.tenantId, email },
       select: { id: true },
@@ -75,6 +92,7 @@ export class UsersService {
       throw new ConflictException({
         code: ErrorCodes.DUPLICATE_ENTRY,
         message: 'Email sudah terdaftar pada tenant ini.',
+        details: [{ field: 'email', message: 'Email sudah terdaftar pada tenant ini.' }],
       });
     }
 
@@ -86,9 +104,10 @@ export class UsersService {
           tenantId: actor.tenantId,
           email,
           fullName: dto.fullName.trim(),
+          phone,
           role: dto.role,
           passwordHash,
-          isActive: true,
+          isActive: dto.isActive ?? true,
         },
       });
 
@@ -138,17 +157,38 @@ export class UsersService {
       await this.ensureOutletsBelongToTenant(actor.tenantId, dto.outletIds);
     }
 
+    const nextRole = dto.role ?? existing.role;
+    if (dto.outletIds) {
+      this.assertRoleOutletRules(nextRole, dto.outletIds);
+    }
+
+    if (dto.phone !== undefined) {
+      const normalized = this.normalizeOptionalPhone(dto.phone ?? undefined);
+      if (normalized && !isValidIndonesianMobilePhone(normalized)) {
+        throw new UnprocessableEntityException({
+          code: ErrorCodes.VALIDATION_FAILED,
+          message: 'Nomor HP tidak valid. Gunakan format 08…',
+          details: [{ field: 'phone', message: 'Nomor HP tidak valid. Gunakan format 08…' }],
+        });
+      }
+    }
+
     const data: {
       fullName?: string;
+      phone?: string | null;
       role?: UserRole;
       isActive?: boolean;
       passwordHash?: string;
     } = {};
 
     if (dto.fullName !== undefined) data.fullName = dto.fullName.trim();
+    if (dto.phone !== undefined) data.phone = this.normalizeOptionalPhone(dto.phone ?? undefined);
     if (dto.role !== undefined) data.role = dto.role;
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
-    if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 10);
+    if (dto.password) {
+      this.assertPasswordStrength(dto.password);
+      data.passwordHash = await bcrypt.hash(dto.password, 10);
+    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (Object.keys(data).length > 0) {
@@ -283,6 +323,7 @@ export class UsersService {
     id: string;
     email: string;
     fullName: string;
+    phone?: string | null;
     role: UserRole;
     isActive: boolean;
     createdAt: Date;
@@ -294,6 +335,7 @@ export class UsersService {
       id: row.id,
       email: row.email,
       fullName: row.fullName,
+      phone: row.phone ?? null,
       role: row.role,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
@@ -303,5 +345,40 @@ export class UsersService {
         code: uo.outlet.code,
       })),
     };
+  }
+
+  private assertPasswordStrength(password: string) {
+    const message = validatePasswordStrength(password);
+    if (message) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message,
+        details: [{ field: 'password', message }],
+      });
+    }
+    if (!isPasswordStrongEnough(password)) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: 'Password harus kombinasi huruf dan angka.',
+        details: [{ field: 'password', message: 'Password harus kombinasi huruf dan angka.' }],
+      });
+    }
+  }
+
+  private assertRoleOutletRules(role: UserRole, outletIds: string[]) {
+    const uniqueCount = new Set(outletIds).size;
+    if (role === UserRole.CASHIER && uniqueCount !== 1) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: 'Kasir wajib ditetapkan ke tepat satu cabang.',
+        details: [{ field: 'outletIds', message: 'Kasir wajib ditetapkan ke tepat satu cabang.' }],
+      });
+    }
+  }
+
+  private normalizeOptionalPhone(phone?: string | null): string | null {
+    const trimmed = phone?.trim();
+    if (!trimmed) return null;
+    return normalizePhone(trimmed);
   }
 }
