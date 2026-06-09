@@ -575,7 +575,13 @@ export default function ProductsPage() {
     const nextSellOnline = !(product.sellOnline ?? true);
     const previousProducts = products;
     setProducts((prev) =>
-      prev.map((row) => (row.id === product.id ? { ...row, sellOnline: nextSellOnline } : row)),
+      prev.map((row) => {
+        if (row.id === product.id) return { ...row, sellOnline: nextSellOnline };
+        if (product.hasVariants && row.parentProductId === product.id) {
+          return { ...row, sellOnline: nextSellOnline };
+        }
+        return row;
+      }),
     );
     setTogglingSellOnlineId(product.id);
     setError(null);
@@ -592,8 +598,12 @@ export default function ProductsPage() {
       }
       setSuccess(
         nextSellOnline
-          ? `"${product.name}" sekarang tampil di web store.`
-          : `"${product.name}" disembunyikan dari web store.`,
+          ? product.hasVariants
+            ? `"${product.name}" dan semua variannya sekarang tampil di web store.`
+            : `"${product.name}" sekarang tampil di web store.`
+          : product.hasVariants
+            ? `"${product.name}" dan semua variannya disembunyikan dari web store.`
+            : `"${product.name}" disembunyikan dari web store.`,
       );
     } catch (err) {
       setProducts(previousProducts);
@@ -974,7 +984,14 @@ export default function ProductsPage() {
                       {stockInfo?.isLowStock ? (
                         <span style={badgeStyle('#fffbeb', '#b45309')}>Stok rendah</span>
                       ) : null}
-                      {product.sellOnline ? (
+                      {product.parentProductId ? (
+                        <span
+                          style={badgeStyle('#eff6ff', '#1d4ed8')}
+                          title="Visibilitas web store mengikuti produk induk"
+                        >
+                          Ikut induk
+                        </span>
+                      ) : product.sellOnline ? (
                         <span style={badgeStyle('#eff6ff', '#1d4ed8')}>Online</span>
                       ) : (
                         <span style={badgeStyle('#f1f5f9', '#64748b')}>Offline</span>
@@ -1025,12 +1042,17 @@ export default function ProductsPage() {
                     ) : null}
                   </div>
                   <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
-                    {!product.hasVariants && !product.parentProductId ? (
+                    {!product.parentProductId ? (
                       <SellOnlineToggle
                         checked={product.sellOnline ?? true}
                         loading={togglingSellOnlineId === product.id}
                         disabled={!!deletingId || saving}
                         label="Tampil di Web"
+                        title={
+                          product.hasVariants
+                            ? 'Mengatur visibilitas seluruh keluarga varian di katalog web toko'
+                            : 'Produk muncul di katalog web toko saat aktif'
+                        }
                         onChange={() => void handleToggleSellOnline(product)}
                       />
                     ) : null}
@@ -1071,6 +1093,7 @@ export default function ProductsPage() {
                   parentProductId={product.id}
                   parentName={product.name}
                   parentSku={product.sku}
+                  parentSellOnline={product.sellOnline ?? true}
                   unitSymbol={product.unit?.symbol}
                   showCostFields={showCostFields}
                   onVariantsChanged={() => void loadMasterData()}

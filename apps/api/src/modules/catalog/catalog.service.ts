@@ -267,7 +267,7 @@ export class CatalogService {
           parentProductId: parent.id,
           hasVariants: false,
           isActive: dto.isActive ?? true,
-          sellOnline: false,
+          sellOnline: parent.sellOnline ?? true,
         },
         include: {
           unit: { select: { id: true, name: true, symbol: true } },
@@ -456,6 +456,12 @@ export class CatalogService {
           ...(dto.orderStep !== undefined ? { orderStep: dto.orderStep } : {}),
         },
       });
+      if (dto.sellOnline !== undefined && product.hasVariants) {
+        await this.prisma.product.updateMany({
+          where: { tenantId: user.tenantId, parentProductId: productId },
+          data: { sellOnline: dto.sellOnline },
+        });
+      }
       return {
         ...product,
         price: toIdrInteger(product.price),
@@ -1547,6 +1553,7 @@ export class CatalogService {
         unitId: true,
         categoryId: true,
         name: true,
+        sellOnline: true,
       },
     });
     if (!parent) {

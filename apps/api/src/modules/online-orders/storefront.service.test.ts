@@ -183,6 +183,152 @@ test('Storefront: getConfig returns tenant and merged settings', async () => {
   assert.equal(config.storefrontUrl, '/store/barokah-bangunan');
 });
 
+test('Storefront: listProducts only queries sellOnline parents and simple products', async () => {
+  let listWhere: Record<string, unknown> | undefined;
+  const prisma = buildPrisma({
+    product: {
+      findMany: async (args: { where: Record<string, unknown> }) => {
+        listWhere = args.where;
+        return [];
+      },
+      count: async () => 0,
+    },
+    inventoryItem: {
+      findMany: async () => [],
+    },
+  });
+  const service = buildService(prisma);
+
+  const result = await service.listProducts('barokah-bangunan', {
+    outletId: 'outlet-1',
+    page: 1,
+    limit: 20,
+  });
+
+  assert.equal(result.items.length, 0);
+  assert.equal(listWhere?.sellOnline, true);
+});
+
+test('Storefront: listProducts includes variant summary when parent sellOnline is true', async () => {
+  const VARIANT_PARENT = {
+    id: 'prod-parent',
+    name: 'Cat Tembok',
+    sku: 'CAT-001',
+    price: new Decimal(0),
+    moq: new Decimal(1),
+    orderStep: new Decimal(1),
+    imageUrl: null,
+    webPlaceholderKey: 'generic-building',
+    hasVariants: true,
+    unit: { symbol: 'klg' },
+    variants: [
+      { id: 'variant-putih', name: 'Cat Tembok Putih', variantLabel: 'Putih', price: new Decimal(85000) },
+      { id: 'variant-merah', name: 'Cat Tembok Merah', variantLabel: 'Merah', price: new Decimal(90000) },
+    ],
+  };
+  const prisma = buildPrisma({
+    product: {
+      findMany: async () => [VARIANT_PARENT],
+      count: async () => 1,
+    },
+    inventoryItem: {
+      findMany: async () => [
+        { productId: 'variant-putih', quantity: new Decimal(5) },
+        { productId: 'variant-merah', quantity: new Decimal(3) },
+      ],
+    },
+  });
+  const service = buildService(prisma);
+
+  const result = await service.listProducts('barokah-bangunan', {
+    outletId: 'outlet-1',
+    page: 1,
+    limit: 20,
+  });
+
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0]?.hasVariants, true);
+  assert.equal(result.items[0]?.fromPrice, 85000);
+  assert.equal(result.items[0]?.stockStatus, 'AVAILABLE');
+  assert.deepEqual(result.items[0]?.variantSummary, [
+    { id: 'variant-putih', name: 'Putih', price: 85000, stock: 5 },
+    { id: 'variant-merah', name: 'Merah', price: 90000, stock: 3 },
+  ]);
+});
+
+test('Storefront: getProduct returns variants with prices for parent product', async () => {
+  const VARIANT_PARENT = {
+    id: 'prod-parent',
+    name: 'Cat Tembok',
+    sku: 'CAT-001',
+    price: new Decimal(0),
+    moq: new Decimal(1),
+    orderStep: new Decimal(1),
+    imageUrl: null,
+    webPlaceholderKey: 'generic-building',
+    hasVariants: true,
+    categoryId: 'cat-1',
+    unit: { symbol: 'klg' },
+    variants: [
+      {
+        id: 'variant-putih',
+        name: 'Cat Tembok Putih',
+        sku: 'CAT-001-P',
+        variantLabel: 'Putih',
+        price: new Decimal(85000),
+        moq: new Decimal(1),
+        orderStep: new Decimal(1),
+      },
+      {
+        id: 'variant-merah',
+        name: 'Cat Tembok Merah',
+        sku: 'CAT-001-M',
+        variantLabel: 'Merah',
+        price: new Decimal(90000),
+        moq: new Decimal(1),
+        orderStep: new Decimal(1),
+      },
+    ],
+  };
+  let lookupCount = 0;
+  const prisma = buildPrisma({
+    product: {
+      findFirst: async (args: { where: { id?: string; sellOnline?: boolean } }) => {
+        lookupCount += 1;
+        if (lookupCount === 1) {
+          return {
+            id: 'prod-parent',
+            parentProductId: null,
+            sellOnline: true,
+            parentProduct: null,
+          };
+        }
+        if (args.where.sellOnline === true) return VARIANT_PARENT;
+        return null;
+      },
+      findMany: async () => [],
+    },
+    inventoryItem: {
+      findMany: async () => [
+        { productId: 'variant-putih', quantity: new Decimal(4) },
+        { productId: 'variant-merah', quantity: new Decimal(0) },
+      ],
+    },
+  });
+  const service = buildService(prisma);
+
+  const result = await service.getProduct('barokah-bangunan', 'prod-parent', 'outlet-1');
+
+  assert.equal(result.hasVariants, true);
+  assert.equal(result.variants?.length, 2);
+  assert.equal(result.variants?.[0]?.price, 85000);
+  assert.equal(result.variants?.[1]?.price, 90000);
+  const firstVariant = result.variants?.[0] as { stockStatus?: string } | undefined;
+  const secondVariant = result.variants?.[1] as { stockStatus?: string } | undefined;
+  assert.equal(firstVariant?.stockStatus, 'AVAILABLE');
+  assert.equal(secondVariant?.stockStatus, 'OUT_OF_STOCK');
+});
+
 test('Storefront: createOrder rejects honeypot website field', async () => {
   const prisma = buildPrisma();
   const service = buildService(prisma);

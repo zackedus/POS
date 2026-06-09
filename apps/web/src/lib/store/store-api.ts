@@ -41,6 +41,13 @@ export interface StoreProductVariant {
   stockStatus?: 'AVAILABLE' | 'OUT_OF_STOCK';
 }
 
+export interface CatalogVariantSummary {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+}
+
 export interface CatalogProductItem {
   id: string;
   name: string;
@@ -53,7 +60,10 @@ export interface CatalogProductItem {
   moq: number;
   orderStep: number;
   hasVariants?: boolean;
+  fromPrice?: number;
+  variantSummary?: CatalogVariantSummary[];
   variants?: StoreProductVariant[];
+  selectedVariantId?: string;
 }
 
 export type StoreFulfillmentType = 'PICKUP' | 'DELIVERY';

@@ -5,6 +5,7 @@ type SellOnlineToggleProps = {
   disabled?: boolean;
   loading?: boolean;
   label?: string;
+  title?: string;
   onChange: (checked: boolean) => void;
 };
 
@@ -13,12 +14,14 @@ export function SellOnlineToggle({
   disabled = false,
   loading = false,
   label = 'Web Store',
+  title,
   onChange,
 }: SellOnlineToggleProps) {
   const isDisabled = disabled || loading;
 
   return (
     <label
+      title={title}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

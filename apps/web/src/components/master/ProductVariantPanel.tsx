@@ -34,10 +34,21 @@ const emptyForm = {
 
 type VariantForm = typeof emptyForm;
 
+const inheritBadgeStyle = {
+  fontSize: '0.6875rem',
+  fontWeight: 600,
+  padding: '0.125rem 0.45rem',
+  borderRadius: 999,
+  background: '#eff6ff',
+  color: '#1d4ed8',
+  whiteSpace: 'nowrap',
+} as const;
+
 export function ProductVariantPanel({
   parentProductId,
   parentName,
   parentSku,
+  parentSellOnline = true,
   unitSymbol,
   onVariantsChanged,
   showCostFields,
@@ -45,6 +56,7 @@ export function ProductVariantPanel({
   parentProductId: string;
   parentName: string;
   parentSku: string;
+  parentSellOnline?: boolean;
   unitSymbol?: string;
   onVariantsChanged?: () => void;
   showCostFields?: boolean;
@@ -258,6 +270,7 @@ export function ProductVariantPanel({
       <h3 style={{ margin: '0 0 0.35rem', fontSize: '0.95rem' }}>Varian — {parentName}</h3>
       <p style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem', color: '#64748b' }}>
         Stok dan penjualan kasir menggunakan SKU varian{unitSymbol ? ` (satuan: ${unitSymbol})` : ''}.
+        {' '}Visibilitas web store diatur dari toggle induk{parentSellOnline ? ' (aktif)' : ' (nonaktif)'}.
       </p>
 
       {error ? (
@@ -283,6 +296,7 @@ export function ProductVariantPanel({
                 {showCostFields ? <th style={{ padding: '0.5rem' }}>Harga beli</th> : null}
                 <th style={{ padding: '0.5rem' }}>Stok</th>
                 <th style={{ padding: '0.5rem' }}>Status</th>
+                <th style={{ padding: '0.5rem' }}>Web store</th>
                 <th style={{ padding: '0.5rem' }}>Aksi</th>
               </tr>
             </thead>
@@ -290,7 +304,7 @@ export function ProductVariantPanel({
               {variants.map((variant) =>
                 editingId === variant.id ? (
                   <tr key={variant.id} style={{ borderBottom: '1px solid #f1f5f9', background: '#fff' }}>
-                    <td colSpan={showCostFields ? 8 : 7} style={{ padding: '0.5rem' }}>
+                    <td colSpan={showCostFields ? 9 : 8} style={{ padding: '0.5rem' }}>
                       <div style={{ display: 'grid', gap: '0.5rem' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '0.5rem' }}>
                           <Input label="SKU" value={editForm.sku} onChange={(e) => setEditForm((p) => ({ ...p, sku: e.target.value }))} fullWidth disabled={saving} />
@@ -324,6 +338,18 @@ export function ProductVariantPanel({
                         : '—'}
                     </td>
                     <td style={{ padding: '0.5rem' }}>{variant.isActive ? 'Aktif' : 'Nonaktif'}</td>
+                    <td style={{ padding: '0.5rem' }}>
+                      <span
+                        style={inheritBadgeStyle}
+                        title={
+                          parentSellOnline
+                            ? 'Varian ini tampil di web store karena induk aktif'
+                            : 'Varian ini tersembunyi di web store karena induk nonaktif'
+                        }
+                      >
+                        Ikut induk
+                      </span>
+                    </td>
                     <td style={{ padding: '0.5rem' }}>
                       <span style={{ display: 'flex', gap: '0.375rem' }}>
                         <Button type="button" variant="secondary" disabled={saving} onClick={() => startEdit(variant)}>Ubah</Button>

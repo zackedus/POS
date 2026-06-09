@@ -186,7 +186,7 @@ export class StorefrontService {
           some: {
             sellOnline: true,
             isActive: true,
-            hasVariants: false,
+            parentProductId: null,
           },
         },
       },
@@ -252,8 +252,8 @@ export class StorefrontService {
           hasVariants: true,
           unit: { select: { symbol: true } },
           variants: {
-            where: { isActive: true, sellOnline: true },
-            select: { id: true, price: true },
+            where: { isActive: true },
+            select: { id: true, name: true, variantLabel: true, price: true },
             orderBy: { price: 'asc' },
           },
         },
@@ -283,6 +283,14 @@ export class StorefrontService {
         const qty = product.hasVariants
           ? product.variants.reduce((sum, variant) => sum + (stockMap.get(variant.id) ?? 0), 0)
           : stockMap.get(product.id) ?? 0;
+        const variantSummary = product.hasVariants
+          ? product.variants.map((variant) => ({
+              id: variant.id,
+              name: variant.variantLabel ?? variant.name,
+              price: toIdrInteger(variant.price),
+              stock: stockMap.get(variant.id) ?? 0,
+            }))
+          : undefined;
         return {
           id: product.id,
           name: product.name,
@@ -296,7 +304,9 @@ export class StorefrontService {
           moq: product.moq,
           orderStep: product.orderStep,
           hasVariants: product.hasVariants,
-          ...(product.hasVariants ? { fromPrice: displayPrice } : {}),
+          ...(product.hasVariants
+            ? { fromPrice: displayPrice, variantSummary }
+            : {}),
           cacheHint: { asOf, ttlSeconds: CACHE_TTL_SECONDS },
         };
       })
@@ -315,9 +325,49 @@ export class StorefrontService {
     const settings = await this.resolveStorefrontSettings(tenant.id, tenant.name);
     await this.assertOutletBelongsToTenant(tenant.id, outletId, settings);
 
-    const product = await this.prisma.product.findFirst({
+    const requested = await this.prisma.product.findFirst({
       where: {
         id: productId,
+        tenantId: tenant.id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        parentProductId: true,
+        sellOnline: true,
+        parentProduct: {
+          select: { id: true, sellOnline: true, isActive: true },
+        },
+      },
+    });
+
+    if (!requested) {
+      throw new NotFoundException({
+        code: ErrorCodes.ONLINE_PRODUCT_NOT_AVAILABLE,
+        message: 'Produk tidak tersedia di toko online.',
+      });
+    }
+
+    const resolvedProductId = requested.parentProductId ?? requested.id;
+    const parentSellOnline = requested.parentProductId
+      ? requested.parentProduct?.sellOnline
+      : requested.sellOnline;
+    const parentActive = requested.parentProductId
+      ? requested.parentProduct?.isActive
+      : true;
+
+    if (!parentSellOnline || parentActive === false) {
+      throw new NotFoundException({
+        code: ErrorCodes.ONLINE_PRODUCT_NOT_AVAILABLE,
+        message: 'Produk tidak tersedia di toko online.',
+      });
+    }
+
+    const preselectedVariantId = requested.parentProductId ? requested.id : undefined;
+
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: resolvedProductId,
         tenantId: tenant.id,
         sellOnline: true,
         isActive: true,
@@ -335,7 +385,7 @@ export class StorefrontService {
         categoryId: true,
         unit: { select: { symbol: true } },
         variants: {
-          where: { isActive: true, sellOnline: true },
+          where: { isActive: true },
           select: {
             id: true,
             name: true,
@@ -428,6 +478,7 @@ export class StorefrontService {
         orderStep: product.orderStep,
         hasVariants: true,
         variants,
+        ...(preselectedVariantId ? { selectedVariantId: preselectedVariantId } : {}),
         relatedProducts: related,
         cacheHint: { asOf, ttlSeconds: CACHE_TTL_SECONDS },
       };
@@ -537,9 +588,15 @@ export class StorefrontService {
       where: {
         tenantId: tenant.id,
         id: { in: productIds },
-        sellOnline: true,
         isActive: true,
         hasVariants: false,
+        OR: [
+          { sellOnline: true, parentProductId: null },
+          {
+            parentProductId: { not: null },
+            parentProduct: { sellOnline: true, isActive: true },
+          },
+        ],
       },
       select: {
         id: true,

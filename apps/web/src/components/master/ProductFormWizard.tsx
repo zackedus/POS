@@ -287,7 +287,7 @@ export function ProductFormWizard({
       hasVariants: productType === ProductType.VARIANT,
       parentProductId: productType === ProductType.VARIANT ? undefined : prev.parentProductId,
       variantLabel: productType === ProductType.VARIANT ? undefined : prev.variantLabel,
-      sellOnline: productType === ProductType.VARIANT ? false : prev.sellOnline,
+      sellOnline: prev.sellOnline ?? true,
       price: productType === ProductType.VARIANT ? '0' : prev.price,
       costPrice: productType === ProductType.VARIANT ? '' : prev.costPrice,
       variantDrafts:
@@ -603,21 +603,32 @@ export function ProductFormWizard({
                 ))}
               </select>
             </label>
-            <label style={{ display: 'grid', gap: '0.25rem', alignSelf: 'end', marginBottom: '0.25rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-                <input
-                  type="checkbox"
-                  aria-label="Tampil di Web Store"
-                  checked={form.sellOnline ?? true}
-                  disabled={disabled || form.productType === ProductType.VARIANT}
-                  onChange={(e) => patch({ sellOnline: e.target.checked })}
-                />
-                Tampil di Web Store
-              </span>
-              <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.35 }}>
-                Produk ini muncul di katalog online toko
-              </span>
-            </label>
+            {isVariantChild ? (
+              <div style={{ alignSelf: 'end', marginBottom: '0.25rem' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Web store</span>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#64748b', lineHeight: 1.35 }}>
+                  Varian mengikuti toggle induk di daftar produk.
+                </p>
+              </div>
+            ) : (
+              <label style={{ display: 'grid', gap: '0.25rem', alignSelf: 'end', marginBottom: '0.25rem' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Tampil di Web Store"
+                    checked={form.sellOnline ?? true}
+                    disabled={disabled}
+                    onChange={(e) => patch({ sellOnline: e.target.checked })}
+                  />
+                  Tampil di Web Store
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.35 }}>
+                  {form.productType === ProductType.VARIANT
+                    ? 'Induk varian dan semua SKU anak muncul di katalog web toko'
+                    : 'Produk ini muncul di katalog online toko'}
+                </span>
+              </label>
+            )}
           </div>
           <Input
             label="URL gambar produk (opsional)"

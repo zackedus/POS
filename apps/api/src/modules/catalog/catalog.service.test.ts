@@ -244,6 +244,42 @@ test('Catalog: updateProduct can toggle sellOnline via PATCH payload', async () 
   assert.equal((result as { sellOnline: boolean }).sellOnline, false);
 });
 
+test('Catalog: updateProduct cascades sellOnline to variant children when parent toggled', async () => {
+  let cascadePayload: Record<string, unknown> | null = null;
+  const prisma = {
+    unit: { findFirst: async () => null },
+    category: { findFirst: async () => null },
+    product: {
+      findFirst: async () => ({ id: 'prod-parent', tenantId: 'tenant-1' }),
+      update: async (args: { data: Record<string, unknown> }) => ({
+        id: 'prod-parent',
+        sku: 'CAT-001',
+        barcode: null,
+        name: 'Cat Tembok',
+        price: { toString: () => '0' },
+        costPrice: { toString: () => '0' },
+        sellOnline: args.data.sellOnline ?? true,
+        hasVariants: true,
+        isActive: true,
+        imageUrl: null,
+        moq: { toString: () => '1' },
+        orderStep: { toString: () => '1' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+      updateMany: async (args: { data: Record<string, unknown> }) => {
+        cascadePayload = args.data;
+        return { count: 2 };
+      },
+    },
+  };
+
+  const service = new CatalogService(prisma as never);
+  await service.updateProduct(createUser(), 'prod-parent', { sellOnline: false });
+
+  assert.equal(cascadePayload?.['sellOnline'], false);
+});
+
 test('Catalog: createProduct rejects variantLabel without parentProductId', async () => {
   const prisma = {
     unit: { findFirst: async () => ({ id: 'unit-1' }) },
@@ -497,6 +533,7 @@ test('Catalog: createProductVariant inherits unit from parent', async () => {
         unitId: 'unit-liter',
         categoryId: 'cat-1',
         name: 'Cat Tembok',
+        sellOnline: true,
       }),
       create: async (args: { data: Record<string, unknown> }) => {
         createPayload = args.data;
@@ -528,6 +565,7 @@ test('Catalog: createProductVariant inherits unit from parent', async () => {
   assert.equal(createPayload!.unitId, 'unit-liter');
   assert.equal(createPayload!.parentProductId, 'prod-parent');
   assert.equal(createPayload!.hasVariants, false);
+  assert.equal(createPayload!.sellOnline, true);
   assert.equal(result.sku, 'CAT-5L');
 });
 

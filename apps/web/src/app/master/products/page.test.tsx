@@ -296,6 +296,125 @@ describe('ProductsPage', () => {
 
 
 
+  it('shows sellOnline toggle on variant parent but not on variant child rows', async () => {
+
+    mockMasterData([
+
+      {
+
+        id: 'p-parent',
+
+        sku: 'CAT-001',
+
+        name: 'Cat Tembok',
+
+        price: 85000,
+
+        sellOnline: true,
+
+        hasVariants: true,
+
+        unit: { id: 'u-1', name: 'Kaleng', symbol: 'klg' },
+
+      },
+
+      {
+
+        id: 'p-child',
+
+        sku: 'CAT-001-P',
+
+        name: 'Cat Tembok Putih',
+
+        price: 90000,
+
+        parentProductId: 'p-parent',
+
+        variantLabel: 'Warna Putih / 5 Liter',
+
+        parentProduct: { id: 'p-parent', name: 'Cat Tembok', sku: 'CAT-001' },
+
+        unit: { id: 'u-1', name: 'Kaleng', symbol: 'klg' },
+
+      },
+
+    ]);
+
+
+
+    renderProductsPage();
+
+
+
+    const toggles = await screen.findAllByRole('switch', { name: /Tampil di Web: aktif/i });
+
+    expect(toggles).toHaveLength(1);
+
+    expect(screen.queryByRole('switch', { name: /Tampil di Web: nonaktif/i })).toBeNull();
+    expect(screen.getByText('Ikut induk')).toBeInTheDocument();
+
+  });
+
+
+
+  it('toggles sellOnline on variant parent via PATCH', async () => {
+
+    mockMasterData([
+
+      {
+
+        id: 'p-parent',
+
+        sku: 'CAT-001',
+
+        name: 'Cat Tembok',
+
+        price: 85000,
+
+        sellOnline: true,
+
+        hasVariants: true,
+
+        unit: { id: 'u-1', name: 'Kaleng', symbol: 'klg' },
+
+      },
+
+    ]);
+
+
+
+    renderProductsPage();
+
+    const toggle = await screen.findByRole('switch', { name: /Tampil di Web: aktif/i });
+
+    fireEvent.click(toggle);
+
+
+
+    await waitFor(() => {
+
+      const patchCall = authFetchMock.mock.calls.find(
+
+        ([url, init]) =>
+
+          typeof url === 'string' &&
+
+          url.endsWith('/products/p-parent') &&
+
+          (init as RequestInit | undefined)?.method === 'PATCH' &&
+
+          JSON.parse(String((init as RequestInit).body))?.sellOnline === false,
+
+      );
+
+      expect(patchCall).toBeTruthy();
+
+    });
+
+  });
+
+
+
   it('renders product type wizard on create form', async () => {
 
     mockMasterData([]);

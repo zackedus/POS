@@ -38,7 +38,13 @@ export default function StoreProductDetailPage() {
       .then((item) => {
         if (!cancelled) {
           setProduct(item);
-          const defaultVariant = item.variants?.find((v) => v.stockStatus !== 'OUT_OF_STOCK') ?? item.variants?.[0];
+          const preselected = item.selectedVariantId
+            ? item.variants?.find((v) => v.id === item.selectedVariantId)
+            : undefined;
+          const defaultVariant =
+            preselected ??
+            item.variants?.find((v) => v.stockStatus !== 'OUT_OF_STOCK') ??
+            item.variants?.[0];
           setSelectedVariantId(defaultVariant?.id ?? null);
           const moq = defaultVariant?.moq ?? item.moq;
           setQuantity(Math.max(moq, 1));

@@ -13,6 +13,8 @@ interface ProductCardProps {
   unitSymbol: string;
   stockStatus: StockStatus;
   accentColor?: string;
+  hasVariants?: boolean;
+  fromPrice?: number;
 }
 
 export function ProductCard({
@@ -23,8 +25,11 @@ export function ProductCard({
   unitSymbol,
   stockStatus,
   accentColor = colors.primary[700],
+  hasVariants = false,
+  fromPrice,
 }: ProductCardProps) {
   const outOfStock = stockStatus === 'OUT_OF_STOCK';
+  const displayPrice = hasVariants && fromPrice != null ? fromPrice : price;
 
   return (
     <Link
@@ -78,7 +83,12 @@ export function ProductCard({
             color: accentColor,
           }}
         >
-          {formatCurrency(price)}
+          {hasVariants && fromPrice != null ? (
+            <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: colors.light.text.secondary }}>
+              Mulai dari{' '}
+            </span>
+          ) : null}
+          {formatCurrency(displayPrice)}
           <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: colors.light.text.secondary }}>
             {' '}
             /{unitSymbol}

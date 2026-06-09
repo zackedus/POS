@@ -191,7 +191,18 @@ export function StoreCatalogGrid({ slug, title = 'Katalog Produk', compact = fal
       {!loading && products.length > 0 ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.625rem' }}>
           {products.map((product) => (
-            <ProductCard key={product.id} slug={slug} productId={product.id} name={product.name} price={product.price} unitSymbol={product.unitSymbol} stockStatus={product.stockStatus} accentColor={accentColor} />
+            <ProductCard
+              key={product.id}
+              slug={slug}
+              productId={product.id}
+              name={product.name}
+              price={product.price}
+              unitSymbol={product.unitSymbol}
+              stockStatus={product.stockStatus}
+              accentColor={accentColor}
+              hasVariants={product.hasVariants}
+              fromPrice={product.fromPrice}
+            />
           ))}
         </div>
       ) : null}
