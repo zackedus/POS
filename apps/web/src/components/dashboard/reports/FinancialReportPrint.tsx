@@ -1,5 +1,6 @@
 'use client';
 
+import type { PropsWithChildren } from 'react';
 import {
   FINANCE_REPORT_PERIOD_LABELS,
   FINANCE_REPORT_TYPE_LABELS,
@@ -27,40 +28,335 @@ const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
 const PRINT_STYLES = `
   @page {
     size: A4 portrait;
-    margin: 15mm;
+    margin: 12mm 15mm 18mm 15mm;
   }
+
+  .financial-report-print {
+    --frp-border: #e2e8f0;
+    --frp-text: #0f172a;
+    --frp-text-muted: #334155;
+    --frp-header-bg: #1e293b;
+    --frp-zebra: #f8fafc;
+    --frp-summary-bg: #f8fafc;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color: var(--frp-text);
+    font-size: 10.5pt;
+    line-height: 1.45;
+    max-width: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .financial-report-print *,
+  .financial-report-print *::before,
+  .financial-report-print *::after {
+    box-sizing: border-box;
+  }
+
+  /* ── Header ── */
+  .financial-report-print__header {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 0.75rem;
+    align-items: start;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--frp-text);
+  }
+
+  .financial-report-print__logo {
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--frp-border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7pt;
+    font-weight: 700;
+    color: var(--frp-text-muted);
+    background: var(--frp-summary-bg);
+    letter-spacing: 0.02em;
+  }
+
+  .financial-report-print__store-name {
+    margin: 0;
+    font-size: 13pt;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .financial-report-print__outlet {
+    margin: 0.15rem 0 0;
+    font-size: 10pt;
+    color: var(--frp-text-muted);
+  }
+
+  .financial-report-print__report-title {
+    margin: 0.5rem 0 0;
+    font-size: 18pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.15;
+  }
+
+  .financial-report-print__meta {
+    margin: 0.35rem 0 0;
+    font-size: 10pt;
+    color: var(--frp-text-muted);
+  }
+
+  .financial-report-print__meta--small {
+    margin-top: 0.15rem;
+    font-size: 9pt;
+    color: var(--frp-text-muted);
+  }
+
+  /* ── KPI grid ── */
+  .financial-report-print__kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .financial-report-print__kpi {
+    border: 1px solid var(--frp-border);
+    border-radius: 4px;
+    padding: 0.45rem 0.6rem;
+    background: var(--frp-summary-bg);
+    min-width: 0;
+  }
+
+  .financial-report-print__kpi-label {
+    font-size: 8.5pt;
+    color: var(--frp-text-muted);
+    margin-bottom: 0.15rem;
+    line-height: 1.3;
+  }
+
+  .financial-report-print__kpi-value {
+    font-size: 11pt;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+
+  /* ── Sections ── */
+  .financial-report-print__section {
+    margin-bottom: 1rem;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .financial-report-print__section--breakable {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .financial-report-print__section--major {
+    break-before: page;
+    page-break-before: always;
+    margin-top: 0.5rem;
+  }
+
+  .financial-report-print__section--major:first-of-type {
+    break-before: auto;
+    page-break-before: auto;
+  }
+
+  .financial-report-print__section-title {
+    margin: 0 0 0.4rem;
+    font-size: 13pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--frp-border);
+    padding-bottom: 0.25rem;
+  }
+
+  .financial-report-print__section-note {
+    margin: 0 0 0.35rem;
+    font-size: 9pt;
+    color: var(--frp-text-muted);
+    font-style: italic;
+  }
+
+  .financial-report-print__empty {
+    margin: 0;
+    font-size: 10pt;
+    color: var(--frp-text-muted);
+    font-style: italic;
+  }
+
+  /* ── Tables ── */
+  .financial-report-print__table-wrap {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .financial-report-print__table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 10pt;
+  }
+
+  .financial-report-print__table thead {
+    display: table-header-group;
+  }
+
+  .financial-report-print__table th {
+    background: var(--frp-header-bg);
+    color: #fff;
+    font-weight: 600;
+    font-size: 9pt;
+    text-align: left;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid #334155;
+    vertical-align: middle;
+  }
+
+  .financial-report-print__table th.financial-report-print__num,
+  .financial-report-print__table td.financial-report-print__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .financial-report-print__table th.financial-report-print__center,
+  .financial-report-print__table td.financial-report-print__center {
+    text-align: center;
+  }
+
+  .financial-report-print__table td {
+    padding: 0.3rem 0.45rem;
+    border: 1px solid var(--frp-border);
+    vertical-align: top;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .financial-report-print__table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .financial-report-print__table tbody tr:nth-child(even) {
+    background: var(--frp-zebra);
+  }
+
+  .financial-report-print__table .financial-report-print__sub {
+    color: var(--frp-text-muted);
+    font-size: 8.5pt;
+    margin-top: 0.1rem;
+  }
+
+  .financial-report-print__truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    display: block;
+  }
+
+  .financial-report-print__nowrap {
+    white-space: nowrap;
+  }
+
+  .financial-report-print__row--emphasis td {
+    font-weight: 700;
+  }
+
+  .financial-report-print__row--subtotal {
+    background: #e2e8f0 !important;
+    font-weight: 700;
+  }
+
+  .financial-report-print__row--subtotal td {
+    border-color: #cbd5e1;
+  }
+
+  .financial-report-print__row--group td {
+    font-weight: 600;
+    background: #f1f5f9 !important;
+    border-color: var(--frp-border);
+  }
+
+  .financial-report-print__col-no { width: 28px; }
+  .financial-report-print__col-date { width: 11%; }
+  .financial-report-print__col-ref { width: 10%; }
+  .financial-report-print__col-customer { width: 12%; }
+  .financial-report-print__col-status { width: 9%; }
+  .financial-report-print__col-due { width: 9%; }
+  .financial-report-print__col-qty { width: 6%; }
+  .financial-report-print__col-count { width: 7%; }
+  .financial-report-print__col-pct { width: 6%; }
+  .financial-report-print__col-amount { width: 12%; }
+  .financial-report-print__col-label { width: auto; }
+
+  /* ── Footer ── */
+  .financial-report-print__footer {
+    margin-top: 1.25rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--frp-border);
+    font-size: 9pt;
+    color: var(--frp-text-muted);
+    text-align: center;
+  }
+
+  .financial-report-print__footer-page::after {
+    content: ' · Halaman ' counter(page);
+  }
+
   @media print {
     .financial-report-print {
-      font-size: 11pt !important;
-      max-width: none !important;
       padding: 0 !important;
+      font-size: 10pt !important;
       color: #000 !important;
     }
-    .financial-report-print__section {
-      page-break-inside: avoid;
-      break-inside: avoid;
+
+    .financial-report-print__kpi-grid {
+      grid-template-columns: repeat(4, 1fr);
     }
-    .financial-report-print__section--major {
-      page-break-before: always;
-      break-before: page;
-    }
-    .financial-report-print__section--major:first-of-type {
-      page-break-before: auto;
-      break-before: auto;
-    }
-    .financial-report-print__table {
-      font-size: 10pt !important;
-    }
+
     .financial-report-print__table th,
     .financial-report-print__table td {
-      border: 1px solid #cbd5e1 !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .financial-report-print__zebra:nth-child(even) {
-      background: #f1f5f9 !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+
+    .financial-report-print__table tbody tr:nth-child(even) {
+      background: var(--frp-zebra) !important;
+    }
+
+    .financial-report-print__table th {
+      background: var(--frp-header-bg) !important;
+      color: #fff !important;
+    }
+
+    .financial-report-print__footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      margin: 0;
+      padding: 0.3rem 0;
+      background: #fff;
+    }
+  }
+
+  @media screen {
+    .financial-report-print {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .financial-report-print__kpi-grid {
+      grid-template-columns: repeat(2, 1fr);
     }
   }
 `;
@@ -89,6 +385,22 @@ function resolveBreakdownLabel(label: string): string {
   return PAYMENT_METHOD_LABELS[label] ?? EXPENSE_CATEGORY_LABELS[label] ?? label;
 }
 
+function formatPrintedAt(meta: FinanceReportMeta): string {
+  return new Date(meta.generatedAt).toLocaleString('id-ID', {
+    timeZone: meta.timezone,
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function reportTitleUpper(reportType: FinanceReportType): string {
+  return `LAPORAN ${FINANCE_REPORT_TYPE_LABELS[reportType].toUpperCase()}`;
+}
+
 function isTransactionDetailSection(section: FinanceReportBreakdownSection): boolean {
   const title = section.title.toLowerCase();
   return (
@@ -102,39 +414,83 @@ function isTransactionDetailSection(section: FinanceReportBreakdownSection): boo
   );
 }
 
-function PrintSummaryCard({ label, value }: { label: string; value: string }) {
+function PrintHeader({
+  storeName,
+  outletName,
+  reportTitle,
+  period,
+  printedAt,
+  timezone,
+}: {
+  storeName: string;
+  outletName?: string;
+  reportTitle: string;
+  period: string;
+  printedAt: string;
+  timezone: string;
+}) {
   return (
-    <div
-      style={{
-        border: '1px solid #cbd5e1',
-        borderRadius: 6,
-        padding: '0.5rem 0.75rem',
-        background: '#f8fafc',
-        flex: '1 1 140px',
-        minWidth: 120,
-      }}
-    >
-      <div style={{ fontSize: '0.6875rem', color: '#64748b', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: '0.9375rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    <header className="financial-report-print__header">
+      <div className="financial-report-print__logo" aria-hidden="true">
+        LOGO
+      </div>
+      <div>
+        <p className="financial-report-print__store-name">{storeName}</p>
+        <p className="financial-report-print__outlet">{outletName ?? 'Seluruh Cabang'}</p>
+        <h1 className="financial-report-print__report-title">{reportTitle}</h1>
+        <p className="financial-report-print__meta">Periode: {period}</p>
+        <p className="financial-report-print__meta financial-report-print__meta--small">
+          Dicetak: {printedAt} WIB · Zona waktu {timezone}
+        </p>
+      </div>
+    </header>
+  );
+}
+
+function PrintKpiGrid({ items }: { items: { label: string; value: string }[] }) {
+  return (
+    <div className="financial-report-print__kpi-grid" data-testid="financial-report-print-kpi">
+      {items.map((item) => (
+        <div key={item.label} className="financial-report-print__kpi">
+          <div className="financial-report-print__kpi-label">{item.label}</div>
+          <div className="financial-report-print__kpi-value">{item.value}</div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function PrintRow({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
+function PrintSection({
+  title,
+  children,
+  major = false,
+  breakable = false,
+}: PropsWithChildren<{
+  title: string;
+  major?: boolean;
+  breakable?: boolean;
+}>) {
+  const classes = [
+    'financial-report-print__section',
+    major ? 'financial-report-print__section--major' : '',
+    breakable ? 'financial-report-print__section--breakable' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <tr className="financial-report-print__zebra">
-      <td style={{ padding: '0.35rem 0.5rem', color: '#475569', border: '1px solid #e2e8f0' }}>{label}</td>
-      <td
-        style={{
-          padding: '0.35rem 0.5rem',
-          textAlign: 'right',
-          fontWeight: emphasize ? 700 : 500,
-          fontVariantNumeric: 'tabular-nums',
-          border: '1px solid #e2e8f0',
-        }}
-      >
-        {value}
-      </td>
+    <section className={classes}>
+      <h2 className="financial-report-print__section-title">{title}</h2>
+      <div>{children as never}</div>
+    </section>
+  );
+}
+
+function PrintSummaryRow({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
+  return (
+    <tr className={emphasize ? 'financial-report-print__row--emphasis' : undefined}>
+      <td className="financial-report-print__col-label">{label}</td>
+      <td className="financial-report-print__num financial-report-print__col-amount">{value}</td>
     </tr>
   );
 }
@@ -183,19 +539,15 @@ function PrintDetailTable({
   const hasCnt = showCount || rows.some((r) => r.count != null);
   const hasPct = showPercentage || rows.some((r) => r.percentage != null);
 
+  const sectionTitle = isTransactionDetailSection(section) ? `RINCIAN — ${section.title.toUpperCase()}` : section.title;
+
   if (rows.length === 0) {
     return (
-      <div
-        className={`financial-report-print__section${majorSection ? ' financial-report-print__section--major' : ''}`}
-        style={{ marginBottom: '1.25rem' }}
-      >
-        <h3 style={{ fontSize: '0.8125rem', margin: '0 0 0.35rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-          {section.title}
-        </h3>
-        <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
+      <PrintSection title={sectionTitle} major={majorSection}>
+        <p className="financial-report-print__empty">
           {section.emptyMessage ?? 'Tidak ada transaksi pada periode ini'}
         </p>
-      </div>
+      </PrintSection>
     );
   }
 
@@ -203,6 +555,7 @@ function PrintDetailTable({
     1 +
     (hasDateTime ? 1 : 0) +
     (hasReference ? 1 : 0) +
+    1 +
     (hasCustomer ? 1 : 0) +
     (hasStatus ? 1 : 0) +
     (hasDueDate ? 1 : 0) +
@@ -210,131 +563,123 @@ function PrintDetailTable({
     (hasRemaining ? 1 : 0) +
     (hasQty ? 1 : 0) +
     (hasCnt ? 1 : 0) +
-    (hasPct ? 1 : 0) +
-    (hasDebitCredit ? 2 : 1);
+    (hasPct ? 1 : 0);
 
   return (
-    <div
-      className={`financial-report-print__section${majorSection ? ' financial-report-print__section--major' : ''}`}
-      style={{ marginBottom: '1.25rem' }}
-    >
-      <h3 style={{ fontSize: '0.8125rem', margin: '0 0 0.35rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-        {section.title}
-      </h3>
-      {section.truncatedNote ? (
-        <p style={{ margin: '0 0 0.35rem', fontSize: '0.6875rem', color: '#64748b', fontStyle: 'italic' }}>
-          {section.truncatedNote}
-        </p>
-      ) : null}
-      <table className="financial-report-print__table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
-        <thead>
-          <tr style={{ background: '#e2e8f0' }}>
-            <th style={{ textAlign: 'center', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1', width: 28 }}>No</th>
-            {hasDateTime ? <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Tanggal</th> : null}
-            {hasReference ? <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Referensi</th> : null}
-            <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Keterangan</th>
-            {hasCustomer ? <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Pelanggan</th> : null}
-            {hasQty ? <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Qty</th> : null}
-            {hasCnt ? <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Jumlah</th> : null}
-            {hasDueDate ? <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Jatuh Tempo</th> : null}
-            {hasStatus ? <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Status</th> : null}
-            {hasOriginal ? <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Jumlah</th> : null}
-            {hasRemaining ? <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Sisa</th> : null}
-            {hasPct ? <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>%</th> : null}
-            {hasDebitCredit ? (
-              <>
-                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Debit</th>
-                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Kredit</th>
-              </>
-            ) : (
-              <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', border: '1px solid #cbd5e1' }}>Nominal</th>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row: FinanceReportBreakdownRow, index) => (
-            <tr key={`${row.referenceNo ?? row.label}-${index}`} className="financial-report-print__zebra">
-              <td style={{ textAlign: 'center', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0', color: '#64748b' }}>
-                {startIndex + index + 1}
-              </td>
-              {hasDateTime ? (
-                <td style={{ padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{row.dateTime ?? '—'}</td>
-              ) : null}
-              {hasReference ? (
-                <td style={{ padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>{row.referenceNo ?? '—'}</td>
-              ) : null}
-              <td style={{ padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>
-                {resolveBreakdownLabel(row.label)}
-                {row.subLabel ? <div style={{ color: '#64748b', fontSize: '0.6875rem' }}>{row.subLabel}</div> : null}
-              </td>
-              {hasCustomer ? (
-                <td style={{ padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>{row.customerName ?? '—'}</td>
-              ) : null}
-              {hasQty ? (
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>{row.quantity ?? '—'}</td>
-              ) : null}
-              {hasCnt ? (
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>{row.count ?? '—'}</td>
-              ) : null}
-              {hasDueDate ? (
-                <td style={{ padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>{row.dueDate ?? '—'}</td>
-              ) : null}
-              {hasStatus ? (
-                <td style={{ padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>{row.status ?? '—'}</td>
-              ) : null}
-              {hasOriginal ? (
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
-                  {row.originalAmount != null ? formatCurrencyIDR(row.originalAmount) : '—'}
-                </td>
-              ) : null}
-              {hasRemaining ? (
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
-                  {row.remainingAmount != null ? formatCurrencyIDR(row.remainingAmount) : formatCurrencyIDR(row.amount)}
-                </td>
-              ) : null}
-              {hasPct ? (
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0' }}>
-                  {row.percentage != null ? `${row.percentage}%` : '—'}
-                </td>
-              ) : null}
+    <PrintSection title={sectionTitle} major={majorSection} breakable>
+      {section.truncatedNote ? <p className="financial-report-print__section-note">{section.truncatedNote}</p> : null}
+      <div className="financial-report-print__table-wrap">
+        <table className="financial-report-print__table">
+          <thead>
+            <tr>
+              <th className="financial-report-print__center financial-report-print__col-no">No</th>
+              {hasDateTime ? <th className="financial-report-print__col-date">Tanggal</th> : null}
+              {hasReference ? <th className="financial-report-print__col-ref">Referensi</th> : null}
+              <th className="financial-report-print__col-label">Keterangan</th>
+              {hasCustomer ? <th className="financial-report-print__col-customer">Pelanggan</th> : null}
+              {hasQty ? <th className="financial-report-print__num financial-report-print__col-qty">Qty</th> : null}
+              {hasCnt ? <th className="financial-report-print__num financial-report-print__col-count">Jumlah</th> : null}
+              {hasDueDate ? <th className="financial-report-print__col-due">Jatuh Tempo</th> : null}
+              {hasStatus ? <th className="financial-report-print__col-status">Status</th> : null}
+              {hasOriginal ? <th className="financial-report-print__num financial-report-print__col-amount">Jumlah</th> : null}
+              {hasRemaining ? <th className="financial-report-print__num financial-report-print__col-amount">Sisa</th> : null}
+              {hasPct ? <th className="financial-report-print__num financial-report-print__col-pct">%</th> : null}
               {hasDebitCredit ? (
                 <>
-                  <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
-                    {row.debit != null ? formatCurrencyIDR(row.debit) : '—'}
-                  </td>
-                  <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
-                    {row.credit != null ? formatCurrencyIDR(row.credit) : '—'}
-                  </td>
+                  <th className="financial-report-print__num financial-report-print__col-amount">Debit</th>
+                  <th className="financial-report-print__num financial-report-print__col-amount">Kredit</th>
                 </>
               ) : (
-                <td style={{ textAlign: 'right', padding: '0.25rem 0.4rem', border: '1px solid #e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
-                  {formatCurrencyIDR(row.amount)}
-                </td>
+                <th className="financial-report-print__num financial-report-print__col-amount">Nominal</th>
               )}
             </tr>
-          ))}
-          {section.subtotal != null ? (
-            <tr style={{ background: '#e2e8f0', fontWeight: 700 }}>
-              <td colSpan={labelColSpan} style={{ padding: '0.35rem 0.4rem', border: '1px solid #cbd5e1', textAlign: 'right' }}>
-                Subtotal
-              </td>
-              {hasDebitCredit ? (
-                <td style={{ padding: '0.35rem 0.4rem', border: '1px solid #cbd5e1' }} />
-              ) : null}
-              {!hasDebitCredit ? (
-                <td style={{ textAlign: 'right', padding: '0.35rem 0.4rem', border: '1px solid #cbd5e1', fontVariantNumeric: 'tabular-nums' }}>
-                  {formatCurrencyIDR(section.subtotal)}
+          </thead>
+          <tbody>
+            {rows.map((row: FinanceReportBreakdownRow, index) => (
+              <tr key={`${row.referenceNo ?? row.label}-${index}`}>
+                <td className="financial-report-print__center financial-report-print__col-no">{startIndex + index + 1}</td>
+                {hasDateTime ? (
+                  <td className="financial-report-print__nowrap financial-report-print__col-date">{row.dateTime ?? '—'}</td>
+                ) : null}
+                {hasReference ? (
+                  <td className="financial-report-print__col-ref">
+                    <span className="financial-report-print__truncate">{row.referenceNo ?? '—'}</span>
+                  </td>
+                ) : null}
+                <td className="financial-report-print__col-label">
+                  <span className="financial-report-print__truncate">{resolveBreakdownLabel(row.label)}</span>
+                  {row.subLabel ? <div className="financial-report-print__sub">{row.subLabel}</div> : null}
                 </td>
-              ) : (
-                <td style={{ textAlign: 'right', padding: '0.35rem 0.4rem', border: '1px solid #cbd5e1', fontVariantNumeric: 'tabular-nums' }}>
-                  {formatCurrencyIDR(section.subtotal)}
+                {hasCustomer ? (
+                  <td className="financial-report-print__col-customer">
+                    <span className="financial-report-print__truncate">{row.customerName ?? '—'}</span>
+                  </td>
+                ) : null}
+                {hasQty ? (
+                  <td className="financial-report-print__num financial-report-print__col-qty">{row.quantity ?? '—'}</td>
+                ) : null}
+                {hasCnt ? (
+                  <td className="financial-report-print__num financial-report-print__col-count">{row.count ?? '—'}</td>
+                ) : null}
+                {hasDueDate ? (
+                  <td className="financial-report-print__nowrap financial-report-print__col-due">{row.dueDate ?? '—'}</td>
+                ) : null}
+                {hasStatus ? (
+                  <td className="financial-report-print__col-status">
+                    <span className="financial-report-print__truncate">{row.status ?? '—'}</span>
+                  </td>
+                ) : null}
+                {hasOriginal ? (
+                  <td className="financial-report-print__num financial-report-print__col-amount">
+                    {row.originalAmount != null ? formatCurrencyIDR(row.originalAmount) : '—'}
+                  </td>
+                ) : null}
+                {hasRemaining ? (
+                  <td className="financial-report-print__num financial-report-print__col-amount">
+                    {row.remainingAmount != null ? formatCurrencyIDR(row.remainingAmount) : formatCurrencyIDR(row.amount)}
+                  </td>
+                ) : null}
+                {hasPct ? (
+                  <td className="financial-report-print__num financial-report-print__col-pct">
+                    {row.percentage != null ? `${row.percentage}%` : '—'}
+                  </td>
+                ) : null}
+                {hasDebitCredit ? (
+                  <>
+                    <td className="financial-report-print__num financial-report-print__col-amount">
+                      {row.debit != null ? formatCurrencyIDR(row.debit) : '—'}
+                    </td>
+                    <td className="financial-report-print__num financial-report-print__col-amount">
+                      {row.credit != null ? formatCurrencyIDR(row.credit) : '—'}
+                    </td>
+                  </>
+                ) : (
+                  <td className="financial-report-print__num financial-report-print__col-amount">
+                    {formatCurrencyIDR(row.amount)}
+                  </td>
+                )}
+              </tr>
+            ))}
+            {section.subtotal != null ? (
+              <tr className="financial-report-print__row--subtotal">
+                <td colSpan={labelColSpan} className="financial-report-print__num">
+                  Subtotal
                 </td>
-              )}
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
-    </div>
+                {hasDebitCredit ? (
+                  <td colSpan={2} className="financial-report-print__num financial-report-print__col-amount">
+                    {formatCurrencyIDR(section.subtotal)}
+                  </td>
+                ) : (
+                  <td className="financial-report-print__num financial-report-print__col-amount">
+                    {formatCurrencyIDR(section.subtotal)}
+                  </td>
+                )}
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </PrintSection>
   );
 }
 
@@ -390,77 +735,79 @@ export function FinancialReportPrint({
   outletName,
 }: FinancialReportPrintProps) {
   const title = FINANCE_REPORT_TYPE_LABELS[reportType];
-  const printedAt = new Date(meta.generatedAt).toLocaleString('id-ID', { timeZone: meta.timezone });
+  const reportTitle = reportTitleUpper(reportType);
+  const printedAt = formatPrintedAt(meta);
+  const period = periodLabel(meta);
 
   return (
     <>
       <style>{PRINT_STYLES}</style>
-      <article
-        data-testid="financial-report-print"
-        className="financial-report-print"
-        style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          maxWidth: 720,
-          margin: '0 auto',
-          color: '#0f172a',
-          padding: '1.5rem',
-          fontSize: '12pt',
-        }}
-      >
-        <header
-          style={{
-            textAlign: 'center',
-            marginBottom: '1.25rem',
-            borderBottom: '2px solid #0f172a',
-            paddingBottom: '0.75rem',
-          }}
-        >
-          <h1 style={{ fontSize: '1.25rem', margin: '0 0 0.25rem', fontWeight: 700 }}>{storeName}</h1>
-          <p style={{ margin: '0 0 0.35rem', fontSize: '0.8125rem', color: '#64748b' }}>
-            {outletName ?? 'Seluruh Cabang'}
-          </p>
-          <h2 style={{ fontSize: '1.0625rem', margin: '0.5rem 0 0', fontWeight: 700 }}>{title}</h2>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#475569' }}>
-            Periode: {periodLabel(meta)}
-          </p>
-          <p style={{ margin: '0.15rem 0 0', fontSize: '0.6875rem', color: '#94a3b8' }}>
-            Dicetak: {printedAt} · Zona waktu {meta.timezone}
-          </p>
-        </header>
+      <article data-testid="financial-report-print" className="financial-report-print">
+        <PrintHeader
+          storeName={storeName}
+          outletName={outletName}
+          reportTitle={reportTitle}
+          period={period}
+          printedAt={printedAt}
+          timezone={meta.timezone}
+        />
 
         {reportType === 'profit-loss' && profitLoss ? (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-              <PrintSummaryCard label="Penjualan bersih" value={formatCurrencyIDR(profitLoss.revenue.netSales)} />
-              <PrintSummaryCard label="Laba kotor" value={formatCurrencyIDR(profitLoss.grossProfit)} />
-              <PrintSummaryCard label="Beban operasional" value={formatCurrencyIDR(profitLoss.operatingExpenses)} />
-              <PrintSummaryCard label="Laba bersih" value={formatCurrencyIDR(profitLoss.netProfit)} />
-            </div>
-            <div className="financial-report-print__section" style={{ marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.8125rem', margin: '0 0 0.5rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                Ringkasan Laba Rugi
-              </h3>
-              <table className="financial-report-print__table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                <tbody>
-                  <PrintRow label="Penjualan kotor" value={formatCurrencyIDR(profitLoss.revenue.grossSales)} />
-                  <PrintRow label="Void / refund" value={`(${formatCurrencyIDR(profitLoss.revenue.voidRefund)})`} />
-                  <PrintRow label="Penjualan bersih" value={formatCurrencyIDR(profitLoss.revenue.netSales)} emphasize />
-                  <PrintRow label="HPP (COGS)" value={`(${formatCurrencyIDR(profitLoss.cogs)})`} />
-                  <PrintRow label="Laba kotor" value={formatCurrencyIDR(profitLoss.grossProfit)} emphasize />
-                  <PrintRow label="Margin kotor" value={`${profitLoss.grossMarginPercent.toLocaleString('id-ID')}%`} />
-                  <PrintRow label="Beban operasional" value={`(${formatCurrencyIDR(profitLoss.operatingExpenses)})`} />
-                  {profitLoss.expensesByCategory.map((row) => (
-                    <PrintRow
-                      key={row.category}
-                      label={`  · ${EXPENSE_CATEGORY_LABELS[row.category] ?? row.category}`}
-                      value={formatCurrencyIDR(row.amount)}
+            <PrintKpiGrid
+              items={[
+                { label: 'Penjualan bersih', value: formatCurrencyIDR(profitLoss.revenue.netSales) },
+                { label: 'Laba kotor', value: formatCurrencyIDR(profitLoss.grossProfit) },
+                { label: 'Beban operasional', value: formatCurrencyIDR(profitLoss.operatingExpenses) },
+                { label: 'Laba bersih', value: formatCurrencyIDR(profitLoss.netProfit) },
+              ]}
+            />
+            <PrintSection title="RINGKASAN LABA RUGI">
+              <div className="financial-report-print__table-wrap">
+                <table className="financial-report-print__table">
+                  <thead>
+                    <tr>
+                      <th className="financial-report-print__col-label">Pos</th>
+                      <th className="financial-report-print__num financial-report-print__col-amount">Nominal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <PrintSummaryRow label="Penjualan kotor" value={formatCurrencyIDR(profitLoss.revenue.grossSales)} />
+                    <PrintSummaryRow
+                      label="Void / refund"
+                      value={`(${formatCurrencyIDR(profitLoss.revenue.voidRefund)})`}
                     />
-                  ))}
-                  <PrintRow label="Laba bersih" value={formatCurrencyIDR(profitLoss.netProfit)} emphasize />
-                  <PrintRow label="Margin bersih" value={`${profitLoss.netMarginPercent.toLocaleString('id-ID')}%`} />
-                </tbody>
-              </table>
-            </div>
+                    <PrintSummaryRow
+                      label="Penjualan bersih"
+                      value={formatCurrencyIDR(profitLoss.revenue.netSales)}
+                      emphasize
+                    />
+                    <PrintSummaryRow label="HPP (COGS)" value={`(${formatCurrencyIDR(profitLoss.cogs)})`} />
+                    <PrintSummaryRow label="Laba kotor" value={formatCurrencyIDR(profitLoss.grossProfit)} emphasize />
+                    <PrintSummaryRow
+                      label="Margin kotor"
+                      value={`${profitLoss.grossMarginPercent.toLocaleString('id-ID')}%`}
+                    />
+                    <PrintSummaryRow
+                      label="Beban operasional"
+                      value={`(${formatCurrencyIDR(profitLoss.operatingExpenses)})`}
+                    />
+                    {profitLoss.expensesByCategory.map((row) => (
+                      <PrintSummaryRow
+                        key={row.category}
+                        label={`  · ${EXPENSE_CATEGORY_LABELS[row.category] ?? row.category}`}
+                        value={formatCurrencyIDR(row.amount)}
+                      />
+                    ))}
+                    <PrintSummaryRow label="Laba bersih" value={formatCurrencyIDR(profitLoss.netProfit)} emphasize />
+                    <PrintSummaryRow
+                      label="Margin bersih"
+                      value={`${profitLoss.netMarginPercent.toLocaleString('id-ID')}%`}
+                    />
+                  </tbody>
+                </table>
+              </div>
+            </PrintSection>
             {renderBreakdownSections(profitLoss.breakdown.sections, {
               showStatus: true,
               showCount: true,
@@ -472,42 +819,41 @@ export function FinancialReportPrint({
 
         {reportType === 'receivables' && receivables ? (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-              <PrintSummaryCard label="Outstanding" value={formatCurrencyIDR(receivables.summary.outstanding)} />
-              <PrintSummaryCard label="Baru periode" value={formatCurrencyIDR(receivables.summary.newInPeriod)} />
-              <PrintSummaryCard label="Pelunasan" value={formatCurrencyIDR(receivables.summary.collectionsInPeriod)} />
-              <PrintSummaryCard
-                label="Jatuh tempo"
-                value={`${receivables.summary.overdueCount} faktur · ${formatCurrencyIDR(receivables.summary.overdueAmount)}`}
-              />
-            </div>
-            <div className="financial-report-print__section" style={{ marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.8125rem', margin: '0 0 0.5rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                Aging Piutang
-              </h3>
-              <table className="financial-report-print__table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                <thead>
-                  <tr style={{ background: '#e2e8f0' }}>
-                    <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1' }}>Bucket</th>
-                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1' }}>Faktur</th>
-                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1' }}>Nominal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(receivables.aging).map(([bucket, row]) => (
-                    <tr key={bucket} className="financial-report-print__zebra">
-                      <td style={{ padding: '0.3rem 0.5rem', border: '1px solid #e2e8f0' }}>
-                        {RECEIVABLE_AGING_BUCKET_LABELS[bucket as keyof typeof RECEIVABLE_AGING_BUCKET_LABELS]}
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '0.3rem 0.5rem', border: '1px solid #e2e8f0' }}>{row.count}</td>
-                      <td style={{ textAlign: 'right', padding: '0.3rem 0.5rem', border: '1px solid #e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
-                        {formatCurrencyIDR(row.amount)}
-                      </td>
+            <PrintKpiGrid
+              items={[
+                { label: 'Outstanding', value: formatCurrencyIDR(receivables.summary.outstanding) },
+                { label: 'Baru periode', value: formatCurrencyIDR(receivables.summary.newInPeriod) },
+                { label: 'Pelunasan', value: formatCurrencyIDR(receivables.summary.collectionsInPeriod) },
+                {
+                  label: 'Jatuh tempo',
+                  value: `${receivables.summary.overdueCount} faktur · ${formatCurrencyIDR(receivables.summary.overdueAmount)}`,
+                },
+              ]}
+            />
+            <PrintSection title="AGING PIUTANG">
+              <div className="financial-report-print__table-wrap">
+                <table className="financial-report-print__table">
+                  <thead>
+                    <tr>
+                      <th className="financial-report-print__col-label">Bucket</th>
+                      <th className="financial-report-print__num financial-report-print__col-count">Faktur</th>
+                      <th className="financial-report-print__num financial-report-print__col-amount">Nominal</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {Object.entries(receivables.aging).map(([bucket, row]) => (
+                      <tr key={bucket}>
+                        <td>
+                          {RECEIVABLE_AGING_BUCKET_LABELS[bucket as keyof typeof RECEIVABLE_AGING_BUCKET_LABELS]}
+                        </td>
+                        <td className="financial-report-print__num">{row.count}</td>
+                        <td className="financial-report-print__num">{formatCurrencyIDR(row.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </PrintSection>
             {renderBreakdownSections(receivables.breakdown.sections, {
               showReference: true,
               showDueDate: true,
@@ -520,15 +866,17 @@ export function FinancialReportPrint({
 
         {reportType === 'payables' && payables ? (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-              <PrintSummaryCard label="Outstanding utang" value={formatCurrencyIDR(payables.summary.outstanding)} />
-              <PrintSummaryCard label="Utang baru" value={formatCurrencyIDR(payables.summary.newInPeriod)} />
-              <PrintSummaryCard label="Pembayaran" value={formatCurrencyIDR(payables.summary.paymentsInPeriod)} />
-              <PrintSummaryCard
-                label="Jatuh tempo"
-                value={`${payables.summary.overdueCount} faktur · ${formatCurrencyIDR(payables.summary.overdueAmount)}`}
-              />
-            </div>
+            <PrintKpiGrid
+              items={[
+                { label: 'Outstanding utang', value: formatCurrencyIDR(payables.summary.outstanding) },
+                { label: 'Utang baru', value: formatCurrencyIDR(payables.summary.newInPeriod) },
+                { label: 'Pembayaran', value: formatCurrencyIDR(payables.summary.paymentsInPeriod) },
+                {
+                  label: 'Jatuh tempo',
+                  value: `${payables.summary.overdueCount} faktur · ${formatCurrencyIDR(payables.summary.overdueAmount)}`,
+                },
+              ]}
+            />
             {renderBreakdownSections(payables.breakdown.sections, {
               showReference: true,
               showDueDate: true,
@@ -541,37 +889,49 @@ export function FinancialReportPrint({
 
         {reportType === 'cash-flow' && cashFlow ? (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-              <PrintSummaryCard label="Kas masuk" value={formatCurrencyIDR(cashFlow.cashIn.total)} />
-              <PrintSummaryCard label="Kas keluar" value={formatCurrencyIDR(cashFlow.cashOut.total)} />
-              <PrintSummaryCard label="Arus kas bersih" value={formatCurrencyIDR(cashFlow.netCashFlow)} />
-            </div>
-            <div className="financial-report-print__section" style={{ marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.8125rem', margin: '0 0 0.5rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                Ringkasan Arus Kas
-              </h3>
-              <table className="financial-report-print__table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                <tbody>
-                  <tr>
-                    <td colSpan={2} style={{ fontWeight: 600, padding: '0.35rem 0.5rem', border: '1px solid #e2e8f0', background: '#f1f5f9' }}>
-                      Kas Masuk
-                    </td>
-                  </tr>
-                  <PrintRow label="Penjualan tunai" value={formatCurrencyIDR(cashFlow.cashIn.cashSales)} />
-                  <PrintRow label="Pelunasan piutang" value={formatCurrencyIDR(cashFlow.cashIn.receivableCollections)} />
-                  <PrintRow label="Total masuk" value={formatCurrencyIDR(cashFlow.cashIn.total)} emphasize />
-                  <tr>
-                    <td colSpan={2} style={{ fontWeight: 600, padding: '0.35rem 0.5rem', border: '1px solid #e2e8f0', background: '#f1f5f9' }}>
-                      Kas Keluar
-                    </td>
-                  </tr>
-                  <PrintRow label="Bayar utang supplier" value={formatCurrencyIDR(cashFlow.cashOut.payablePayments)} />
-                  <PrintRow label="Pengeluaran operasional" value={formatCurrencyIDR(cashFlow.cashOut.operatingExpenses)} />
-                  <PrintRow label="Total keluar" value={formatCurrencyIDR(cashFlow.cashOut.total)} emphasize />
-                  <PrintRow label="Arus kas bersih" value={formatCurrencyIDR(cashFlow.netCashFlow)} emphasize />
-                </tbody>
-              </table>
-            </div>
+            <PrintKpiGrid
+              items={[
+                { label: 'Kas masuk', value: formatCurrencyIDR(cashFlow.cashIn.total) },
+                { label: 'Kas keluar', value: formatCurrencyIDR(cashFlow.cashOut.total) },
+                { label: 'Arus kas bersih', value: formatCurrencyIDR(cashFlow.netCashFlow) },
+              ]}
+            />
+            <PrintSection title="RINGKASAN ARUS KAS">
+              <div className="financial-report-print__table-wrap">
+                <table className="financial-report-print__table">
+                  <thead>
+                    <tr>
+                      <th className="financial-report-print__col-label">Pos</th>
+                      <th className="financial-report-print__num financial-report-print__col-amount">Nominal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="financial-report-print__row--group">
+                      <td colSpan={2}>Kas Masuk</td>
+                    </tr>
+                    <PrintSummaryRow label="Penjualan tunai" value={formatCurrencyIDR(cashFlow.cashIn.cashSales)} />
+                    <PrintSummaryRow
+                      label="Pelunasan piutang"
+                      value={formatCurrencyIDR(cashFlow.cashIn.receivableCollections)}
+                    />
+                    <PrintSummaryRow label="Total masuk" value={formatCurrencyIDR(cashFlow.cashIn.total)} emphasize />
+                    <tr className="financial-report-print__row--group">
+                      <td colSpan={2}>Kas Keluar</td>
+                    </tr>
+                    <PrintSummaryRow
+                      label="Bayar utang supplier"
+                      value={formatCurrencyIDR(cashFlow.cashOut.payablePayments)}
+                    />
+                    <PrintSummaryRow
+                      label="Pengeluaran operasional"
+                      value={formatCurrencyIDR(cashFlow.cashOut.operatingExpenses)}
+                    />
+                    <PrintSummaryRow label="Total keluar" value={formatCurrencyIDR(cashFlow.cashOut.total)} emphasize />
+                    <PrintSummaryRow label="Arus kas bersih" value={formatCurrencyIDR(cashFlow.netCashFlow)} emphasize />
+                  </tbody>
+                </table>
+              </div>
+            </PrintSection>
             {renderBreakdownSections(cashFlow.breakdown.sections, {
               showDebitCredit: true,
               showCount: true,
@@ -582,43 +942,67 @@ export function FinancialReportPrint({
 
         {reportType === 'daily-summary' && dailySummary ? (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-              <PrintSummaryCard label="Omzet bersih" value={formatCurrencyIDR(dailySummary.omzet.net)} />
-              <PrintSummaryCard label="Transaksi" value={String(dailySummary.omzet.transactionCount)} />
-              <PrintSummaryCard
-                label="Piutang baru"
-                value={`${dailySummary.newReceivables.count} · ${formatCurrencyIDR(dailySummary.newReceivables.amount)}`}
-              />
-              <PrintSummaryCard
-                label="Utang baru"
-                value={`${dailySummary.newPayables.count} · ${formatCurrencyIDR(dailySummary.newPayables.amount)}`}
-              />
-            </div>
-            <div className="financial-report-print__section" style={{ marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.8125rem', margin: '0 0 0.5rem', fontWeight: 700, textTransform: 'uppercase' }}>
-                Ringkasan Harian
-              </h3>
-              <table className="financial-report-print__table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                <tbody>
-                  <PrintRow label="Omzet kotor" value={formatCurrencyIDR(dailySummary.omzet.gross)} />
-                  <PrintRow label="Void / refund" value={`(${formatCurrencyIDR(dailySummary.omzet.voidRefundTotal)})`} />
-                  <PrintRow label="Omzet bersih" value={formatCurrencyIDR(dailySummary.omzet.net)} emphasize />
-                  <PrintRow label="Jumlah transaksi" value={String(dailySummary.omzet.transactionCount)} />
-                </tbody>
-              </table>
-              <h3 style={{ fontSize: '0.8125rem', margin: '0.75rem 0 0.35rem', fontWeight: 700 }}>Payment Mix</h3>
-              <table className="financial-report-print__table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                <tbody>
-                  {dailySummary.paymentMix.map((row) => (
-                    <PrintRow
-                      key={row.method}
-                      label={PAYMENT_METHOD_LABELS[row.method] ?? row.method}
-                      value={`${formatCurrencyIDR(row.amount)} (${row.sharePercent}%)`}
+            <PrintKpiGrid
+              items={[
+                { label: 'Omzet bersih', value: formatCurrencyIDR(dailySummary.omzet.net) },
+                { label: 'Transaksi', value: String(dailySummary.omzet.transactionCount) },
+                {
+                  label: 'Piutang baru',
+                  value: `${dailySummary.newReceivables.count} · ${formatCurrencyIDR(dailySummary.newReceivables.amount)}`,
+                },
+                {
+                  label: 'Utang baru',
+                  value: `${dailySummary.newPayables.count} · ${formatCurrencyIDR(dailySummary.newPayables.amount)}`,
+                },
+              ]}
+            />
+            <PrintSection title="RINGKASAN HARIAN">
+              <div className="financial-report-print__table-wrap">
+                <table className="financial-report-print__table">
+                  <thead>
+                    <tr>
+                      <th className="financial-report-print__col-label">Pos</th>
+                      <th className="financial-report-print__num financial-report-print__col-amount">Nominal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <PrintSummaryRow label="Omzet kotor" value={formatCurrencyIDR(dailySummary.omzet.gross)} />
+                    <PrintSummaryRow
+                      label="Void / refund"
+                      value={`(${formatCurrencyIDR(dailySummary.omzet.voidRefundTotal)})`}
                     />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    <PrintSummaryRow label="Omzet bersih" value={formatCurrencyIDR(dailySummary.omzet.net)} emphasize />
+                    <PrintSummaryRow label="Jumlah transaksi" value={String(dailySummary.omzet.transactionCount)} />
+                  </tbody>
+                </table>
+              </div>
+              <h3
+                className="financial-report-print__section-title"
+                style={{ marginTop: '0.75rem', fontSize: '11pt' }}
+              >
+                MIX PEMBAYARAN
+              </h3>
+              <div className="financial-report-print__table-wrap">
+                <table className="financial-report-print__table">
+                  <thead>
+                    <tr>
+                      <th className="financial-report-print__col-label">Metode</th>
+                      <th className="financial-report-print__num financial-report-print__col-amount">Nominal</th>
+                      <th className="financial-report-print__num financial-report-print__col-pct">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailySummary.paymentMix.map((row) => (
+                      <tr key={row.method}>
+                        <td>{PAYMENT_METHOD_LABELS[row.method] ?? row.method}</td>
+                        <td className="financial-report-print__num">{formatCurrencyIDR(row.amount)}</td>
+                        <td className="financial-report-print__num">{row.sharePercent}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </PrintSection>
             {renderBreakdownSections(dailySummary.breakdown.sections, {
               showStatus: true,
               showCount: true,
@@ -629,16 +1013,10 @@ export function FinancialReportPrint({
         ) : null}
 
         <footer
-          style={{
-            marginTop: '1.5rem',
-            paddingTop: '0.5rem',
-            borderTop: '1px solid #cbd5e1',
-            fontSize: '0.6875rem',
-            color: '#64748b',
-            textAlign: 'center',
-          }}
+          className="financial-report-print__footer financial-report-print__footer-page"
+          data-testid="financial-report-print-footer"
         >
-          Barokah Core POS · Laporan {title} · {periodLabel(meta)}
+          Barokah Core POS · Laporan {title} · {period}
         </footer>
       </article>
     </>

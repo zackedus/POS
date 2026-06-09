@@ -69,7 +69,7 @@ const profitLossReport: ProfitLossReport = {
 };
 
 describe('FinancialReportPrint', () => {
-  it('renders P&L summary and transaction detail rows', () => {
+  it('renders professional P&L layout with header, KPI grid, and detail tables', () => {
     const html = renderToStaticMarkup(
       <FinancialReportPrint
         reportType="profit-loss"
@@ -79,9 +79,13 @@ describe('FinancialReportPrint', () => {
       />,
     );
 
-    expect(html).toMatch(/Laba Rugi/);
+    expect(html).toMatch(/LAPORAN LABA RUGI/);
+    expect(html).toMatch(/RINGKASAN LABA RUGI/);
+    expect(html).toMatch(/financial-report-print__header/);
+    expect(html).toMatch(/financial-report-print__kpi-grid/);
+    expect(html).toMatch(/financial-report-print__report-title/);
     expect(html).toMatch(/Penjualan bersih/);
-    expect(html).toMatch(/Daftar Transaksi Penjualan/);
+    expect(html).toMatch(/RINCIAN — DAFTAR TRANSAKSI PENJUALAN/);
     expect(html).toMatch(/TRX-001/);
     expect(html).toMatch(/PT Maju/);
     expect(html).toMatch(/Selesai/);
@@ -89,7 +93,11 @@ describe('FinancialReportPrint', () => {
     expect(html).toMatch(/Tunai/);
     expect(html).toMatch(/Tempo \/ Piutang/);
     expect(html).toMatch(/Rincian HPP per Kategori Produk/);
+    expect(html).toMatch(/Cabang Pusat/);
     expect(html).toMatch(/Barokah Core POS/);
+    expect(html).toMatch(/financial-report-print__footer-page/);
     expect(html).toMatch(/data-testid="financial-report-print"/);
+    expect(html).toMatch(/financial-report-print__table/);
+    expect(html).toMatch(/@page/);
   });
 });

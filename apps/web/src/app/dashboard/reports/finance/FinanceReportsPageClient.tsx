@@ -141,10 +141,27 @@ export function FinanceReportsPageClient() {
       <style>{`
         .print-only { display: none; }
         @media print {
-          @page { size: A4 portrait; margin: 15mm; }
+          @page {
+            size: A4 portrait;
+            margin: 12mm 15mm 18mm 15mm;
+          }
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+          }
           body * { visibility: hidden; }
-          .print-only, .print-only * { visibility: visible; display: block !important; }
-          .print-only { position: absolute; left: 0; top: 0; width: 100%; }
+          .print-only,
+          .print-only * {
+            visibility: visible;
+          }
+          .print-only {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
           .no-print { display: none !important; }
         }
       `}</style>
