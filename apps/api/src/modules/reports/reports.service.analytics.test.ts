@@ -95,6 +95,96 @@ test('Reports: exportAnalyticsMargin returns CSV with BOM', async () => {
   assert.match(result.body, /Semen/);
 });
 
+test('Reports: getAnalyticsSummary returns decision-ready pulse and insights', async () => {
+  const prisma = {
+    outlet: {
+      findFirst: async () => ({ id: 'outlet-1' }),
+      findMany: async () => [],
+    },
+    transaction: {
+      aggregate: async (args: { where: { completedAt?: { gte: Date } } }) => {
+        const isCurrent = args.where.completedAt?.gte?.getTime() === new Date('2026-06-09T00:00:00+07:00').getTime();
+        return {
+          _sum: { total: isCurrent ? '500000' : '400000' },
+          _count: { _all: isCurrent ? 5 : 4 },
+        };
+      },
+      groupBy: async () => [],
+      findMany: async () => [
+        { completedAt: new Date('2026-06-09T04:00:00.000Z'), total: '200000' },
+        { completedAt: new Date('2026-06-09T06:00:00.000Z'), total: '300000' },
+      ],
+    },
+    transactionAdjustment: {
+      aggregate: async () => ({ _sum: { amount: null } }),
+    },
+    payment: {
+      groupBy: async () => [
+        { method: 'CASH', _sum: { amount: '300000' }, _count: { id: 3 } },
+        { method: 'QRIS', _sum: { amount: '200000' }, _count: { id: 2 } },
+      ],
+    },
+    transactionItem: {
+      findMany: async (args: { where: { transaction?: { completedAt?: { gte: Date } } } }) => {
+        const isPrevious = Boolean(args.where.transaction?.completedAt?.gte);
+        if (isPrevious && args.where.transaction?.completedAt?.gte?.getTime() === new Date('2026-06-08T00:00:00+07:00').getTime()) {
+          return [
+            {
+              subtotal: '400000',
+              quantity: '4',
+              product: { costPrice: '50000' },
+            },
+          ];
+        }
+        return [
+          {
+            productId: 'p1',
+            productName: 'Semen 40kg',
+            quantity: '10',
+            subtotal: '500000',
+            product: {
+              costPrice: '70000',
+              category: { id: 'cat-1', name: 'Semen' },
+            },
+            transaction: {
+              completedAt: new Date('2026-06-09T04:00:00.000Z'),
+              outletId: 'outlet-1',
+              outlet: { name: 'Cabang Utama' },
+            },
+          },
+        ];
+      },
+    },
+    receivable: {
+      findMany: async (args: { where: { dueDate?: unknown } }) => {
+        if (args.where.dueDate) {
+          return [{ amount: '100000', paidAmount: '0' }];
+        }
+        return [{ amount: '200000', paidAmount: '50000' }];
+      },
+    },
+    payable: {
+      findMany: async () => [],
+    },
+  };
+
+  const service = new ReportsService(prisma as never);
+  const result = await service.getAnalyticsSummary(createManager(), {
+    outletId: 'outlet-1',
+    period: 'day',
+    date: '2026-06-09',
+  });
+
+  assert.equal(result.period, 'day');
+  assert.equal(result.pulse.netSales.current, 500_000);
+  assert.equal(result.pulse.transactionCount.current, 5);
+  assert.equal(result.topProducts[0]?.productName, 'Semen 40kg');
+  assert.equal(result.paymentMethods.length, 2);
+  assert.equal(result.financeSnapshot.receivablesOutstanding, 150_000);
+  assert.ok(result.insights.length >= 1);
+  assert.ok(result.salesTrend.length >= 1);
+});
+
 test('Reports: exportAnalyticsScheduled returns weekly preset CSV', async () => {
   const prisma = {
     outlet: {

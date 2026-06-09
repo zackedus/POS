@@ -1,10 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
-import { ErrorCodes, PaymentMethod } from '@barokah/shared';
+import { PayableStatus, ReceivableStatus, type Prisma } from '@prisma/client';
+import {
+  ErrorCodes,
+  PaymentMethod,
+  type AnalyticsChangeDirection,
+  type AnalyticsKpiMetric,
+  type AnalyticsPeriod,
+  type AnalyticsSummary,
+  type FinanceReportPeriod,
+} from '@barokah/shared';
 import { PrismaService } from '../../common/database/prisma.service';
 import { buildAnalyticsMarginCsv } from '../../common/utils/analytics-export.util';
 import { buildDailySalesCsv, buildDailySalesPdf } from '../../common/utils/daily-export.util';
-import { resolveReportDayRange } from '../../common/utils/report-date.util';
+import {
+  resolveFinanceReportRange,
+  resolvePreviousPeriodRange,
+  resolveReportDayRange,
+  type ReportDayRange,
+} from '../../common/utils/report-date.util';
 import { toIdrInteger } from '../../common/utils/money.util';
 import { canAccessAnyTenantOutlet, resolveOutletId } from '../../common/utils/outlet.util';
 import type { AuthJwtPayload } from '../auth/auth.types';
@@ -12,6 +25,8 @@ import { DailyExportQueryDto } from './dto/daily-export-query.dto';
 import { ReportsQueryDto } from './dto/reports-query.dto';
 import { StockReportQueryDto } from './dto/stock-report-query.dto';
 import { AnalyticsQueryDto, AnalyticsPeriodDays } from './dto/analytics-query.dto';
+import { AnalyticsSummaryQueryDto } from './dto/analytics-summary-query.dto';
+import { computeOutstanding } from '../finance/finance.util';
 import { ScheduledAnalyticsExportQueryDto } from './dto/scheduled-analytics-export-query.dto';
 import { resolveCurrentWeekRangeJakarta } from '../../common/utils/report-date.util';
 
@@ -365,6 +380,372 @@ export class ReportsService {
     };
   }
 
+  async getAnalyticsSummary(user: AuthJwtPayload, query: AnalyticsSummaryQueryDto): Promise<AnalyticsSummary> {
+    const outletId = query.outletId ? resolveOutletId(user, query.outletId) : null;
+    if (outletId) {
+      await this.ensureOutletExists(user.tenantId, outletId);
+    }
+
+    const hasCustom = Boolean(query.from?.trim() || query.to?.trim());
+    const range = resolveFinanceReportRange({
+      period: query.period ?? 'day',
+      date: query.date,
+      from: query.from,
+      to: query.to,
+    });
+
+    const anchor = query.date?.trim() || range.dateFrom || range.date;
+    const period: AnalyticsPeriod | 'custom' = hasCustom ? 'custom' : (query.period ?? 'day');
+    const previousRange =
+      period === 'custom'
+        ? this.deriveCustomPreviousRange(range)
+        : resolvePreviousPeriodRange(period as FinanceReportPeriod, anchor);
+
+    const tenantId = user.tenantId;
+    const completedWhere = this.scopedCompletedTransactionWhere(
+      outletId,
+      tenantId,
+      range.startUtc,
+      range.endUtc,
+    );
+    const previousWhere = this.scopedCompletedTransactionWhere(
+      outletId,
+      tenantId,
+      previousRange.startUtc,
+      previousRange.endUtc,
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const receivableWhere: Prisma.ReceivableWhereInput = {
+      tenantId,
+      status: { in: [ReceivableStatus.OPEN, ReceivableStatus.PARTIAL] },
+      ...(outletId ? { outletId } : {}),
+    };
+    const payableWhere: Prisma.PayableWhereInput = {
+      tenantId,
+      status: { in: [PayableStatus.OPEN, PayableStatus.PARTIAL] },
+      ...(outletId
+        ? { OR: [{ purchaseOrder: { outletId } }, { poId: null }] }
+        : {}),
+    };
+
+    const [
+      salesAgg,
+      previousSalesAgg,
+      voidRefundAgg,
+      previousVoidRefundAgg,
+      paymentGroups,
+      items,
+      transactions,
+      previousItems,
+      receivableRows,
+      overdueReceivableRows,
+      payableRows,
+      overduePayableRows,
+      outletGroups,
+      outlets,
+    ] = await Promise.all([
+      this.prisma.transaction.aggregate({
+        where: completedWhere,
+        _sum: { total: true },
+        _count: { _all: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: previousWhere,
+        _sum: { total: true },
+        _count: { _all: true },
+      }),
+      this.prisma.transactionAdjustment.aggregate({
+        where: this.scopedAdjustmentWhere(outletId, tenantId, range.startUtc, range.endUtc),
+        _sum: { amount: true },
+      }),
+      this.prisma.transactionAdjustment.aggregate({
+        where: this.scopedAdjustmentWhere(
+          outletId,
+          tenantId,
+          previousRange.startUtc,
+          previousRange.endUtc,
+        ),
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.groupBy({
+        by: ['method'],
+        where: { transaction: completedWhere },
+        _sum: { amount: true },
+        _count: { id: true },
+      }),
+      this.prisma.transactionItem.findMany({
+        where: { transaction: completedWhere },
+        select: {
+          productId: true,
+          productName: true,
+          quantity: true,
+          subtotal: true,
+          product: {
+            select: {
+              costPrice: true,
+              category: { select: { id: true, name: true } },
+            },
+          },
+          transaction: {
+            select: {
+              completedAt: true,
+              outletId: true,
+              outlet: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.transaction.findMany({
+        where: completedWhere,
+        select: { completedAt: true, total: true },
+      }),
+      this.prisma.transactionItem.findMany({
+        where: { transaction: previousWhere },
+        select: {
+          subtotal: true,
+          quantity: true,
+          product: { select: { costPrice: true } },
+        },
+      }),
+      this.prisma.receivable.findMany({
+        where: receivableWhere,
+        select: { amount: true, paidAmount: true },
+      }),
+      this.prisma.receivable.findMany({
+        where: { ...receivableWhere, dueDate: { lt: today } },
+        select: { amount: true, paidAmount: true },
+      }),
+      this.prisma.payable.findMany({
+        where: payableWhere,
+        select: { amount: true, paidAmount: true },
+      }),
+      this.prisma.payable.findMany({
+        where: { ...payableWhere, dueDate: { lt: today } },
+        select: { amount: true, paidAmount: true },
+      }),
+      outletId
+        ? Promise.resolve([])
+        : this.prisma.transaction.groupBy({
+            by: ['outletId'],
+            where: completedWhere,
+            _sum: { total: true },
+            _count: { _all: true },
+          }),
+      outletId
+        ? Promise.resolve([])
+        : this.prisma.outlet.findMany({
+            where: { tenantId, isActive: true },
+            select: { id: true, name: true },
+          }),
+    ]);
+
+    const grossOmzet = toIdrInteger(salesAgg._sum?.total);
+    const previousGrossOmzet = toIdrInteger(previousSalesAgg._sum?.total);
+    const voidRefundTotal = toIdrInteger(voidRefundAgg._sum?.amount);
+    const previousVoidRefundTotal = toIdrInteger(previousVoidRefundAgg._sum?.amount);
+    const netSales = Math.max(0, grossOmzet - voidRefundTotal);
+    const previousNetSales = Math.max(0, previousGrossOmzet - previousVoidRefundTotal);
+    const transactionCount = salesAgg._count?._all ?? 0;
+    const previousTransactionCount = previousSalesAgg._count?._all ?? 0;
+
+    let totalCost = 0;
+    type CategoryAgg = {
+      categoryId: string;
+      categoryName: string;
+      revenue: number;
+      margin: number;
+      quantity: number;
+    };
+    const categoryMap = new Map<string, CategoryAgg>();
+    const productMap = new Map<
+      string,
+      { productId: string; productName: string; revenue: number; quantity: number }
+    >();
+    const trendMap = new Map<string, { label: string; date?: string; revenue: number; transactionCount: number }>();
+    const outletPerfMap = new Map<
+      string,
+      { outletId: string; outletName: string; revenue: number; transactionCount: number; grossProfit: number }
+    >();
+
+    for (const item of items) {
+      const qty = Number(item.quantity);
+      const revenue = toIdrInteger(item.subtotal);
+      const unitCost = toIdrInteger(item.product.costPrice);
+      const cost = Math.round(unitCost * qty);
+      const margin = revenue - cost;
+      totalCost += cost;
+
+      const catId = item.product.category?.id ?? 'uncategorized';
+      const catName = item.product.category?.name ?? 'Tanpa Kategori';
+      const catRow = categoryMap.get(catId) ?? {
+        categoryId: catId,
+        categoryName: catName,
+        revenue: 0,
+        margin: 0,
+        quantity: 0,
+      };
+      catRow.revenue += revenue;
+      catRow.margin += margin;
+      catRow.quantity += qty;
+      categoryMap.set(catId, catRow);
+
+      const prodRow = productMap.get(item.productId) ?? {
+        productId: item.productId,
+        productName: item.productName,
+        revenue: 0,
+        quantity: 0,
+      };
+      prodRow.revenue += revenue;
+      prodRow.quantity += qty;
+      productMap.set(item.productId, prodRow);
+
+      const completedAt = item.transaction.completedAt;
+      if (completedAt) {
+        const bucket = this.resolveTrendBucket(completedAt, period, range);
+        const trendRow = trendMap.get(bucket.key) ?? {
+          label: bucket.label,
+          date: bucket.date,
+          revenue: 0,
+          transactionCount: 0,
+        };
+        trendRow.revenue += revenue;
+        trendMap.set(bucket.key, trendRow);
+      }
+
+    for (const tx of transactions) {
+      if (!tx.completedAt) continue;
+      const bucket = this.resolveTrendBucket(tx.completedAt, period, range);
+      const trendRow = trendMap.get(bucket.key) ?? {
+        label: bucket.label,
+        date: bucket.date,
+        revenue: 0,
+        transactionCount: 0,
+      };
+      trendRow.transactionCount += 1;
+      trendMap.set(bucket.key, trendRow);
+    }
+
+      if (!outletId) {
+        const oId = item.transaction.outletId;
+        const oName = item.transaction.outlet?.name ?? oId;
+        const outletRow = outletPerfMap.get(oId) ?? {
+          outletId: oId,
+          outletName: oName,
+          revenue: 0,
+          transactionCount: 0,
+          grossProfit: 0,
+        };
+        outletRow.revenue += revenue;
+        outletRow.grossProfit += margin;
+        outletPerfMap.set(oId, outletRow);
+      }
+    }
+
+    for (const group of outletGroups) {
+      const oId = group.outletId;
+      const outletRow = outletPerfMap.get(oId) ?? {
+        outletId: oId,
+        outletName: outlets.find((o) => o.id === oId)?.name ?? oId,
+        revenue: 0,
+        transactionCount: 0,
+        grossProfit: 0,
+      };
+      outletRow.transactionCount = group._count?._all ?? 0;
+      outletPerfMap.set(oId, outletRow);
+    }
+
+    const grossProfit = netSales - totalCost;
+    const grossProfitPercent = netSales > 0 ? Math.round((grossProfit / netSales) * 1000) / 10 : 0;
+
+    const marginByCategory = [...categoryMap.values()]
+      .map((row) => ({
+        ...row,
+        marginPercent: row.revenue > 0 ? Math.round((row.margin / row.revenue) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    const topProducts = [...productMap.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+    const salesTrend = this.buildFilledSalesTrend(period, range, trendMap);
+    const paymentMethods = this.buildPaymentMix(paymentGroups, grossOmzet);
+
+    let receivablesOutstanding = 0;
+    for (const row of receivableRows) {
+      receivablesOutstanding += computeOutstanding(
+        toIdrInteger(row.amount),
+        toIdrInteger(row.paidAmount),
+      );
+    }
+    let payablesOutstanding = 0;
+    for (const row of payableRows) {
+      payablesOutstanding += computeOutstanding(toIdrInteger(row.amount), toIdrInteger(row.paidAmount));
+    }
+
+    let previousTotalCost = 0;
+    for (const item of previousItems) {
+      const qty = Number(item.quantity);
+      const unitCost = toIdrInteger(item.product.costPrice);
+      previousTotalCost += Math.round(unitCost * qty);
+    }
+    const previousGrossProfit = Math.max(0, previousNetSales - previousTotalCost);
+
+    const outletPerformance =
+      outletId === null && outletGroups.length > 0
+        ? [...outletPerfMap.values()].sort((a, b) => b.revenue - a.revenue)
+        : null;
+
+    const pulse = {
+      netSales: this.buildKpiMetric(netSales, previousNetSales),
+      transactionCount: this.buildKpiMetric(transactionCount, previousTransactionCount),
+      averageTicket: this.buildKpiMetric(
+        transactionCount > 0 ? Math.round(netSales / transactionCount) : 0,
+        previousTransactionCount > 0
+          ? Math.round(previousNetSales / previousTransactionCount)
+          : 0,
+      ),
+      grossProfit: this.buildKpiMetric(grossProfit, previousGrossProfit),
+      grossProfitPercent,
+    };
+
+    const insights = this.buildAnalyticsInsights({
+      period,
+      pulse,
+      topProducts,
+      paymentMethods,
+      financeSnapshot: {
+        receivablesOutstanding,
+        receivablesOverdueCount: overdueReceivableRows.length,
+        payablesOutstanding,
+        payablesOverdueCount: overduePayableRows.length,
+      },
+    });
+
+    return {
+      outletId,
+      period,
+      dateFrom: range.dateFrom ?? range.date,
+      dateTo: range.dateTo ?? range.date,
+      previousDateFrom: previousRange.dateFrom ?? previousRange.date,
+      previousDateTo: previousRange.dateTo ?? previousRange.date,
+      timezone: 'Asia/Jakarta',
+      pulse,
+      salesTrend,
+      topProducts,
+      paymentMethods,
+      outletPerformance,
+      financeSnapshot: {
+        receivablesOutstanding,
+        receivablesOverdueCount: overdueReceivableRows.length,
+        payablesOutstanding,
+        payablesOverdueCount: overduePayableRows.length,
+      },
+      marginByCategory,
+      insights,
+    };
+  }
+
   async getAnalytics(user: AuthJwtPayload, query: AnalyticsQueryDto) {
     const outletId = resolveOutletId(user, query.outletId);
     await this.ensureOutletExists(user.tenantId, outletId);
@@ -588,18 +969,228 @@ export class ReportsService {
     };
   }
 
+  private scopedCompletedTransactionWhere(
+    outletId: string | null,
+    tenantId: string,
+    startUtc: Date,
+    endUtc: Date,
+  ): Prisma.TransactionWhereInput {
+    return {
+      status: 'COMPLETED',
+      completedAt: { gte: startUtc, lt: endUtc },
+      outlet: { tenantId },
+      ...(outletId ? { outletId } : {}),
+    };
+  }
+
+  private scopedAdjustmentWhere(
+    outletId: string | null,
+    tenantId: string,
+    startUtc: Date,
+    endUtc: Date,
+  ): Prisma.TransactionAdjustmentWhereInput {
+    return {
+      createdAt: { gte: startUtc, lt: endUtc },
+      transaction: {
+        outlet: { tenantId },
+        ...(outletId ? { outletId } : {}),
+      },
+    };
+  }
+
+  private deriveCustomPreviousRange(range: ReportDayRange): ReportDayRange {
+    const from = range.dateFrom ?? range.date;
+    const to = range.dateTo ?? range.date;
+    const start = this.dayStartUtc(from);
+    const end = this.dayStartUtc(to);
+    const spanMs = end.getTime() - start.getTime() + 24 * 60 * 60 * 1000;
+    const prevEnd = new Date(start.getTime());
+    const prevStart = new Date(start.getTime() - spanMs);
+    const prevFrom = new Date(prevStart.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const prevTo = new Date(prevEnd.getTime() - 24 * 60 * 60 * 1000 + 7 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    return resolveReportDayRange(undefined, prevFrom, prevTo);
+  }
+
+  private buildKpiMetric(current: number, previous: number): AnalyticsKpiMetric {
+    let changePercent: number | null = null;
+    let direction: AnalyticsChangeDirection = 'flat';
+
+    if (previous > 0) {
+      changePercent = Math.round(((current - previous) / previous) * 1000) / 10;
+      direction = changePercent > 0 ? 'up' : changePercent < 0 ? 'down' : 'flat';
+    } else if (current > 0) {
+      changePercent = 100;
+      direction = 'up';
+    }
+
+    return { current, previous, changePercent, direction };
+  }
+
+  private resolveTrendBucket(
+    completedAt: Date,
+    period: AnalyticsPeriod | 'custom',
+    range: ReportDayRange,
+  ): { key: string; label: string; date?: string } {
+    const jakarta = new Date(completedAt.getTime() + 7 * 60 * 60 * 1000);
+    const isoDate = jakarta.toISOString().slice(0, 10);
+
+    if (period === 'day') {
+      const hour = jakarta.getUTCHours();
+      const label = `${String(hour).padStart(2, '0')}:00`;
+      return { key: `h-${hour}`, label, date: isoDate };
+    }
+
+    if (period === 'year') {
+      const month = isoDate.slice(0, 7);
+      const monthLabel = new Intl.DateTimeFormat('id-ID', {
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(`${month}-15T12:00:00Z`));
+      return { key: `m-${month}`, label: monthLabel, date: month };
+    }
+
+    const dayLabel = new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC',
+    }).format(new Date(`${isoDate}T12:00:00Z`));
+    return { key: `d-${isoDate}`, label: dayLabel, date: isoDate };
+  }
+
+  private buildFilledSalesTrend(
+    period: AnalyticsPeriod | 'custom',
+    range: ReportDayRange,
+    trendMap: Map<string, { label: string; date?: string; revenue: number; transactionCount: number }>,
+  ) {
+    const from = range.dateFrom ?? range.date;
+    const to = range.dateTo ?? range.date;
+
+    if (period === 'day') {
+      return Array.from({ length: 24 }, (_, hour) => {
+        const key = `h-${hour}`;
+        const row = trendMap.get(key);
+        return {
+          label: `${String(hour).padStart(2, '0')}:00`,
+          date: from,
+          revenue: row?.revenue ?? 0,
+          transactionCount: row?.transactionCount ?? 0,
+        };
+      });
+    }
+
+    if (period === 'year') {
+      const year = from.slice(0, 4);
+      return Array.from({ length: 12 }, (_, index) => {
+        const month = `${year}-${String(index + 1).padStart(2, '0')}`;
+        const key = `m-${month}`;
+        const row = trendMap.get(key);
+        const label = new Intl.DateTimeFormat('id-ID', {
+          month: 'short',
+          timeZone: 'UTC',
+        }).format(new Date(`${month}-15T12:00:00Z`));
+        return {
+          label,
+          date: month,
+          revenue: row?.revenue ?? 0,
+          transactionCount: row?.transactionCount ?? 0,
+        };
+      });
+    }
+
+    const points: Array<{ label: string; date?: string; revenue: number; transactionCount: number }> = [];
+    let cursor = from;
+    while (cursor <= to) {
+      const key = `d-${cursor}`;
+      const row = trendMap.get(key);
+      const label = new Intl.DateTimeFormat('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'UTC',
+      }).format(new Date(`${cursor}T12:00:00Z`));
+      points.push({
+        label,
+        date: cursor,
+        revenue: row?.revenue ?? 0,
+        transactionCount: row?.transactionCount ?? 0,
+      });
+      const next = new Date(this.dayStartUtc(cursor).getTime() + 24 * 60 * 60 * 1000 + 7 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      cursor = next;
+    }
+    return points;
+  }
+
+  private buildAnalyticsInsights(input: {
+    period: AnalyticsPeriod | 'custom';
+    pulse: AnalyticsSummary['pulse'];
+    topProducts: AnalyticsSummary['topProducts'];
+    paymentMethods: AnalyticsSummary['paymentMethods'];
+    financeSnapshot: AnalyticsSummary['financeSnapshot'];
+  }): string[] {
+    const insights: string[] = [];
+    const periodLabel =
+      input.period === 'day'
+        ? 'kemarin'
+        : input.period === 'week'
+          ? 'minggu lalu'
+          : input.period === 'month'
+            ? 'bulan lalu'
+            : input.period === 'year'
+              ? 'tahun lalu'
+              : 'periode sebelumnya';
+
+    const { netSales, transactionCount } = input.pulse;
+    if (netSales.changePercent !== null && netSales.direction !== 'flat') {
+      const verb = netSales.direction === 'up' ? 'naik' : 'turun';
+      insights.push(
+        `Penjualan bersih ${verb} ${Math.abs(netSales.changePercent)}% vs ${periodLabel}.`,
+      );
+    } else if (netSales.current === 0) {
+      insights.push('Belum ada penjualan pada periode ini — cek shift kasir dan promosi.');
+    }
+
+    if (input.topProducts[0]) {
+      const top = input.topProducts[0];
+      insights.push(`Produk terlaris: ${top.productName} (${top.quantity} unit).`);
+    }
+
+    if (transactionCount.current > 0 && transactionCount.changePercent !== null) {
+      if (transactionCount.direction === 'down' && transactionCount.changePercent <= -15) {
+        insights.push(
+          `Jumlah transaksi turun ${Math.abs(transactionCount.changePercent)}% — evaluasi jam sibuk dan staf kasir.`,
+        );
+      }
+    }
+
+    const cash = input.paymentMethods.find((row) => row.method === PaymentMethod.CASH);
+    if (cash && cash.sharePercent >= 60) {
+      insights.push(`Pembayaran tunai dominan (${cash.sharePercent}%) — pertimbangkan edukasi QRIS/transfer.`);
+    }
+
+    if (input.financeSnapshot.receivablesOverdueCount > 0) {
+      insights.push(
+        `${input.financeSnapshot.receivablesOverdueCount} piutang jatuh tempo — prioritaskan penagihan.`,
+      );
+    }
+
+    return insights.slice(0, 3);
+  }
+
+  private dayStartUtc(isoDate: string): Date {
+    return new Date(`${isoDate}T00:00:00+07:00`);
+  }
+
   private completedTransactionWhere(
     outletId: string,
     tenantId: string,
     startUtc: Date,
     endUtc: Date,
   ): Prisma.TransactionWhereInput {
-    return {
-      outletId,
-      status: 'COMPLETED',
-      completedAt: { gte: startUtc, lt: endUtc },
-      outlet: { tenantId },
-    };
+    return this.scopedCompletedTransactionWhere(outletId, tenantId, startUtc, endUtc);
   }
 
   private buildPaymentMix(

@@ -11,6 +11,7 @@ import { ReportsQueryDto } from './dto/reports-query.dto';
 import { StockReportQueryDto } from './dto/stock-report-query.dto';
 import { CrossOutletStockQueryDto } from './dto/cross-outlet-stock-query.dto';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
+import { AnalyticsSummaryQueryDto } from './dto/analytics-summary-query.dto';
 import { ScheduledAnalyticsExportQueryDto } from './dto/scheduled-analytics-export-query.dto';
 import { FinanceReportsService } from './finance-reports.service';
 import { ReportsService } from './reports.service';
@@ -101,7 +102,14 @@ export class ReportsController {
     return this.reportsService.getCrossOutletStock(user, query);
   }
 
+  @Get('analytics/summary')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  getAnalyticsSummary(@CurrentUser() user: AuthJwtPayload, @Query() query: AnalyticsSummaryQueryDto) {
+    return this.reportsService.getAnalyticsSummary(user, query);
+  }
+
   @Get('analytics')
+  @Roles(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
   getAnalytics(@CurrentUser() user: AuthJwtPayload, @Query() query: AnalyticsQueryDto) {
     return this.reportsService.getAnalytics(user, query);
   }

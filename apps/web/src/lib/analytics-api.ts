@@ -1,3 +1,4 @@
+import type { AnalyticsPeriod, AnalyticsSummary } from '@barokah/shared';
 import { apiConfig } from './api';
 import { authFetch } from './auth';
 
@@ -41,6 +42,34 @@ interface ApiEnvelope<T> {
 }
 
 const REPORTS_BASE = `${apiConfig.baseUrl}/${apiConfig.prefix}/reports`;
+
+export async function fetchAnalyticsSummary(options?: {
+  outletId?: string;
+  period?: AnalyticsPeriod;
+  date?: string;
+  from?: string;
+  to?: string;
+}): Promise<AnalyticsSummary | null> {
+  const params = new URLSearchParams();
+  if (options?.outletId) params.set('outletId', options.outletId);
+  if (options?.period) params.set('period', options.period);
+  if (options?.date) params.set('date', options.date);
+  if (options?.from) params.set('from', options.from);
+  if (options?.to) params.set('to', options.to);
+  const qs = params.toString();
+  const url = `${REPORTS_BASE}/analytics/summary${qs ? `?${qs}` : ''}`;
+
+  try {
+    const res = await authFetch(url);
+    const json = (await res.json()) as ApiEnvelope<AnalyticsSummary>;
+    if (res.ok && json.success && json.data) {
+      return json.data;
+    }
+  } catch {
+    /* fallback */
+  }
+  return null;
+}
 
 export async function fetchAnalytics(options?: {
   outletId?: string;

@@ -122,6 +122,46 @@ export function resolveYearRangeForAnchorJakarta(anchorDate: string): ReportDayR
 
 export type FinanceReportPeriod = 'day' | 'week' | 'month' | 'year';
 
+function subtractCalendarDays(isoDate: string, days: number): string {
+  const start = dayStartUtc(isoDate);
+  const shifted = new Date(start.getTime() - days * 24 * 60 * 60 * 1000);
+  return new Date(shifted.getTime() + JAKARTA_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Previous calendar period immediately before the anchor (WIB). */
+export function resolvePreviousPeriodRange(
+  period: FinanceReportPeriod,
+  anchorDate: string,
+): ReportDayRange {
+  switch (period) {
+    case 'day':
+      return resolveReportDayRange(subtractCalendarDays(anchorDate, 1));
+    case 'week': {
+      const current = resolveWeekRangeForAnchorJakarta(anchorDate);
+      const prevAnchor = subtractCalendarDays(current.dateFrom!, 1);
+      return resolveWeekRangeForAnchorJakarta(prevAnchor);
+    }
+    case 'month': {
+      const [yearStr, monthStr] = anchorDate.split('-');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const prevYear = month === 1 ? year - 1 : year;
+      const prevMonth = month === 1 ? 12 : month - 1;
+      const prevAnchor = `${prevYear}-${String(prevMonth).padStart(2, '0')}-15`;
+      return resolveMonthRangeForAnchorJakarta(prevAnchor);
+    }
+    case 'year': {
+      const prevYear = Number(anchorDate.slice(0, 4)) - 1;
+      return resolveYearRangeForAnchorJakarta(`${prevYear}-06-15`);
+    }
+    default:
+      throw new BadRequestException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: 'period harus day, week, month, atau year.',
+      });
+  }
+}
+
 /** Resolve finance report bounds — custom from/to overrides period preset. */
 export function resolveFinanceReportRange(options: {
   period?: FinanceReportPeriod;
