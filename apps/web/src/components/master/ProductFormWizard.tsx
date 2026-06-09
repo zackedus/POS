@@ -100,7 +100,7 @@ export function createEmptyWizardForm(): ProductWizardFormState {
     categoryId: '',
     productType: ProductType.SIMPLE,
     hasVariants: false,
-    sellOnline: false,
+    sellOnline: true,
     imageUrl: '',
     moq: '1',
     orderStep: '1',
@@ -603,14 +603,20 @@ export function ProductFormWizard({
                 ))}
               </select>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'end', marginBottom: '0.25rem' }}>
-              <input
-                type="checkbox"
-                checked={form.sellOnline ?? false}
-                disabled={disabled || form.productType === ProductType.VARIANT}
-                onChange={(e) => patch({ sellOnline: e.target.checked })}
-              />
-              <span style={{ fontSize: '0.875rem' }}>Jual online (storefront)</span>
+            <label style={{ display: 'grid', gap: '0.25rem', alignSelf: 'end', marginBottom: '0.25rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+                <input
+                  type="checkbox"
+                  aria-label="Tampil di Web Store"
+                  checked={form.sellOnline ?? true}
+                  disabled={disabled || form.productType === ProductType.VARIANT}
+                  onChange={(e) => patch({ sellOnline: e.target.checked })}
+                />
+                Tampil di Web Store
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.35 }}>
+                Produk ini muncul di katalog online toko
+              </span>
             </label>
           </div>
           <Input

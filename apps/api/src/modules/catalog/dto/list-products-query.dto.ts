@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from './pagination-query.dto';
 
 export class ListProductsQueryDto extends PaginationQueryDto {
@@ -20,4 +20,9 @@ export class ListProductsQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean({ message: 'includeInactive harus boolean.' })
   includeInactive?: boolean;
+
+  /** Filter web store visibility: all (default), online, offline */
+  @IsOptional()
+  @IsIn(['all', 'online', 'offline'], { message: 'sellOnlineFilter harus all, online, atau offline.' })
+  sellOnlineFilter?: 'all' | 'online' | 'offline';
 }

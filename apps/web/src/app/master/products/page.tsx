@@ -30,6 +30,7 @@ import { useOutletSelection } from '@/lib/outlet-selection-state';
 import { resolveProductImageUrl, uploadProductImage } from '@/lib/uploads-api';
 import { ProductVariantPanel } from '@/components/master/ProductVariantPanel';
 import { ProductUnitConversionPanel } from '@/components/master/ProductUnitConversionPanel';
+import { SellOnlineToggle } from '@/components/master/SellOnlineToggle';
 import {
   ProductFormWizard,
   createEmptyWizardForm,
@@ -120,10 +121,11 @@ type ProductFilters = {
   search: string;
   categoryId: string;
   showInactive: boolean;
+  sellOnlineFilter: 'all' | 'online' | 'offline';
 };
 
 function emptyProductFilters(): ProductFilters {
-  return { search: '', categoryId: '', showInactive: false };
+  return { search: '', categoryId: '', showInactive: false, sellOnlineFilter: 'all' };
 }
 
 const filterSelectStyle = {
@@ -178,7 +180,7 @@ function productToWizardForm(product: Product, _showCost: boolean): ProductWizar
     hasVariants: product.hasVariants ?? false,
     parentProductId: product.parentProductId ?? undefined,
     variantLabel: product.variantLabel ?? undefined,
-    sellOnline: product.sellOnline ?? false,
+    sellOnline: product.sellOnline ?? true,
     imageUrl: product.imageUrl ?? '',
     moq: String(product.moq ?? 1),
     orderStep: String(product.orderStep ?? 1),
@@ -237,6 +239,7 @@ export default function ProductsPage() {
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [expandedVariantParentId, setExpandedVariantParentId] = useState<string | null>(null);
   const [viewerRole, setViewerRole] = useState<string | null>(null);
+  const [togglingSellOnlineId, setTogglingSellOnlineId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ProductImportResult | null>(null);
   const showCostFields = viewerRole ? canViewCostPrice(viewerRole) : false;
@@ -282,6 +285,16 @@ export default function ProductsPage() {
           label: `Cari: ${appliedFilters.search}`,
           active: Boolean(appliedFilters.search.trim()),
         },
+        {
+          key: 'sellOnline',
+          label:
+            appliedFilters.sellOnlineFilter === 'online'
+              ? 'Tampil di web'
+              : appliedFilters.sellOnlineFilter === 'offline'
+                ? 'Hanya offline'
+                : '',
+          active: appliedFilters.sellOnlineFilter !== 'all',
+        },
         { key: 'inactive', label: 'Tampilkan nonaktif', active: appliedFilters.showInactive },
       ]),
     [appliedFilters, categories],
@@ -307,6 +320,7 @@ export default function ProductsPage() {
       appliedFilters.search,
       appliedFilters.categoryId,
       appliedFilters.showInactive,
+      appliedFilters.sellOnlineFilter,
       viewerRole,
     ],
     queryFn: () =>
@@ -317,6 +331,7 @@ export default function ProductsPage() {
         categoryId: appliedFilters.categoryId || undefined,
         includeCost: canViewCostPrice(viewerRole ?? ''),
         includeInactive: appliedFilters.showInactive,
+        sellOnlineFilter: appliedFilters.sellOnlineFilter,
       }),
     enabled: Boolean(viewerRole),
     staleTime: MASTER_PRODUCTS_STALE_MS,
@@ -386,7 +401,7 @@ export default function ProductsPage() {
         unitId: form.unitId,
         categoryId: form.categoryId || undefined,
         hasVariants: flags.hasVariants,
-        sellOnline: form.sellOnline,
+        sellOnline: form.sellOnline ?? true,
         imageUrl: form.imageUrl?.trim() || undefined,
         moq: form.productType === ProductType.MULTI_UNIT ? Number(form.moq ?? 1) : 1,
         orderStep: form.productType === ProductType.MULTI_UNIT ? Number(form.orderStep ?? 1) : 1,
@@ -553,6 +568,38 @@ export default function ProductsPage() {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleSellOnline(product: Product) {
+    const nextSellOnline = !(product.sellOnline ?? true);
+    const previousProducts = products;
+    setProducts((prev) =>
+      prev.map((row) => (row.id === product.id ? { ...row, sellOnline: nextSellOnline } : row)),
+    );
+    setTogglingSellOnlineId(product.id);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/products/${product.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sellOnline: nextSellOnline }),
+      });
+      const json = (await res.json()) as ApiEnvelope<Product>;
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message ?? 'Gagal mengubah status web store.');
+      }
+      setSuccess(
+        nextSellOnline
+          ? `"${product.name}" sekarang tampil di web store.`
+          : `"${product.name}" disembunyikan dari web store.`,
+      );
+    } catch (err) {
+      setProducts(previousProducts);
+      setError(err instanceof Error ? err.message : 'Gagal mengubah status web store.');
+    } finally {
+      setTogglingSellOnlineId(null);
     }
   }
 
@@ -740,6 +787,21 @@ export default function ProductsPage() {
             ],
             onChange: (value) => setDraftFilters((prev) => ({ ...prev, categoryId: value })),
           },
+          {
+            id: 'sellOnlineFilter',
+            label: 'Web store',
+            value: draftFilters.sellOnlineFilter,
+            options: [
+              { value: 'all', label: 'Semua' },
+              { value: 'online', label: 'Tampil di web' },
+              { value: 'offline', label: 'Hanya offline' },
+            ],
+            onChange: (value) =>
+              setDraftFilters((prev) => ({
+                ...prev,
+                sellOnlineFilter: value as ProductFilters['sellOnlineFilter'],
+              })),
+          },
         ]}
         showDateRange={false}
         search={draftFilters.search}
@@ -914,7 +976,9 @@ export default function ProductsPage() {
                       ) : null}
                       {product.sellOnline ? (
                         <span style={badgeStyle('#eff6ff', '#1d4ed8')}>Online</span>
-                      ) : null}
+                      ) : (
+                        <span style={badgeStyle('#f1f5f9', '#64748b')}>Offline</span>
+                      )}
                     </div>
                     <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>
                       {product.sku}
@@ -960,7 +1024,16 @@ export default function ProductsPage() {
                       </p>
                     ) : null}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+                    {!product.hasVariants && !product.parentProductId ? (
+                      <SellOnlineToggle
+                        checked={product.sellOnline ?? true}
+                        loading={togglingSellOnlineId === product.id}
+                        disabled={!!deletingId || saving}
+                        label="Tampil di Web"
+                        onChange={() => void handleToggleSellOnline(product)}
+                      />
+                    ) : null}
                     {product.hasVariants ? (
                       <Button
                         type="button"

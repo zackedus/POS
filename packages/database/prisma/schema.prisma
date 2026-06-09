@@ -253,7 +253,7 @@ model Product {
   costPrice    Decimal  @default(0) @map("cost_price") @db.Decimal(15, 2)
   taxInclusive Boolean  @default(true) @map("tax_inclusive")
   isActive     Boolean  @default(true) @map("is_active")
-  sellOnline           Boolean  @default(false) @map("sell_online")
+  sellOnline           Boolean  @default(true) @map("sell_online")
   imageUrl             String?  @map("image_url")
   webPlaceholderKey    String?  @map("web_placeholder_key")
   moq                  Decimal  @default(1) @db.Decimal(15, 3)

@@ -81,7 +81,7 @@ function setMasterCatalogState(products: unknown[] = [], categories: unknown[] =
 }
 
 function installMasterAuthRouter() {
-  authFetchMock.mockImplementation(async (url: string) => {
+  authFetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
     const target = String(url);
     if (target.includes('/categories/summary')) {
       return { ok: true, json: async () => ({ success: true, data: masterCatalogState.categories }) };
@@ -100,6 +100,15 @@ function installMasterAuthRouter() {
               totalPages: 1,
             },
           },
+        }),
+      };
+    }
+    if (target.match(/\/products\/[^/]+$/) && init?.method === 'PATCH') {
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { id: 'p-1', sellOnline: false },
         }),
       };
     }
@@ -168,7 +177,7 @@ describe('ProductsPage', () => {
 
     mockMasterData([
 
-      { id: 'p-1', sku: 'SMN-001', name: 'Semen Portland', price: 75000, unit: { id: 'u-1', name: 'Sak', symbol: 'sak' } },
+      { id: 'p-1', sku: 'SMN-001', name: 'Semen Portland', price: 75000, sellOnline: true, unit: { id: 'u-1', name: 'Sak', symbol: 'sak' } },
 
     ]);
 
@@ -181,6 +190,50 @@ describe('ProductsPage', () => {
     expect(await screen.findByText(/Semen Portland/)).toBeInTheDocument();
 
     expect(screen.getByText(/SMN-001/)).toBeInTheDocument();
+
+    expect(screen.getByText('Online')).toBeInTheDocument();
+
+  });
+
+
+
+  it('toggles sellOnline via PATCH when Web Store switch is clicked', async () => {
+
+    mockMasterData([
+
+      { id: 'p-1', sku: 'SMN-001', name: 'Semen Portland', price: 75000, sellOnline: true, unit: { id: 'u-1', name: 'Sak', symbol: 'sak' } },
+
+    ]);
+
+
+
+    renderProductsPage();
+
+    const toggle = await screen.findByRole('switch', { name: /Tampil di Web: aktif/i });
+
+    fireEvent.click(toggle);
+
+
+
+    await waitFor(() => {
+
+      const patchCall = authFetchMock.mock.calls.find(
+
+        ([url, init]) =>
+
+          typeof url === 'string' &&
+
+          url.endsWith('/products/p-1') &&
+
+          (init as RequestInit | undefined)?.method === 'PATCH' &&
+
+          JSON.parse(String((init as RequestInit).body))?.sellOnline === false,
+
+      );
+
+      expect(patchCall).toBeTruthy();
+
+    });
 
   });
 

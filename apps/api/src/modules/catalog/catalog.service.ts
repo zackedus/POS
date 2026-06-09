@@ -406,7 +406,7 @@ export class CatalogService {
           parentProductId: dto.parentProductId ?? null,
           hasVariants: dto.hasVariants ?? false,
           variantLabel: dto.variantLabel?.trim() || null,
-          sellOnline: dto.sellOnline ?? false,
+          sellOnline: dto.sellOnline ?? true,
           imageUrl: dto.imageUrl?.trim() || null,
           moq: dto.moq ?? 1,
           orderStep: dto.orderStep ?? 1,
@@ -1233,6 +1233,8 @@ export class CatalogService {
       tenantId,
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(query.includeInactive ? {} : { isActive: true }),
+      ...(query.sellOnlineFilter === 'online' ? { sellOnline: true } : {}),
+      ...(query.sellOnlineFilter === 'offline' ? { sellOnline: false } : {}),
       ...(searchWhere ?? {}),
     };
   }

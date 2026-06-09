@@ -171,6 +171,79 @@ test('Catalog: listProducts paginates when page query is provided', async () => 
   assert.equal(result.items.length, 1);
 });
 
+test('Catalog: createProduct defaults sellOnline to true when omitted', async () => {
+  let createPayload: Record<string, unknown> | null = null;
+  const prisma = {
+    unit: { findFirst: async () => ({ id: 'unit-1' }) },
+    category: { findFirst: async () => null },
+    product: {
+      findFirst: async () => null,
+      create: async (args: { data: Record<string, unknown> }) => {
+        createPayload = args.data;
+        return {
+          ...args.data,
+          id: 'prod-new',
+          barcode: null,
+          price: { toString: () => '75000' },
+          costPrice: { toString: () => '0' },
+          isActive: true,
+          imageUrl: null,
+          moq: { toString: () => '1' },
+          orderStep: { toString: () => '1' },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      },
+    },
+  };
+
+  const service = new CatalogService(prisma as never);
+  const result = await service.createProduct(createUser(), {
+    sku: 'SMN-001',
+    name: 'Semen Portland',
+    price: 75000,
+    unitId: 'unit-1',
+  });
+
+  assert.equal(createPayload?.['sellOnline'], true);
+  assert.equal((result as { sellOnline: boolean }).sellOnline, true);
+});
+
+test('Catalog: updateProduct can toggle sellOnline via PATCH payload', async () => {
+  let updatePayload: Record<string, unknown> | null = null;
+  const prisma = {
+    unit: { findFirst: async () => null },
+    category: { findFirst: async () => null },
+    product: {
+      findFirst: async () => ({ id: 'prod-1', tenantId: 'tenant-1' }),
+      update: async (args: { data: Record<string, unknown> }) => {
+        updatePayload = args.data;
+        return {
+          id: 'prod-1',
+          sku: 'SMN-001',
+          barcode: null,
+          name: 'Semen Portland',
+          price: { toString: () => '75000' },
+          costPrice: { toString: () => '0' },
+          sellOnline: false,
+          isActive: true,
+          imageUrl: null,
+          moq: { toString: () => '1' },
+          orderStep: { toString: () => '1' },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      },
+    },
+  };
+
+  const service = new CatalogService(prisma as never);
+  const result = await service.updateProduct(createUser(), 'prod-1', { sellOnline: false });
+
+  assert.equal(updatePayload?.['sellOnline'], false);
+  assert.equal((result as { sellOnline: boolean }).sellOnline, false);
+});
+
 test('Catalog: createProduct rejects variantLabel without parentProductId', async () => {
   const prisma = {
     unit: { findFirst: async () => ({ id: 'unit-1' }) },

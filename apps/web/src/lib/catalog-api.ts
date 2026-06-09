@@ -91,6 +91,7 @@ export async function fetchMasterProducts<T>(params: {
   categoryId?: string;
   includeCost?: boolean;
   includeInactive?: boolean;
+  sellOnlineFilter?: 'all' | 'online' | 'offline';
 }): Promise<MasterProductListResult<T>> {
   const query = buildQuery({
     page: params.page,
@@ -99,6 +100,8 @@ export async function fetchMasterProducts<T>(params: {
     categoryId: params.categoryId || undefined,
     includeCost: params.includeCost ? true : undefined,
     includeInactive: params.includeInactive ? true : undefined,
+    sellOnlineFilter:
+      params.sellOnlineFilter && params.sellOnlineFilter !== 'all' ? params.sellOnlineFilter : undefined,
   });
   const res = await authFetch(`${apiConfig.baseUrl}/${apiConfig.prefix}/products${query}`);
   const json = (await res.json()) as ApiEnvelope<MasterProductListResult<T>>;

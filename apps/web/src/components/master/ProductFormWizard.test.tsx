@@ -546,4 +546,21 @@ describe('ProductFormWizard', () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it('defaults Tampil di Web Store to checked on create form', () => {
+    render(
+      <ProductFormWizard
+        form={createEmptyWizardForm()}
+        onChange={vi.fn()}
+        units={units}
+        categories={categories}
+        mode="create"
+        onSubmit={vi.fn()}
+        submitLabel="Tambah produk"
+      />,
+    );
+
+    expect(screen.getByLabelText('Tampil di Web Store')).toBeChecked();
+    expect(screen.getByText('Produk ini muncul di katalog online toko')).toBeInTheDocument();
+  });
 });
