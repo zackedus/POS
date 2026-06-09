@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { formatPhoneDisplay, isValidIndonesianMobilePhone } from '@barokah/shared';
 import { Button, Input, colors } from '@barokah/ui';
 import { OrderSummary } from '@/components/store/OrderSummary';
 import { AlertBanner } from '@/components/dashboard/dashboard-ui';
@@ -38,7 +39,7 @@ export default function StoreCheckoutPage() {
   const { lines, clearCart } = useStoreCart();
   const { config } = useStoreConfig();
   const { outlets, outletId, setOutletId } = useStoreOutlet(slug);
-  const { customer, accessToken, isLoggedIn, loading: authLoading } = useStoreCustomerAuth();
+  const { customer, accessToken, isLoggedIn, loading: authLoading, refreshProfile } = useStoreCustomerAuth();
   const settings = config?.settings;
   const requireLogin = settings?.checkout.requireCustomerLogin !== false;
 
@@ -56,9 +57,14 @@ export default function StoreCheckoutPage() {
   const [website, setWebsite] = useState('');
 
   useEffect(() => {
+    if (authLoading || !isLoggedIn) return;
+    void refreshProfile().catch(() => undefined);
+  }, [authLoading, isLoggedIn, refreshProfile]);
+
+  useEffect(() => {
     if (customer) {
       setName(customer.name);
-      setPhone(customer.phone);
+      setPhone(formatPhoneDisplay(customer.phone));
     }
   }, [customer]);
 
@@ -102,7 +108,8 @@ export default function StoreCheckoutPage() {
       setFormError('Nama lengkap wajib diisi (min. 2 karakter).');
       return;
     }
-    if (settings?.checkout.requirePhone !== false && !/^08\d{8,11}$/.test(phone.trim())) {
+    const displayPhone = formatPhoneDisplay(phone.trim());
+    if (settings?.checkout.requirePhone !== false && !isValidIndonesianMobilePhone(displayPhone)) {
       setFormError('No. HP tidak valid. Gunakan format Indonesia (08…).');
       return;
     }
@@ -129,7 +136,7 @@ export default function StoreCheckoutPage() {
       const result = await createOrder({
         slug,
         outletId,
-        customer: { name: name.trim(), phone: phone.trim(), notes: notes.trim() || undefined },
+        customer: { name: name.trim(), phone: displayPhone, notes: notes.trim() || undefined },
         items: lines,
         clientRequestId,
         fulfillmentType,
@@ -137,7 +144,7 @@ export default function StoreCheckoutPage() {
         accessToken,
         website: website.trim() || undefined,
       });
-      sessionStorage.setItem(`barokah-order-phone:${slug}:${result.order.orderNo}`, phone.trim());
+      sessionStorage.setItem(`barokah-order-phone:${slug}:${result.order.orderNo}`, displayPhone);
       clearCart();
       if (result.payment.redirectUrl.startsWith('http')) {
         window.location.href = result.payment.redirectUrl;

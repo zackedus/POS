@@ -367,6 +367,30 @@ test('Storefront: getProduct returns variants with prices for parent product', a
   assert.equal(secondVariant?.stockStatus, 'OUT_OF_STOCK');
 });
 
+test('Storefront: createOrder authenticated customer stores normalized 628 phone and returns 08 display', async () => {
+  const prisma = buildPrisma({
+    customer: {
+      findFirst: async () => ({ id: 'cust-1', name: 'Budi', phone: '6281234567890' }),
+    },
+  });
+  const service = buildService(prisma);
+
+  const result = await service.createOrder(
+    'barokah-bangunan',
+    {
+      clientRequestId: 'req-auth-phone-1',
+      outletId: 'outlet-1',
+      fulfillmentType: 'PICKUP',
+      customer: { name: 'Budi', phone: '081234567890' },
+      items: [{ productId: 'prod-1', quantity: 1 }],
+    },
+    MOCK_CUSTOMER_JWT,
+  );
+
+  assert.equal(prisma.createdOrders[0]?.customerPhone, '6281234567890');
+  assert.equal(result.order.customer.phone, '081234567890');
+});
+
 test('Storefront: createOrder rejects honeypot website field', async () => {
   const prisma = buildPrisma();
   const service = buildService(prisma);
