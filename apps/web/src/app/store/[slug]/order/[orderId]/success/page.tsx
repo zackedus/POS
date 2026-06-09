@@ -2,52 +2,59 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, colors } from '@barokah/ui';
-import { fetchOrderStatus, confirmMockPayment } from '@/lib/store/store-api';
+import { fetchOrderStatus } from '@/lib/store/store-api';
 
 export default function OrderConfirmationPage() {
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const orderNo = params.orderId as string;
-  const mockPaid = searchParams.get('mockPaid') === '1';
+  const legacyMockPaid = searchParams.get('mockPaid') === '1';
 
-  const [statusLabel, setStatusLabel] = useState(mockPaid ? 'Sudah dibayar' : 'Menunggu pembayaran');
+  const [statusLabel, setStatusLabel] = useState('Memuat…');
+  const [orderStatus, setOrderStatus] = useState<string>('PENDING_PAYMENT');
   const [outletName, setOutletName] = useState('');
   const [fulfillmentType, setFulfillmentType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
 
   useEffect(() => {
-    const phone =
-      sessionStorage.getItem(`barokah-order-phone:${slug}:${orderNo}`) ?? '';
-    if (!phone) return;
+    if (legacyMockPaid) {
+      router.replace(`/store/${slug}/order/${orderNo}/pay?mock=1`);
+      return;
+    }
 
-    if (mockPaid) {
-      void confirmMockPayment(slug, orderNo, phone)
-        .then(() => fetchOrderStatus(slug, orderNo, phone))
-        .then((data) => {
-          setStatusLabel(data.statusLabel);
-          setOutletName(data.outletName);
-          setFulfillmentType(data.fulfillmentType);
-        })
-        .catch(() => undefined);
+    const phone = sessionStorage.getItem(`barokah-order-phone:${slug}:${orderNo}`) ?? '';
+    if (!phone) {
+      setStatusLabel('Menunggu pembayaran');
       return;
     }
 
     void fetchOrderStatus(slug, orderNo, phone)
       .then((data) => {
+        setOrderStatus(data.status);
         setStatusLabel(data.statusLabel);
         setOutletName(data.outletName);
         setFulfillmentType(data.fulfillmentType);
+        if (['NEW', 'PENDING_PAYMENT'].includes(data.status) && data.midtransMode === 'mock') {
+          router.replace(`/store/${slug}/order/${orderNo}/pay?mock=1`);
+        }
       })
-      .catch(() => undefined);
-  }, [slug, orderNo, mockPaid]);
+      .catch(() => {
+        setStatusLabel('Menunggu pembayaran');
+      });
+  }, [slug, orderNo, legacyMockPaid, router]);
+
+  const isPaid = orderStatus === 'PAID';
 
   return (
     <div style={{ padding: '2rem 1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ fontSize: '3rem', color: colors.semantic.success }}>✓</div>
-      <h1 style={{ margin: 0, fontSize: '1.375rem', color: colors.semantic.success }}>
-        {mockPaid || statusLabel === 'Sudah dibayar' ? 'Pembayaran berhasil!' : 'Pesanan dibuat'}
+      <div style={{ fontSize: '3rem', color: isPaid ? colors.semantic.success : colors.semantic.info }}>
+        {isPaid ? '✓' : '⏳'}
+      </div>
+      <h1 style={{ margin: 0, fontSize: '1.375rem', color: isPaid ? colors.semantic.success : colors.light.text.primary }}>
+        {isPaid ? 'Pembayaran berhasil!' : 'Pesanan dibuat — menunggu pembayaran'}
       </h1>
 
       <div>
@@ -69,6 +76,12 @@ export default function OrderConfirmationPage() {
       <p style={{ margin: 0, fontSize: '0.9375rem', color: colors.semantic.info }}>
         Status: {statusLabel}
       </p>
+
+      {!isPaid ? (
+        <Link href={`/store/${slug}/order/${orderNo}/pay?mock=1`} style={{ fontSize: '0.875rem', color: colors.primary[600] }}>
+          Lanjut ke pembayaran →
+        </Link>
+      ) : null}
 
       <div
         style={{

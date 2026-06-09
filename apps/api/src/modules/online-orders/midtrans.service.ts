@@ -96,7 +96,7 @@ export class MidtransService {
       const token = `mock-snap-${input.orderId}`;
       return {
         snapToken: token,
-        redirectUrl: `${base}/store/${input.tenantSlug}/order/${input.orderNo}/success?mockPaid=1`,
+        redirectUrl: `${base}/store/${input.tenantSlug}/order/${input.orderNo}/pay?mock=1`,
       };
     }
 

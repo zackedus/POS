@@ -59,7 +59,7 @@ test('MidtransService: createSnapPayment mock redirect when no server key', asyn
   assert.match(result.snapToken, /^mock-snap-/);
   assert.equal(
     result.redirectUrl,
-    'http://localhost:3001/store/barokah-bangunan/order/WEB-20260606-0001/success?mockPaid=1',
+    'http://localhost:3001/store/barokah-bangunan/order/WEB-20260606-0001/pay?mock=1',
   );
 });
 

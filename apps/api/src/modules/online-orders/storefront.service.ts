@@ -1008,15 +1008,38 @@ export class StorefrontService {
       order.expiresAt != null &&
       order.expiresAt > new Date();
 
+    const total = toIdrInteger(order.total);
+    const paymentMode = ((order as { paymentMode?: 'FULL_ONLINE' | 'COD' }).paymentMode ?? 'FULL_ONLINE') as
+      | 'FULL_ONLINE'
+      | 'COD';
+    const depositAmount =
+      order.depositAmount != null
+        ? toIdrInteger(order.depositAmount)
+        : paymentMode === 'COD'
+          ? calculateOnlineCodSplit(total).depositAmount
+          : null;
+    const balanceDue =
+      order.balanceDue != null
+        ? toIdrInteger(order.balanceDue)
+        : paymentMode === 'COD'
+          ? calculateOnlineCodSplit(total).balanceDue
+          : null;
+    const chargeAmount = resolveOnlineOrderChargeAmount(paymentMode, total, depositAmount);
+
     return {
       orderNo: order.orderNo,
       status,
       statusLabel: orderStatusLabel(status),
       fulfillmentType: order.fulfillmentType,
+      paymentMode,
       outletName: order.outlet.name,
-      total: toIdrInteger(order.total),
+      total,
+      chargeAmount,
+      depositAmount,
+      balanceDue,
       paidAt: order.paidAt?.toISOString() ?? null,
       canRetryPayment,
+      midtransMode: await this.resolveMidtransMode(tenant.id),
     };
   }
 
@@ -1086,12 +1109,20 @@ export class StorefrontService {
       return { ok: true, message: 'Already paid' };
     }
 
-    const grossAmount = toIdrInteger(order.total);
+    const total = toIdrInteger(order.total);
+    const paymentMode = ((order as { paymentMode?: 'FULL_ONLINE' | 'COD' }).paymentMode ?? 'FULL_ONLINE') as
+      | 'FULL_ONLINE'
+      | 'COD';
+    const chargeAmount = resolveOnlineOrderChargeAmount(
+      paymentMode,
+      total,
+      order.depositAmount != null ? toIdrInteger(order.depositAmount) : null,
+    );
     const result = await this.onlineOrdersService.handleMidtransWebhook({
       order_id: order.midtransOrderId ?? order.orderNo,
       transaction_status: 'settlement',
       status_code: '200',
-      gross_amount: `${grossAmount}.00`,
+      gross_amount: `${chargeAmount}.00`,
       transaction_id: `mock-${order.orderNo}`,
       payment_type: 'mock',
     });

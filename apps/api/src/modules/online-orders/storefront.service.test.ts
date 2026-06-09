@@ -434,6 +434,74 @@ test('Storefront: createOrder COD charges 20% deposit via Midtrans', async () =>
   assert.equal(prisma.createdOrders[0]?.paymentMode, 'COD');
 });
 
+test('Storefront: createOrder does not mark order PAID before payment', async () => {
+  const prisma = buildPrisma({
+    customer: {
+      findFirst: async () => ({ id: 'cust-1', name: 'Budi', phone: '6281234567890' }),
+    },
+  });
+  const service = buildService(prisma);
+
+  const result = await service.createOrder(
+    'barokah-bangunan',
+    {
+      clientRequestId: 'req-pending-1',
+      outletId: 'outlet-1',
+      fulfillmentType: 'PICKUP',
+      customer: { name: 'Budi', phone: '081234567890' },
+      items: [{ productId: 'prod-1', quantity: 1 }],
+    },
+    MOCK_CUSTOMER_JWT,
+  );
+
+  assert.equal(result.order.status, 'PENDING_PAYMENT');
+  assert.equal(prisma.createdOrders[0]?.status, 'PENDING_PAYMENT');
+});
+
+test('Storefront: confirmMockPayment COD sends deposit gross_amount to webhook', async () => {
+  const expectedTotal = 65000 + 7150;
+  const expectedDeposit = Math.round(expectedTotal * 0.2);
+  let webhookGrossAmount = '';
+
+  const prisma = {
+    tenant: { findFirst: async () => TENANT },
+    onlineOrder: {
+      findFirst: async () => ({
+        id: 'order-cod-1',
+        tenantId: 'tenant-1',
+        orderNo: 'WEB-20260606-0099',
+        status: 'PENDING_PAYMENT',
+        customerPhone: '6281234567890',
+        midtransOrderId: 'WEB-20260606-0099',
+        total: new Decimal(expectedTotal),
+        depositAmount: new Decimal(expectedDeposit),
+        paymentMode: 'COD',
+      }),
+    },
+  };
+
+  const midtrans = { isMockMode: () => true };
+  const onlineOrders = {
+    handleMidtransWebhook: async (notification: { gross_amount: string }) => {
+      webhookGrossAmount = notification.gross_amount;
+      return { ok: true, message: 'Paid' };
+    },
+  };
+
+  const service = new StorefrontService(
+    prisma as never,
+    midtrans as never,
+    onlineOrders as never,
+    buildCustomers(),
+    buildStorefrontCustomerAuth(),
+  );
+
+  const result = await service.confirmMockPayment('barokah-bangunan', 'WEB-20260606-0099', '081234567890');
+
+  assert.equal(result.status, 'PAID');
+  assert.equal(webhookGrossAmount, `${expectedDeposit}.00`);
+});
+
 test('Storefront: createOrder rejects honeypot website field', async () => {
   const prisma = buildPrisma();
   const service = buildService(prisma);

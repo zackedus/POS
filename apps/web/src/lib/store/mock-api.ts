@@ -114,7 +114,7 @@ export async function createMockOrder(input: {
     expiresAt,
     payment: {
       snapToken: `mock-snap-${orderNo}`,
-      redirectUrl: `/store/${input.slug}/order/${orderNo}/success?mockPaid=1`,
+      redirectUrl: `/store/${input.slug}/order/${orderNo}/pay?mock=1`,
     },
   };
 }

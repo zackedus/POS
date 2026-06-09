@@ -255,9 +255,15 @@ export async function fetchOrderStatus(slug: string, orderNo: string, phone: str
     status: string;
     statusLabel: string;
     fulfillmentType: StoreFulfillmentType;
+    paymentMode: 'FULL_ONLINE' | 'COD';
     outletName: string;
     total: number;
+    chargeAmount: number;
+    depositAmount: number | null;
+    balanceDue: number | null;
     paidAt: string | null;
+    canRetryPayment: boolean;
+    midtransMode: 'mock' | 'sandbox' | 'live';
   }>(`/${slug}/orders/${orderNo}/status?${params.toString()}`);
 }
 
