@@ -76,15 +76,16 @@ function buildPrisma(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function buildMidtrans() {
+function buildMidtrans(mode: 'mock' | 'sandbox' | 'live' = 'sandbox') {
   let lastGrossAmount = 0;
   return {
-    isMockMode: () => true,
+    isMockMode: () => mode === 'mock',
+    resolvePaymentMode: () => mode,
     createSnapPayment: async (_input: { grossAmount: number }) => {
       lastGrossAmount = _input.grossAmount;
       return {
         snapToken: 'snap-token',
-        redirectUrl: 'https://app.midtrans.com/snap/v2/vtweb/test',
+        redirectUrl: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/test',
       };
     },
     getLastGrossAmount: () => lastGrossAmount,

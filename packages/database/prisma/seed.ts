@@ -483,6 +483,23 @@ async function main() {
     }
   }
 
+  const midtransServerKey = process.env.MIDTRANS_SERVER_KEY?.trim();
+  const midtransIsProduction = process.env.MIDTRANS_IS_PRODUCTION === 'true';
+  if (midtransServerKey && process.env.MIDTRANS_MOCK !== 'true') {
+    await prisma.tenantSettings.upsert({
+      where: { tenantId: tenant.id },
+      update: {
+        midtransServerKey,
+        midtransIsProduction,
+      },
+      create: {
+        tenantId: tenant.id,
+        midtransServerKey,
+        midtransIsProduction,
+      },
+    });
+  }
+
   const managerUser = await prisma.user.findFirst({
     where: { tenantId: tenant.id, email: 'manager@barokah.local' },
     select: { id: true },

@@ -359,10 +359,10 @@ export class SettingsService {
     const isProduction =
       row?.midtransIsProduction ?? this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
 
-    let mode: MidtransMode = 'mock';
-    if (effectiveKey) {
-      mode = isProduction ? 'live' : 'sandbox';
-    }
+    const mode = this.midtrans.resolvePaymentMode({
+      serverKey: effectiveKey,
+      isProduction,
+    });
 
     const warnings: string[] = [];
     if (isProduction && !effectiveKey) {

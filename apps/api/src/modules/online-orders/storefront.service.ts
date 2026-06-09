@@ -67,14 +67,8 @@ export class StorefrontService {
   }
 
   private async resolveMidtransMode(tenantId: string): Promise<'mock' | 'sandbox' | 'live'> {
-    const settings = await this.prisma.tenantSettings.findUnique({ where: { tenantId } });
     const config = await this.resolveTenantMidtransConfig(tenantId);
-    const envKey = process.env.MIDTRANS_SERVER_KEY?.trim();
-    const tenantKey = settings?.midtransServerKey?.trim();
-    const effectiveKey = tenantKey || envKey || config.serverKey?.trim() || null;
-    if (!effectiveKey) return 'mock';
-    const isProduction = settings?.midtransIsProduction ?? config.isProduction ?? false;
-    return isProduction ? 'live' : 'sandbox';
+    return this.midtrans.resolvePaymentMode(config);
   }
 
   private filterEnabledOutlets<T extends { id: string }>(outlets: T[], settings: StorefrontSettings): T[] {

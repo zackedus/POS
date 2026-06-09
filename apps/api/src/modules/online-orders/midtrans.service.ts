@@ -19,6 +19,8 @@ export interface MidtransNotification {
   transaction_id?: string;
 }
 
+export type MidtransPaymentMode = 'mock' | 'sandbox' | 'live';
+
 export interface MidtransRuntimeConfig {
   serverKey?: string | null;
   isProduction?: boolean;
@@ -43,8 +45,23 @@ export class MidtransService {
     return { serverKey: effectiveKey, isProduction };
   }
 
+  isExplicitMockMode(): boolean {
+    return this.config.get<string>('MIDTRANS_MOCK') === 'true';
+  }
+
   isMockMode(override?: MidtransRuntimeConfig): boolean {
+    if (this.isExplicitMockMode()) {
+      return true;
+    }
     return !this.resolveRuntimeConfig(override).serverKey?.trim();
+  }
+
+  resolvePaymentMode(override?: MidtransRuntimeConfig): MidtransPaymentMode {
+    if (this.isMockMode(override)) {
+      return 'mock';
+    }
+    const { isProduction } = this.resolveRuntimeConfig(override);
+    return isProduction ? 'live' : 'sandbox';
   }
 
   verifySignature(
@@ -91,7 +108,7 @@ export class MidtransService {
   ): Promise<SnapPaymentResult> {
     const { serverKey, isProduction } = this.resolveRuntimeConfig(override);
 
-    if (!serverKey) {
+    if (this.isMockMode(override)) {
       const base = this.config.get<string>('STOREFRONT_BASE_URL') ?? 'http://localhost:3001';
       const token = `mock-snap-${input.orderId}`;
       return {
@@ -107,6 +124,10 @@ export class MidtransService {
       ? 'https://app.midtrans.com'
       : 'https://app.sandbox.midtrans.com';
 
+    const storefrontBase = this.config.get<string>('STOREFRONT_BASE_URL') ?? 'http://localhost:3001';
+    const successUrl = `${storefrontBase}/store/${input.tenantSlug}/order/${input.orderNo}/success`;
+    const payUrl = `${storefrontBase}/store/${input.tenantSlug}/order/${input.orderNo}/pay`;
+
     const body = {
       transaction_details: {
         order_id: input.orderId,
@@ -115,6 +136,11 @@ export class MidtransService {
       customer_details: {
         first_name: input.customerName,
         phone: input.customerPhone,
+      },
+      callbacks: {
+        finish: successUrl,
+        unfinish: payUrl,
+        error: payUrl,
       },
     };
 
@@ -187,8 +213,8 @@ export class MidtransService {
     productionMode: boolean;
     strictProductionWebhook: boolean;
   } {
-    const { serverKey, isProduction } = this.resolveRuntimeConfig(override);
-    const mockMode = !serverKey?.trim();
+    const { isProduction } = this.resolveRuntimeConfig(override);
+    const mockMode = this.isMockMode(override);
     const skipVerify = this.config.get<string>('MIDTRANS_WEBHOOK_SKIP_VERIFY') === 'true';
     return {
       endpoint: '/api/v1/webhooks/midtrans/online',

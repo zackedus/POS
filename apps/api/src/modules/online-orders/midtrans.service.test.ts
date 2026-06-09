@@ -14,9 +14,30 @@ test('MidtransService: isMockMode when server key empty', () => {
   assert.equal(service.isMockMode(), true);
 });
 
+test('MidtransService: isMockMode true when MIDTRANS_MOCK=true even with key', () => {
+  const service = new MidtransService(
+    buildConfig({ MIDTRANS_SERVER_KEY: 'SB-Mid-server-test', MIDTRANS_MOCK: 'true' }),
+  );
+  assert.equal(service.isMockMode(), true);
+  assert.equal(service.resolvePaymentMode(), 'mock');
+});
+
 test('MidtransService: isMockMode false when server key set', () => {
-  const service = new MidtransService(buildConfig({ MIDTRANS_SERVER_KEY: 'SB-Mid-server-test' }));
+  const service = new MidtransService(
+    buildConfig({ MIDTRANS_SERVER_KEY: 'SB-Mid-server-test', MIDTRANS_MOCK: 'false' }),
+  );
   assert.equal(service.isMockMode(), false);
+  assert.equal(service.resolvePaymentMode(), 'sandbox');
+});
+
+test('MidtransService: resolvePaymentMode live when production flag set', () => {
+  const service = new MidtransService(
+    buildConfig({
+      MIDTRANS_SERVER_KEY: 'Mid-server-live',
+      MIDTRANS_IS_PRODUCTION: 'true',
+    }),
+  );
+  assert.equal(service.resolvePaymentMode(), 'live');
 });
 
 test('MidtransService: verifySignature rejects production mode without key', () => {

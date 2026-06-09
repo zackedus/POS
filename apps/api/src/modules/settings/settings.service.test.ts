@@ -1,18 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ForbiddenException } from '@nestjs/common';
+import { MidtransService } from '../online-orders/midtrans.service';
 import { maskServerKey, SettingsService } from './settings.service';
 
-function createMidtransStub(overrides: Record<string, unknown> = {}) {
-  return {
-    pingConnection: async () => ({ ok: true, statusCode: 200, message: 'OK' }),
-    getWebhookHealth: () => ({
-      endpoint: '/api/v1/webhooks/midtrans/online',
-      mockMode: true,
-      signatureVerification: false,
-    }),
-    ...overrides,
-  };
+function createMidtrans(config?: { get: (key: string) => string | undefined }) {
+  return new MidtransService((config ?? createConfig()) as never);
 }
 
 function createConfig(envKey?: string) {
@@ -36,7 +29,7 @@ test('SettingsService: mock mode when no keys', async () => {
       findUnique: async () => null,
     },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   const view = await service.getTenantSettings({
     sub: 'u1',
     email: 'a@b.c',
@@ -59,7 +52,7 @@ test('SettingsService: sandbox when env key present', async () => {
       }),
     },
   };
-  const service = new SettingsService(prisma as never, createConfig('SB-Mid-server-test') as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig('SB-Mid-server-test') as never, createMidtrans(createConfig('SB-Mid-server-test')) as never);
   const view = await service.getTenantSettings({
     sub: 'u1',
     email: 'a@b.c',
@@ -85,7 +78,7 @@ test('SettingsService: production mode when env key and MIDTRANS_IS_PRODUCTION t
       return undefined;
     },
   };
-  const service = new SettingsService(prisma as never, config as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, config as never, createMidtrans(config) as never);
   const view = await service.getTenantSettings({
     sub: 'u1',
     email: 'a@b.c',
@@ -97,11 +90,41 @@ test('SettingsService: production mode when env key and MIDTRANS_IS_PRODUCTION t
   assert.equal(view.midtrans.keySource, 'env');
 });
 
+test('SettingsService: mock mode when MIDTRANS_MOCK=true overrides env key', async () => {
+  const prisma = {
+    tenantSettings: {
+      findUnique: async () => ({
+        ppnEnabled: false,
+        ppnRatePercent: { toString: () => '11' },
+        midtransServerKey: null,
+        midtransIsProduction: false,
+      }),
+    },
+  };
+  const config = {
+    get: (key: string) => {
+      if (key === 'MIDTRANS_SERVER_KEY') return 'SB-Mid-server-test';
+      if (key === 'MIDTRANS_MOCK') return 'true';
+      if (key === 'MIDTRANS_IS_PRODUCTION') return 'false';
+      return undefined;
+    },
+  };
+  const service = new SettingsService(prisma as never, config as never, createMidtrans(config) as never);
+  const view = await service.getTenantSettings({
+    sub: 'u1',
+    email: 'a@b.c',
+    tenantId: 't1',
+    role: 'OWNER',
+    outletIds: ['o1'],
+  });
+  assert.equal(view.midtrans.mode, 'mock');
+});
+
 test('SettingsService: testMidtransConnection returns mock message when no key', async () => {
   const prisma = {
     tenantSettings: { findUnique: async () => null },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   const result = await service.testMidtransConnection({
     sub: 'u1',
     email: 'a@b.c',
@@ -121,7 +144,7 @@ test('SettingsService: manager cannot update Midtrans or weekly email settings',
       },
     },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   await assert.rejects(
     () =>
       service.updateTenantSettings(
@@ -162,7 +185,7 @@ test('SettingsService: manager can update PPN and loyalty settings', async () =>
       },
     },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   const view = await service.updateTenantSettings(
     {
       sub: 'u1',
@@ -193,7 +216,7 @@ test('SettingsService: getTenantProfile returns tenant fields', async () => {
       }),
     },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   const profile = await service.getTenantProfile({
     sub: 'u1',
     email: 'owner@barokah.local',
@@ -207,7 +230,7 @@ test('SettingsService: getTenantProfile returns tenant fields', async () => {
 
 test('SettingsService: manager cannot change tenant name', async () => {
   const prisma = { tenant: { update: async () => ({}) } };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   await assert.rejects(
     () =>
       service.updateTenantProfile(
@@ -233,7 +256,7 @@ test('SettingsService: getStorefrontSettings merges defaults', async () => {
       findUnique: async () => null,
     },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   const view = await service.getStorefrontSettings({
     sub: 'u1',
     email: 'owner@barokah.local',
@@ -255,7 +278,7 @@ test('SettingsService: getStorefrontSettings merges defaults', async () => {
       findUnique: async () => null,
     },
   };
-  const service = new SettingsService(prisma as never, createConfig() as never, createMidtransStub() as never);
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
   const view = await service.getStorefrontSettings({
     sub: 'u1',
     email: 'owner@barokah.local',

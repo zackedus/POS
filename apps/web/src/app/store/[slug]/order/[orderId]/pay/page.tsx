@@ -24,6 +24,7 @@ export default function OrderPaymentPage() {
   const [total, setTotal] = useState(0);
   const [paymentMode, setPaymentMode] = useState<'FULL_ONLINE' | 'COD'>('FULL_ONLINE');
   const [balanceDue, setBalanceDue] = useState<number | null>(null);
+  const [midtransMode, setMidtransMode] = useState<'mock' | 'sandbox' | 'live'>('mock');
 
   useEffect(() => {
     const phone = sessionStorage.getItem(`barokah-order-phone:${slug}:${orderNo}`) ?? '';
@@ -55,6 +56,7 @@ export default function OrderPaymentPage() {
         setTotal(data.total);
         setPaymentMode(data.paymentMode);
         setBalanceDue(data.balanceDue);
+        setMidtransMode(data.midtransMode);
       })
       .catch((err) => {
         setError(mapApiError(err, 'Gagal memuat detail pembayaran.'));
@@ -101,6 +103,10 @@ export default function OrderPaymentPage() {
       {isMock ? (
         <AlertBanner variant="warning">
           Mode simulasi dev — Midtrans belum dikonfigurasi. Klik tombol di bawah untuk mensimulasikan pembayaran.
+        </AlertBanner>
+      ) : midtransMode === 'sandbox' ? (
+        <AlertBanner variant="info">
+          Midtrans Sandbox — gunakan kartu/QRIS uji dari dashboard Midtrans. Setelah bayar, status pesanan diperbarui via webhook.
         </AlertBanner>
       ) : null}
 

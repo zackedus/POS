@@ -96,6 +96,7 @@ export default function StoreCheckoutPage() {
     settings?.branches.deliveryEnabled !== false &&
     settings?.payment.codEnabled !== false;
   const onlinePaymentEnabled = settings?.payment.onlinePaymentEnabled !== false;
+  const midtransMode = config?.midtransMode ?? 'mock';
 
   useEffect(() => {
     if (fulfillmentType !== 'DELIVERY' && paymentMode === 'COD') {
@@ -289,6 +290,17 @@ export default function StoreCheckoutPage() {
 
       {formError ? <AlertBanner variant="error">{formError}</AlertBanner> : null}
       {stockError ? <AlertBanner variant="warning">⚠ {stockError}</AlertBanner> : null}
+      {midtransMode === 'sandbox' ? (
+        <AlertBanner variant="info">
+          Mode uji Midtrans Sandbox — checkout akan dialihkan ke halaman pembayaran Midtrans (bukan simulasi mock).
+        </AlertBanner>
+      ) : null}
+      {midtransMode === 'mock' ? (
+        <AlertBanner variant="warning">
+          Midtrans belum dikonfigurasi — pembayaran akan disimulasikan di halaman mock dev. Isi{' '}
+          <code>MIDTRANS_SERVER_KEY</code> sandbox di <code>.env</code> atau Pengaturan → Pembayaran.
+        </AlertBanner>
+      ) : null}
 
       <section>
         <OrderSummary subtotal={subtotal} tax={tax} total={total} shippingFee={shippingFee} paymentMode={paymentMode} />

@@ -279,6 +279,17 @@ export async function confirmMockPayment(slug: string, orderNo: string, phone: s
   );
 }
 
+export async function retryOrderPayment(slug: string, orderNo: string, phone: string) {
+  return storeFetch<{ payment: { snapToken: string; redirectUrl: string } }>(
+    `/${slug}/orders/${orderNo}/retry-payment`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    },
+    'Gagal membuat ulang sesi pembayaran.',
+  );
+}
+
 export async function registerStoreMember(
   slug: string,
   input: { name: string; phone: string; email?: string; password: string; website?: string },
