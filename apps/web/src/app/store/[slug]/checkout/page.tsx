@@ -288,6 +288,10 @@ export default function StoreCheckoutPage() {
         <Input label="Catatan order (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth />
       </section>
 
+      {settings?.checkout.paymentInstructions?.trim() ? (
+        <AlertBanner variant="info">{settings.checkout.paymentInstructions.trim()}</AlertBanner>
+      ) : null}
+
       {formError ? <AlertBanner variant="error">{formError}</AlertBanner> : null}
       {stockError ? <AlertBanner variant="warning">⚠ {stockError}</AlertBanner> : null}
       {midtransMode === 'sandbox' ? (

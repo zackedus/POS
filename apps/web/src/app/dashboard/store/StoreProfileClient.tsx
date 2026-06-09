@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@barokah/ui';
-import { formatCurrency, type StorefrontSettings } from '@barokah/shared';
+import { formatCurrency, validateStorefrontPaymentSettings, type StorefrontSettings } from '@barokah/shared';
 import {
   AlertBanner,
   cardStyle,
@@ -13,15 +13,17 @@ import {
   PageHeader,
   StatusBadge,
 } from '@/components/dashboard/dashboard-ui';
+import { StorePaymentSettingsSection } from '@/components/dashboard/store/store-payment-settings-section';
 import { inputStyle, SettingsFieldRow } from '@/components/dashboard/settings/settings-ui';
-import { fetchMe } from '@/lib/auth';
+import { fetchMe, type AuthUser } from '@/lib/auth';
 import { mapApiError } from '@/lib/api-client';
 import {
   fetchStorefrontSettings,
   fetchTenantProfile,
-  midtransModeLabel,
+  testMidtransConnection,
   updateStorefrontSettings,
   updateTenantProfile,
+  updateTenantSettings,
   type StorefrontSettingsView,
   type TenantProfileView,
 } from '@/lib/settings-api';
@@ -74,12 +76,19 @@ export default function StoreProfileClient() {
   const [description, setDescription] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [settingsDraft, setSettingsDraft] = useState<StorefrontSettings | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [midtransServerKeyInput, setMidtransServerKeyInput] = useState('');
+  const [midtransClientKeyInput, setMidtransClientKeyInput] = useState('');
+  const [midtransProduction, setMidtransProduction] = useState(false);
+  const [testingMidtrans, setTestingMidtrans] = useState(false);
+  const [midtransTestMessage, setMidtransTestMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
 
   const profileQuery = useQuery({
     queryKey: PROFILE_QUERY_KEY,
     queryFn: async () => {
       const [me, profile] = await Promise.all([fetchMe(), fetchTenantProfile()]);
+      setUser(me);
       setCanEditName(me.role === 'OWNER');
       setName(profile.name);
       setContactPhone(profile.contactPhone ?? '');
@@ -95,6 +104,7 @@ export default function StoreProfileClient() {
     queryFn: async () => {
       const data = await fetchStorefrontSettings();
       setSettingsDraft(data.settings);
+      setMidtransProduction(data.midtrans.isProduction);
       return data;
     },
   });
@@ -118,11 +128,35 @@ export default function StoreProfileClient() {
   });
 
   const saveStorefrontMutation = useMutation({
-    mutationFn: () => updateStorefrontSettings(settingsDraft ?? {}),
+    mutationFn: async () => {
+      const updated = await updateStorefrontSettings(settingsDraft ?? {});
+      const currentStorefront = queryClient.getQueryData<StorefrontSettingsView>(STOREFRONT_QUERY_KEY);
+      if (
+        tab === 'payment' &&
+        user?.role === 'OWNER' &&
+        (midtransServerKeyInput.trim() ||
+          midtransClientKeyInput.trim() ||
+          midtransProduction !== (currentStorefront?.midtrans.isProduction ?? updated.midtrans.isProduction))
+      ) {
+        const tenantSettings = await updateTenantSettings({
+          midtransIsProduction: midtransProduction,
+          ...(midtransServerKeyInput.trim() ? { midtransServerKey: midtransServerKeyInput.trim() } : {}),
+          ...(midtransClientKeyInput.trim() ? { midtransClientKey: midtransClientKeyInput.trim() } : {}),
+        });
+        return { ...updated, midtrans: tenantSettings.midtrans };
+      }
+      return updated;
+    },
     onSuccess: (data: StorefrontSettingsView) => {
       queryClient.setQueryData(STOREFRONT_QUERY_KEY, data);
       setSettingsDraft(data.settings);
-      setToast({ variant: 'success', message: 'Pengaturan storefront berhasil disimpan.' });
+      setMidtransProduction(data.midtrans.isProduction);
+      setMidtransServerKeyInput('');
+      setMidtransClientKeyInput('');
+      setToast({
+        variant: 'success',
+        message: tab === 'payment' ? 'Pengaturan pembayaran berhasil disimpan.' : 'Pengaturan storefront berhasil disimpan.',
+      });
     },
     onError: (err) => {
       setToast({ variant: 'error', message: mapApiError(err, 'Gagal menyimpan pengaturan storefront.') });
@@ -155,7 +189,45 @@ export default function StoreProfileClient() {
 
   function handleStorefrontSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!draft || !storefront) return;
+
+    if (tab === 'payment') {
+      const willConfigureMidtrans =
+        midtransServerKeyInput.trim().length > 0 || storefront.midtrans.serverKeyConfigured;
+      const validation = validateStorefrontPaymentSettings(draft, willConfigureMidtrans);
+      if (validation.errors.length > 0) {
+        setToast({ variant: 'error', message: validation.errors[0] });
+        return;
+      }
+    }
+
     saveStorefrontMutation.mutate();
+  }
+
+  async function handleTestMidtrans() {
+    setTestingMidtrans(true);
+    setMidtransTestMessage(null);
+    try {
+      if (user?.role === 'OWNER' && (midtransServerKeyInput.trim() || midtransProduction !== storefront?.midtrans.isProduction)) {
+        await updateTenantSettings({
+          midtransIsProduction: midtransProduction,
+          ...(midtransServerKeyInput.trim() ? { midtransServerKey: midtransServerKeyInput.trim() } : {}),
+          ...(midtransClientKeyInput.trim() ? { midtransClientKey: midtransClientKeyInput.trim() } : {}),
+        });
+        await storefrontQuery.refetch();
+      }
+      const result = await testMidtransConnection();
+      setMidtransTestMessage(result.ok ? `✓ ${result.message}` : result.message);
+      if (result.ok) {
+        setToast({ variant: 'success', message: 'Koneksi Midtrans berhasil.' });
+      }
+    } catch (err) {
+      const message = mapApiError(err, 'Uji koneksi Midtrans gagal.');
+      setMidtransTestMessage(message);
+      setToast({ variant: 'error', message });
+    } finally {
+      setTestingMidtrans(false);
+    }
   }
 
   const loading = profileQuery.isLoading || storefrontQuery.isLoading;
@@ -279,15 +351,22 @@ export default function StoreProfileClient() {
                 ) : null}
 
                 {tab === 'payment' ? (
-                  <>
-                    <SettingsFieldRow label="Mode Midtrans saat ini">
-                      <strong>{midtransModeLabel(storefront.midtrans.mode)}</strong>
-                    </SettingsFieldRow>
-                    <Toggle label="Pembayaran online (Midtrans)" checked={draft.payment.onlinePaymentEnabled} onChange={(v) => patchNested('payment', { onlinePaymentEnabled: v })} />
-                    <Toggle label="COD — uang muka 20% (pengiriman)" checked={draft.payment.codEnabled} onChange={(v) => patchNested('payment', { codEnabled: v })} />
-                    <Toggle label="Transfer manual (defer UI checkout)" checked={draft.payment.manualTransferEnabled} onChange={(v) => patchNested('payment', { manualTransferEnabled: v })} />
-                    <p style={{ fontSize: '0.8125rem', color: '#64748b', margin: 0 }}>Konfigurasi server key Midtrans tetap di tab Pembayaran Pengaturan Aplikasi.</p>
-                  </>
+                  <StorePaymentSettingsSection
+                    draft={draft}
+                    midtrans={storefront.midtrans}
+                    isOwner={user?.role === 'OWNER'}
+                    midtransProduction={midtransProduction}
+                    serverKeyInput={midtransServerKeyInput}
+                    clientKeyInput={midtransClientKeyInput}
+                    testingMidtrans={testingMidtrans}
+                    testMessage={midtransTestMessage}
+                    onPatchPayment={(patch) => patchNested('payment', patch)}
+                    onPatchCheckout={(patch) => patchNested('checkout', patch)}
+                    onMidtransProductionChange={setMidtransProduction}
+                    onServerKeyInputChange={setMidtransServerKeyInput}
+                    onClientKeyInputChange={setMidtransClientKeyInput}
+                    onTestMidtrans={handleTestMidtrans}
+                  />
                 ) : null}
 
                 {tab === 'seo' ? (
@@ -313,7 +392,11 @@ export default function StoreProfileClient() {
                   </>
                 ) : null}
 
-                <SaveActions loading={saveStorefrontMutation.isPending} storefrontUrl={storefrontUrl} />
+                <SaveActions
+                  loading={saveStorefrontMutation.isPending || testingMidtrans}
+                  storefrontUrl={storefrontUrl}
+                  label={tab === 'payment' ? 'Simpan pengaturan pembayaran' : undefined}
+                />
               </form>
             </section>
           ) : null}
@@ -360,11 +443,19 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   );
 }
 
-function SaveActions({ loading, storefrontUrl }: { loading: boolean; storefrontUrl: string | null }) {
+function SaveActions({
+  loading,
+  storefrontUrl,
+  label,
+}: {
+  loading: boolean;
+  storefrontUrl: string | null;
+  label?: string;
+}) {
   return (
     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
       <Button type="submit" variant="primary" disabled={loading}>
-        {loading ? 'Menyimpan…' : 'Simpan'}
+        {loading ? 'Menyimpan…' : (label ?? 'Simpan')}
       </Button>
       {storefrontUrl ? (
         <Link href={storefrontUrl} target="_blank" rel="noopener noreferrer">

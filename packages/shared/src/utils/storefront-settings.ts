@@ -183,6 +183,43 @@ export function mergeStorefrontSettings(
   };
 }
 
+export function isMidtransSandboxKey(serverKey: string | null | undefined): boolean {
+  const key = serverKey?.trim() ?? '';
+  return key.startsWith('SB-') || key.startsWith('SB-Mid');
+}
+
+export interface StorefrontPaymentValidation {
+  errors: string[];
+  warnings: string[];
+}
+
+export function validateStorefrontPaymentSettings(
+  settings: StorefrontSettings,
+  midtransConfigured: boolean,
+): StorefrontPaymentValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const hasFulfillment = settings.branches.pickupEnabled || settings.branches.deliveryEnabled;
+
+  if ((settings.payment.onlinePaymentEnabled || settings.payment.codEnabled) && !hasFulfillment) {
+    errors.push('Aktifkan minimal satu metode pengambilan (pickup atau delivery) sebelum mengaktifkan pembayaran.');
+  }
+
+  if (settings.payment.codEnabled && !settings.branches.deliveryEnabled) {
+    errors.push('COD hanya tersedia jika pengiriman ke alamat aktif.');
+  }
+
+  if (settings.payment.onlinePaymentEnabled && !midtransConfigured) {
+    warnings.push('Pembayaran online aktif tanpa kunci Midtrans — checkout akan fallback mode mock.');
+  }
+
+  if (!settings.payment.onlinePaymentEnabled && !settings.payment.codEnabled) {
+    warnings.push('Semua metode pembayaran webstore dinonaktifkan — pelanggan tidak bisa checkout.');
+  }
+
+  return { errors, warnings };
+}
+
 export function isWithinOnlineOrderHours(
   settings: StorefrontSettings,
   now = new Date(),

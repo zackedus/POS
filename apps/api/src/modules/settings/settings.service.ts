@@ -1,6 +1,12 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ErrorCodes, mergeStorefrontSettings, type StorefrontSettings } from '@barokah/shared';
+import {
+  ErrorCodes,
+  isMidtransSandboxKey,
+  mergeStorefrontSettings,
+  validateStorefrontPaymentSettings,
+  type StorefrontSettings,
+} from '@barokah/shared';
 import { UserRole } from '@barokah/database';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { AuthJwtPayload } from '../auth/auth.types';
@@ -16,8 +22,11 @@ export interface MidtransConfigView {
   isProduction: boolean;
   serverKeyConfigured: boolean;
   serverKeyMasked: string | null;
+  clientKeyConfigured: boolean;
+  clientKeyMasked: string | null;
   keySource: 'env' | 'tenant' | 'none';
   webhookPath: string;
+  webhookUrl: string;
   productionGuardrails: {
     liveRequiresServerKey: boolean;
     webhookStrictInProduction: boolean;
@@ -163,8 +172,10 @@ export class SettingsService {
     if (!isOwner) {
       const touchesOwnerOnly =
         dto.midtransServerKey !== undefined ||
+        dto.midtransClientKey !== undefined ||
         dto.midtransIsProduction !== undefined ||
         dto.clearMidtransServerKey === true ||
+        dto.clearMidtransClientKey === true ||
         dto.weeklyReportEmailEnabled !== undefined;
       if (touchesOwnerOnly) {
         throw new ForbiddenException({
@@ -178,6 +189,7 @@ export class SettingsService {
       ppnEnabled?: boolean;
       ppnRatePercent?: number;
       midtransServerKey?: string | null;
+      midtransClientKey?: string | null;
       midtransIsProduction?: boolean;
       weeklyReportEmailEnabled?: boolean;
       loyaltyPointsEnabled?: boolean;
@@ -211,12 +223,25 @@ export class SettingsService {
     if (dto.defaultCreditTermsDays !== undefined) {
       data.defaultCreditTermsDays = dto.defaultCreditTermsDays;
     }
-    if (dto.midtransIsProduction !== undefined) data.midtransIsProduction = dto.midtransIsProduction;
     if (dto.clearMidtransServerKey) {
       data.midtransServerKey = null;
     } else if (dto.midtransServerKey !== undefined) {
       const trimmed = dto.midtransServerKey.trim();
       data.midtransServerKey = trimmed.length > 0 ? trimmed : null;
+      if (data.midtransServerKey && isMidtransSandboxKey(data.midtransServerKey)) {
+        data.midtransIsProduction = false;
+      }
+    }
+
+    if (dto.clearMidtransClientKey) {
+      data.midtransClientKey = null;
+    } else if (dto.midtransClientKey !== undefined) {
+      const trimmed = dto.midtransClientKey.trim();
+      data.midtransClientKey = trimmed.length > 0 ? trimmed : null;
+    }
+
+    if (dto.midtransIsProduction !== undefined) {
+      data.midtransIsProduction = dto.midtransIsProduction;
     }
 
     const row = await this.prisma.tenantSettings.upsert({
@@ -226,6 +251,7 @@ export class SettingsService {
         ppnEnabled: data.ppnEnabled ?? false,
         ppnRatePercent: data.ppnRatePercent ?? 11,
         midtransServerKey: data.midtransServerKey ?? null,
+        midtransClientKey: data.midtransClientKey ?? null,
         midtransIsProduction: data.midtransIsProduction ?? false,
         weeklyReportEmailEnabled: data.weeklyReportEmailEnabled ?? false,
         loyaltyPointsEnabled: data.loyaltyPointsEnabled ?? true,
@@ -317,6 +343,18 @@ export class SettingsService {
     const existing = await this.prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } });
     const current = mergeStorefrontSettings(existing?.storefrontSettings, tenant.name);
     const merged = mergeStorefrontSettings({ ...current, ...dto }, tenant.name);
+    const midtransView = this.buildMidtransView(existing);
+    const paymentValidation = validateStorefrontPaymentSettings(
+      merged,
+      midtransView.serverKeyConfigured,
+    );
+    if (paymentValidation.errors.length > 0) {
+      throw new UnprocessableEntityException({
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: paymentValidation.errors[0],
+        details: paymentValidation.errors.map((message) => ({ field: 'payment', message })),
+      });
+    }
 
     await this.prisma.tenantSettings.upsert({
       where: { tenantId: user.tenantId },
@@ -337,6 +375,7 @@ export class SettingsService {
       ppnEnabled: boolean;
       ppnRatePercent: { toString(): string };
       midtransServerKey: string | null;
+      midtransClientKey?: string | null;
       midtransIsProduction: boolean;
       weeklyReportEmailEnabled?: boolean;
       loyaltyPointsEnabled?: boolean;
@@ -347,30 +386,7 @@ export class SettingsService {
       defaultCreditTermsDays?: number;
     } | null,
   ): TenantSettingsView {
-    const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
-    const tenantKey = row?.midtransServerKey?.trim();
-    const effectiveKey = tenantKey || envKey || null;
-    const keySource: MidtransConfigView['keySource'] = tenantKey
-      ? 'tenant'
-      : envKey
-        ? 'env'
-        : 'none';
-
-    const isProduction =
-      row?.midtransIsProduction ?? this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
-
-    const mode = this.midtrans.resolvePaymentMode({
-      serverKey: effectiveKey,
-      isProduction,
-    });
-
-    const warnings: string[] = [];
-    if (isProduction && !effectiveKey) {
-      warnings.push('Mode produksi aktif tanpa server key — checkout online fallback mock.');
-    }
-    if (isProduction && effectiveKey && keySource === 'env') {
-      warnings.push('Live memakai kunci dari env — pertimbangkan simpan per tenant di dashboard.');
-    }
+    const midtrans = this.buildMidtransView(row);
 
     return {
       ppnEnabled: row?.ppnEnabled ?? false,
@@ -382,18 +398,69 @@ export class SettingsService {
       loyaltyRedeemValueIdr: row?.loyaltyRedeemValueIdr ?? 1_000,
       loyaltyRedeemMaxPercent: row?.loyaltyRedeemMaxPercent ?? 50,
       defaultCreditTermsDays: row?.defaultCreditTermsDays ?? 30,
-      midtrans: {
-        mode,
-        isProduction,
-        serverKeyConfigured: Boolean(effectiveKey),
-        serverKeyMasked: maskServerKey(effectiveKey),
-        keySource,
-        webhookPath: '/api/v1/webhooks/midtrans/online',
-        productionGuardrails: {
-          liveRequiresServerKey: true,
-          webhookStrictInProduction: isProduction,
-          warnings,
-        },
+      midtrans,
+    };
+  }
+
+  private buildMidtransView(
+    row: {
+      midtransServerKey: string | null;
+      midtransClientKey?: string | null;
+      midtransIsProduction: boolean;
+    } | null,
+  ): MidtransConfigView {
+    const envKey = this.config.get<string>('MIDTRANS_SERVER_KEY')?.trim();
+    const tenantKey = row?.midtransServerKey?.trim();
+    const effectiveKey = tenantKey || envKey || null;
+    const tenantClientKey = row?.midtransClientKey?.trim() || null;
+    const keySource: MidtransConfigView['keySource'] = tenantKey
+      ? 'tenant'
+      : envKey
+        ? 'env'
+        : 'none';
+
+    let isProduction =
+      row?.midtransIsProduction ?? this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
+    if (effectiveKey && isMidtransSandboxKey(effectiveKey)) {
+      isProduction = false;
+    }
+
+    const mode = this.midtrans.resolvePaymentMode({
+      serverKey: effectiveKey,
+      isProduction,
+    });
+
+    const webhookPath = '/api/v1/webhooks/midtrans/online';
+    const apiPublicBase =
+      this.config.get<string>('API_PUBLIC_BASE_URL')?.replace(/\/$/, '') ??
+      this.config.get<string>('NEXT_PUBLIC_API_URL')?.replace(/\/$/, '') ??
+      `http://localhost:${this.config.get<string>('PORT') ?? '3000'}`;
+
+    const warnings: string[] = [];
+    if (isProduction && !effectiveKey) {
+      warnings.push('Mode produksi aktif tanpa server key — checkout online fallback mock.');
+    }
+    if (isProduction && effectiveKey && keySource === 'env') {
+      warnings.push('Live memakai kunci dari env — pertimbangkan simpan per tenant di dashboard.');
+    }
+    if (effectiveKey && isMidtransSandboxKey(effectiveKey) && row?.midtransIsProduction) {
+      warnings.push('Server key sandbox terdeteksi — mode otomatis dianggap sandbox.');
+    }
+
+    return {
+      mode,
+      isProduction,
+      serverKeyConfigured: Boolean(effectiveKey),
+      serverKeyMasked: maskServerKey(effectiveKey),
+      clientKeyConfigured: Boolean(tenantClientKey),
+      clientKeyMasked: maskServerKey(tenantClientKey),
+      keySource,
+      webhookPath,
+      webhookUrl: `${apiPublicBase}${webhookPath}`,
+      productionGuardrails: {
+        liveRequiresServerKey: true,
+        webhookStrictInProduction: isProduction,
+        warnings,
       },
     };
   }

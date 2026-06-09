@@ -9,8 +9,11 @@ export interface MidtransConfigView {
   isProduction: boolean;
   serverKeyConfigured: boolean;
   serverKeyMasked: string | null;
+  clientKeyConfigured: boolean;
+  clientKeyMasked: string | null;
   keySource: 'env' | 'tenant' | 'none';
   webhookPath: string;
+  webhookUrl: string;
   productionGuardrails?: {
     liveRequiresServerKey: boolean;
     webhookStrictInProduction: boolean;
@@ -52,6 +55,7 @@ export async function updateTenantSettings(input: {
   ppnEnabled?: boolean;
   ppnRatePercent?: number;
   midtransServerKey?: string;
+  midtransClientKey?: string;
   midtransIsProduction?: boolean;
   weeklyReportEmailEnabled?: boolean;
   loyaltyPointsEnabled?: boolean;
@@ -61,6 +65,7 @@ export async function updateTenantSettings(input: {
   loyaltyRedeemMaxPercent?: number;
   defaultCreditTermsDays?: number;
   clearMidtransServerKey?: boolean;
+  clearMidtransClientKey?: boolean;
 }): Promise<TenantSettingsView> {
   const res = await authFetch(`${SETTINGS_BASE}/tenant`, {
     method: 'PATCH',
@@ -78,6 +83,22 @@ export function midtransModeLabel(mode: MidtransMode): string {
   if (mode === 'mock') return 'Mock (tanpa gateway)';
   if (mode === 'sandbox') return 'Sandbox Midtrans';
   return 'Live Midtrans';
+}
+
+export function midtransStatusLabel(midtrans: MidtransConfigView): {
+  label: string;
+  variant: 'success' | 'warning' | 'info' | 'neutral';
+} {
+  if (!midtrans.serverKeyConfigured) {
+    return { label: 'Belum dikonfigurasi', variant: 'warning' };
+  }
+  if (midtrans.mode === 'sandbox') {
+    return { label: 'Sandbox', variant: 'info' };
+  }
+  if (midtrans.mode === 'live') {
+    return { label: 'Production', variant: 'success' };
+  }
+  return { label: 'Terhubung (mock)', variant: 'neutral' };
 }
 
 export async function testMidtransConnection(): Promise<{

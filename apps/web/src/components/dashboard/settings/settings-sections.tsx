@@ -518,7 +518,9 @@ export function PembayaranSection({
                 </span>
               </SettingsFieldRow>
               <SettingsFieldRow label="Webhook URL">
-                <span style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>{settings.midtrans.webhookPath}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+                  {settings.midtrans.webhookUrl ?? settings.midtrans.webhookPath}
+                </span>
               </SettingsFieldRow>
             </SettingsFieldGrid>
 

@@ -62,6 +62,7 @@ model TenantSettings {
   ppnEnabled           Boolean  @default(false) @map("ppn_enabled")
   ppnRatePercent       Decimal  @default(11) @map("ppn_rate_percent") @db.Decimal(5, 2)
   midtransServerKey           String?  @map("midtrans_server_key")
+  midtransClientKey           String?  @map("midtrans_client_key")
   midtransIsProduction        Boolean  @default(false) @map("midtrans_is_production")
   weeklyReportEmailEnabled    Boolean  @default(false) @map("weekly_report_email_enabled")
   loyaltyPointsEnabled        Boolean  @default(true) @map("loyalty_points_enabled")

@@ -29,6 +29,11 @@ export class UpdateTenantSettingsDto {
   midtransServerKey?: string;
 
   @IsOptional()
+  @IsString({ message: 'Client Key Midtrans harus teks' })
+  @MaxLength(256, { message: 'Client Key terlalu panjang' })
+  midtransClientKey?: string;
+
+  @IsOptional()
   @IsBoolean({ message: 'Mode produksi Midtrans harus boolean' })
   midtransIsProduction?: boolean;
 
@@ -39,6 +44,10 @@ export class UpdateTenantSettingsDto {
   @IsOptional()
   @IsBoolean()
   clearMidtransServerKey?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  clearMidtransClientKey?: boolean;
 
   @IsOptional()
   @IsBoolean({ message: 'Loyalty enabled harus boolean' })

@@ -9,6 +9,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import type { StorefrontSortOption } from '@barokah/shared';
@@ -80,6 +81,7 @@ class StorefrontBranchesDto {
   deliveryEnabled?: boolean;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -115,6 +117,10 @@ class StorefrontCheckoutDto {
   @IsOptional()
   @IsBoolean()
   requireAddress?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  requireCustomerLogin?: boolean;
 }
 
 class StorefrontPaymentDto {

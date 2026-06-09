@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
 import { MidtransService } from '../online-orders/midtrans.service';
 import { maskServerKey, SettingsService } from './settings.service';
 
@@ -267,26 +267,113 @@ test('SettingsService: getStorefrontSettings merges defaults', async () => {
   assert.equal(view.storefrontUrl, '/store/barokah-bangunan');
   assert.equal(view.settings.enabled, true);
   assert.equal(view.settings.appearance.heroTitle, 'Barokah Toko Bangunan');
+  assert.ok(view.midtrans.webhookUrl.includes('/api/v1/webhooks/midtrans/online'));
 });
 
-test('SettingsService: getStorefrontSettings merges defaults', async () => {
+test('SettingsService: updateStorefrontSettings rejects COD without delivery', async () => {
   const prisma = {
     tenant: {
       findFirst: async () => ({ name: 'Barokah Toko Bangunan', slug: 'barokah-bangunan' }),
     },
     tenantSettings: {
-      findUnique: async () => null,
+      findUnique: async () => ({
+        storefrontSettings: null,
+        midtransServerKey: 'SB-Mid-server-test',
+        midtransClientKey: null,
+        midtransIsProduction: false,
+      }),
+      upsert: async () => {
+        throw new Error('should not upsert invalid payment settings');
+      },
     },
   };
   const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
-  const view = await service.getStorefrontSettings({
+  await assert.rejects(
+    () =>
+      service.updateStorefrontSettings(
+        {
+          sub: 'u1',
+          email: 'owner@barokah.local',
+          tenantId: 't1',
+          role: 'OWNER',
+          outletIds: ['o1'],
+        },
+        {
+          branches: { deliveryEnabled: false },
+          payment: { codEnabled: true },
+        },
+      ),
+    UnprocessableEntityException,
+  );
+});
+
+test('SettingsService: updateStorefrontSettings persists payment toggles', async () => {
+  let savedSettings: Record<string, unknown> | null = null;
+  const prisma = {
+    tenant: {
+      findFirst: async () => ({ name: 'Barokah Toko Bangunan', slug: 'barokah-bangunan' }),
+    },
+    tenantSettings: {
+      findUnique: async () => ({
+        storefrontSettings: savedSettings,
+        midtransServerKey: 'SB-Mid-server-test',
+        midtransClientKey: 'SB-Mid-client-test',
+        midtransIsProduction: false,
+        ppnEnabled: false,
+        ppnRatePercent: { toString: () => '11' },
+      }),
+      upsert: async (args: { update: { storefrontSettings: Record<string, unknown> } }) => {
+        savedSettings = args.update.storefrontSettings;
+        return {};
+      },
+    },
+  };
+  const service = new SettingsService(
+    prisma as never,
+    createConfig() as never,
+    createMidtrans(createConfig('SB-Mid-server-test')) as never,
+  );
+  const view = await service.updateStorefrontSettings(
+    {
+      sub: 'u1',
+      email: 'owner@barokah.local',
+      tenantId: 't1',
+      role: 'OWNER',
+      outletIds: ['o1'],
+    },
+    {
+      payment: { onlinePaymentEnabled: false, codEnabled: true },
+      checkout: { paymentInstructions: 'Bayar via transfer bank.' },
+    },
+  );
+  assert.equal(view.settings.payment.onlinePaymentEnabled, false);
+  assert.equal(view.settings.payment.codEnabled, true);
+  assert.equal(view.settings.checkout.paymentInstructions, 'Bayar via transfer bank.');
+  assert.equal((savedSettings as { payment?: { codEnabled?: boolean } } | null)?.payment?.codEnabled, true);
+});
+
+test('SettingsService: sandbox server key forces non-production mode in view', async () => {
+  const prisma = {
+    tenantSettings: {
+      findUnique: async () => ({
+        ppnEnabled: false,
+        ppnRatePercent: { toString: () => '11' },
+        midtransServerKey: 'SB-Mid-server-test',
+        midtransClientKey: 'SB-Mid-client-test',
+        midtransIsProduction: true,
+      }),
+    },
+  };
+  const service = new SettingsService(prisma as never, createConfig() as never, createMidtrans() as never);
+  const view = await service.getTenantSettings({
     sub: 'u1',
-    email: 'owner@barokah.local',
+    email: 'a@b.c',
     tenantId: 't1',
     role: 'OWNER',
     outletIds: ['o1'],
   });
-  assert.equal(view.storefrontUrl, '/store/barokah-bangunan');
-  assert.equal(view.settings.enabled, true);
-  assert.equal(view.settings.appearance.heroTitle, 'Barokah Toko Bangunan');
+  assert.equal(view.midtrans.mode, 'sandbox');
+  assert.equal(view.midtrans.isProduction, false);
+  assert.equal(view.midtrans.clientKeyConfigured, true);
+  assert.ok(view.midtrans.webhookUrl.includes('/api/v1/webhooks/midtrans/online'));
 });

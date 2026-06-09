@@ -222,7 +222,7 @@ export default function StoreAccountPage() {
             padding: '0.75rem',
             borderRadius: 8,
             background: colors.primary[50],
-            color: colors.primary[800],
+            color: colors.primary[700],
             fontSize: '0.875rem',
           }}
         >
@@ -287,7 +287,7 @@ export default function StoreAccountPage() {
                 fontWeight: 600,
                 padding: '6px 12px',
                 borderRadius: 8,
-                border: `1px solid ${colors.primary[300]}`,
+                border: `1px solid ${colors.primary[600]}`,
                 background: colors.light.bg.base,
                 color: colors.primary[700],
                 cursor: 'pointer',
